@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
           city: targetTribe.city,
           mana: targetTribe.mana,
         },
-        members: members?.map(m => (m.players as { username: string; race: string; city: number; power_total: number })) ?? [],
+        members: members?.map(m => (m.players as unknown as { username: string; race: string; city: number; power_total: number })) ?? [],
         mana_remaining: tribe.mana - spellCfg.manaCost,
       },
     })

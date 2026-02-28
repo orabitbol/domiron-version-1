@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
-    const updates: Promise<unknown>[] = [
+    const updates: PromiseLike<unknown>[] = [
       supabase.from('resources').update({ ...resourceUpdate, updated_at: now }).eq('player_id', playerId),
       supabase.from('development').update({ [field]: currentLevel + 1, updated_at: now }).eq('player_id', playerId),
     ]

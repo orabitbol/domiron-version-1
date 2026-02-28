@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
     }
 
-    const cfg = BALANCE.training.units[unit]
-    const totalGoldCost = cfg.goldCost * amount
+    const cfg = BALANCE.training.unitCost[unit as keyof typeof BALANCE.training.unitCost]
+    const totalGoldCost = cfg.gold * amount
 
     if (resources.gold < totalGoldCost) {
       return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     // Cavalry requires soldiers (1 cavalry per soldierRatio soldiers)
     if (unit === 'cavalry') {
-      const cavCfg = cfg as { goldCost: number; capacityCost: number; soldierRatio: number }
+      const cavCfg = cfg as { gold: number; capacityCost: number; soldierRatio: number }
       const requiredSoldiers = amount * cavCfg.soldierRatio
       if (army.soldiers < requiredSoldiers) {
         return NextResponse.json({

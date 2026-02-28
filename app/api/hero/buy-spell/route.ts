@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Spell already purchased' }, { status: 409 })
     }
 
-    // Spell costs: use hero mana
-    const spellConfig = spell_key === 'soldier_shield'
-      ? BALANCE.hero.shields.soldierShield
-      : BALANCE.hero.shields.resourceShield
+    // Mana cost uses canonical flat config keys
+    const manaCost = spell_key === 'soldier_shield'
+      ? BALANCE.hero.SOLDIER_SHIELD_MANA
+      : BALANCE.hero.RESOURCE_SHIELD_MANA
 
     const { data: hero } = await supabase
       .from('hero')
@@ -52,16 +52,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Hero not found' }, { status: 404 })
     }
 
-    if (hero.mana < spellConfig.manaCost) {
+    if (hero.mana < manaCost) {
       return NextResponse.json({
-        error: `Not enough mana (need ${spellConfig.manaCost}, have ${hero.mana})`,
+        error: `Not enough mana (need ${manaCost}, have ${hero.mana})`,
       }, { status: 400 })
     }
 
     const now = new Date().toISOString()
 
     await Promise.all([
-      supabase.from('hero').update({ mana: hero.mana - spellConfig.manaCost, updated_at: now }).eq('player_id', playerId),
+      supabase.from('hero').update({ mana: hero.mana - manaCost, updated_at: now }).eq('player_id', playerId),
       supabase.from('hero_spells').insert({ player_id: playerId, spell_key }),
     ])
 

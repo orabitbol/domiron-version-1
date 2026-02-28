@@ -5,10 +5,13 @@ import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import {
-  calculateAttackPower,
-  calculateDefensePower,
+  calculatePersonalPower,
   resolveCombat,
+  isKillCooldownActive,
+  isNewPlayerProtected,
 } from '@/lib/game/combat'
+import type { ClanContext } from '@/lib/game/combat'
+import { getActiveHeroEffects, clampBonus } from '@/lib/game/hero-effects'
 import { recalculatePower } from '@/lib/game/power'
 
 const attackSchema = z.object({
@@ -45,6 +48,7 @@ export async function POST(request: NextRequest) {
       { data: attTraining },
       { data: attDev },
       { data: attResources },
+      { data: attTribeMember },
     ] = await Promise.all([
       supabase.from('players').select('*').eq('id', playerId).single(),
       supabase.from('army').select('*').eq('player_id', playerId).single(),
@@ -52,6 +56,7 @@ export async function POST(request: NextRequest) {
       supabase.from('training').select('*').eq('player_id', playerId).single(),
       supabase.from('development').select('*').eq('player_id', playerId).single(),
       supabase.from('resources').select('*').eq('player_id', playerId).single(),
+      supabase.from('tribe_members').select('tribe_id').eq('player_id', playerId).maybeSingle(),
     ])
 
     if (!attPlayer || !attArmy || !attWeapons || !attTraining || !attDev || !attResources) {
@@ -86,155 +91,157 @@ export async function POST(request: NextRequest) {
       supabase.from('training').select('*').eq('player_id', defender_id).single(),
       supabase.from('development').select('*').eq('player_id', defender_id).single(),
       supabase.from('resources').select('*').eq('player_id', defender_id).single(),
-      supabase.from('tribe_members').select('tribe_id').eq('player_id', defender_id).single(),
+      supabase.from('tribe_members').select('tribe_id').eq('player_id', defender_id).maybeSingle(),
     ])
 
     if (!defPlayer || !defArmy || !defWeapons || !defTraining || !defDev || !defResources) {
       return NextResponse.json({ error: 'Defender not found' }, { status: 404 })
     }
 
-    // Count today's attacks by this attacker on this defender (for no-damage mode)
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const { count: attacksToday } = await supabase
-      .from('attacks')
-      .select('*', { count: 'exact', head: true })
-      .eq('attacker_id', playerId)
-      .eq('defender_id', defender_id)
-      .gte('created_at', todayStart.toISOString())
+    const now = new Date()
 
-    const isNoDamageMode = (attacksToday ?? 0) >= BALANCE.combat.maxDamageAttacksPerDay
+    // Fetch tribe data for ClanContext (power_total + level)
+    const tribeIds = [attTribeMember?.tribe_id, defTribeMember?.tribe_id].filter(Boolean) as string[]
+    let attClanCtx: ClanContext | null = null
+    let defClanCtx: ClanContext | null = null
 
-    // Tribe defense bonus: 5% of each member's defense power (simplified: total * 5% * members)
-    let tribeDefenseBonus = 0
-    if (defTribeMember?.tribe_id) {
-      const { count: memberCount } = await supabase
-        .from('tribe_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('tribe_id', defTribeMember.tribe_id)
+    if (tribeIds.length > 0) {
+      const { data: tribes } = await supabase
+        .from('tribes')
+        .select('id, power_total, level')
+        .in('id', tribeIds)
 
-      // Check for active tribe_shield spell
-      const { data: tribeShield } = await supabase
-        .from('tribe_spells')
-        .select('id')
-        .eq('tribe_id', defTribeMember.tribe_id)
-        .eq('spell_key', 'tribe_shield')
-        .gt('expires_at', new Date().toISOString())
-        .single()
-
-      const defenseSpellBonus = tribeShield ? BALANCE.tribe.spells.tribe_shield.defenseBonus : 0
-      tribeDefenseBonus = Math.floor(
-        defPlayer.power_defense *
-          (BALANCE.tribe.defenseContributionPercent * (memberCount ?? 0) + defenseSpellBonus)
-      )
+      if (tribes) {
+        const attTribe = attTribeMember?.tribe_id ? tribes.find((t) => t.id === attTribeMember.tribe_id) : null
+        const defTribe = defTribeMember?.tribe_id ? tribes.find((t) => t.id === defTribeMember.tribe_id) : null
+        if (attTribe) attClanCtx = { totalClanPP: attTribe.power_total, developmentLevel: attTribe.level }
+        if (defTribe) defClanCtx = { totalClanPP: defTribe.power_total, developmentLevel: defTribe.level }
+      }
     }
 
-    // Calculate powers
-    const atkPower = calculateAttackPower(
-      { army: attArmy as never, weapons: attWeapons as never, training: attTraining as never, development: attDev as never, player: attPlayer as never },
-      turnsUsed
-    )
-    const defPower = calculateDefensePower(
-      { army: defArmy as never, weapons: defWeapons as never, training: defTraining as never, development: defDev as never, player: defPlayer as never, tribeDefenseBonus }
-    )
+    // Kill cooldown window and loot decay window
+    const killCooldownStart  = new Date(now.getTime() - BALANCE.combat.KILL_COOLDOWN_HOURS * 3_600_000)
+    const decayWindowStart   = new Date(now.getTime() - BALANCE.antiFarm.DECAY_WINDOW_HOURS * 3_600_000)
 
-    // Resolve combat
-    const result = resolveCombat(
-      atkPower,
-      defPower,
-      attArmy as never,
-      defArmy as never,
-      { gold: defResources.gold, iron: defResources.iron, wood: defResources.wood, food: defResources.food },
-      isNoDamageMode
-    )
+    const [
+      { count: killCount },
+      { count: attacksInWindow },
+      attHero,
+      defHero,
+    ] = await Promise.all([
+      supabase
+        .from('attacks')
+        .select('*', { count: 'exact', head: true })
+        .eq('attacker_id', playerId)
+        .eq('defender_id', defender_id)
+        .gt('defender_losses', 0)
+        .gte('created_at', killCooldownStart.toISOString()),
+      supabase
+        .from('attacks')
+        .select('*', { count: 'exact', head: true })
+        .eq('attacker_id', playerId)
+        .eq('defender_id', defender_id)
+        .gte('created_at', decayWindowStart.toISOString()),
+      getActiveHeroEffects(supabase, playerId),
+      getActiveHeroEffects(supabase, defender_id),
+    ])
 
-    // Ensure stolen resources don't exceed what defender has
-    const goldStolen = Math.min(result.goldStolen, defResources.gold)
-    const ironStolen = Math.min(result.ironStolen, defResources.iron)
-    const woodStolen = Math.min(result.woodStolen, defResources.wood)
-    const foodStolen = Math.min(result.foodStolen, defResources.food)
+    const killCooldown      = (killCount ?? 0) > 0
+    const attackerProtected = isNewPlayerProtected(new Date(attPlayer.created_at), now)
+    const defenderProtected = isNewPlayerProtected(new Date(defPlayer.created_at), now)
 
-    // Ensure defender soldiers don't go below 0
-    const totalDefenderLost = result.defenderLosses + result.slavesTaken
-    const safeDefenderLosses = Math.min(result.defenderLosses, defArmy.soldiers)
-    const safeSlavesTaken = Math.min(result.slavesTaken, Math.max(0, defArmy.soldiers - safeDefenderLosses))
+    // PersonalPower — computed fresh from stored stat rows
+    const attackerPP = calculatePersonalPower({
+      army:        attArmy,
+      weapons:     attWeapons,
+      training:    attTraining,
+      development: attDev,
+    })
+    const defenderPP = calculatePersonalPower({
+      army:        defArmy,
+      weapons:     defWeapons,
+      training:    defTraining,
+      development: defDev,
+    })
 
-    // Attacker loses soldiers, gains slaves + resources; loses food and turns
+    // Resolve full combat
+    const result = resolveCombat({
+      attackerPP,
+      defenderPP,
+      deployedSoldiers:    attArmy.soldiers,
+      defenderSoldiers:    defArmy.soldiers,
+      attackerClan:        attClanCtx,
+      defenderClan:        defClanCtx,
+      defenderUnbanked:    { gold: defResources.gold, iron: defResources.iron, wood: defResources.wood, food: defResources.food },
+      attackCountInWindow: (attacksInWindow ?? 0) + 1,
+      killCooldownActive:  killCooldown,
+      attackerIsProtected: attackerProtected,
+      defenderIsProtected: defenderProtected,
+      attackBonus:         clampBonus(attHero.totalAttackBonus),
+      defenseBonus:        clampBonus(defHero.totalDefenseBonus),
+      soldierShieldActive: defHero.soldierShieldActive,
+      resourceShieldActive: defHero.resourceShieldActive,
+    })
+
+    // Safety clamps — never steal more than defender has
+    const goldStolen = Math.min(result.loot.gold, defResources.gold)
+    const ironStolen = Math.min(result.loot.iron, defResources.iron)
+    const woodStolen = Math.min(result.loot.wood, defResources.wood)
+    const foodStolen = Math.min(result.loot.food, defResources.food)
+
+    // Safety clamps — never lose more soldiers than available
+    const safeDefLosses = Math.min(result.defenderLosses, defArmy.soldiers)
+    const safeSlaves    = Math.min(result.slavesCreated, Math.max(0, defArmy.soldiers - safeDefLosses))
+
+    // New resource values
     const newAttSoldiers = Math.max(0, attArmy.soldiers - result.attackerLosses)
-    const newAttSlaves = attArmy.slaves + safeSlavesTaken
-    const newAttGold = attResources.gold + goldStolen
-    const newAttIron = attResources.iron + ironStolen
-    const newAttWood = attResources.wood + woodStolen
-    const newAttFood = Math.max(0, attResources.food - foodCost + foodStolen)
-    const newAttTurns = attPlayer.turns - turnsUsed
+    const newAttSlaves   = attArmy.slaves + safeSlaves
+    const newAttGold     = attResources.gold + goldStolen
+    const newAttIron     = attResources.iron + ironStolen
+    const newAttWood     = attResources.wood + woodStolen
+    const newAttFood     = Math.max(0, attResources.food - foodCost + foodStolen)
+    const newAttTurns    = attPlayer.turns - turnsUsed
 
-    // Defender loses soldiers + resources
-    const newDefSoldiers = Math.max(0, defArmy.soldiers - safeDefenderLosses - safeSlavesTaken)
-    const newDefGold = Math.max(0, defResources.gold - goldStolen)
-    const newDefIron = Math.max(0, defResources.iron - ironStolen)
-    const newDefWood = Math.max(0, defResources.wood - woodStolen)
-    const newDefFood = Math.max(0, defResources.food - foodStolen)
+    const newDefSoldiers = Math.max(0, defArmy.soldiers - safeDefLosses - safeSlaves)
+    const newDefGold     = Math.max(0, defResources.gold - goldStolen)
+    const newDefIron     = Math.max(0, defResources.iron - ironStolen)
+    const newDefWood     = Math.max(0, defResources.wood - woodStolen)
+    const newDefFood     = Math.max(0, defResources.food - foodStolen)
 
-    // Get active season
-    const { data: season } = await supabase
-      .from('seasons')
-      .select('id')
-      .eq('is_active', true)
-      .single()
+    // Season ID
+    const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).single()
     const seasonId = season?.id ?? 1
 
-    const now = new Date().toISOString()
+    const nowIso = now.toISOString()
 
-    // Apply all changes in parallel
+    // Map 'partial' → 'draw' for DB constraint compatibility
+    const dbOutcome = result.outcome === 'partial' ? 'draw' : result.outcome
+
     await Promise.all([
-      // Update attacker
       supabase.from('players').update({ turns: newAttTurns }).eq('id', playerId),
-      supabase.from('army').update({
-        soldiers: newAttSoldiers,
-        slaves: newAttSlaves,
-        updated_at: now,
-      }).eq('player_id', playerId),
-      supabase.from('resources').update({
-        gold: newAttGold,
-        iron: newAttIron,
-        wood: newAttWood,
-        food: newAttFood,
-        updated_at: now,
-      }).eq('player_id', playerId),
-
-      // Update defender
-      supabase.from('army').update({
-        soldiers: newDefSoldiers,
-        updated_at: now,
-      }).eq('player_id', defender_id),
-      supabase.from('resources').update({
-        gold: newDefGold,
-        iron: newDefIron,
-        wood: newDefWood,
-        food: newDefFood,
-        updated_at: now,
-      }).eq('player_id', defender_id),
-
-      // Record attack
+      supabase.from('army').update({ soldiers: newAttSoldiers, slaves: newAttSlaves, updated_at: nowIso }).eq('player_id', playerId),
+      supabase.from('resources').update({ gold: newAttGold, iron: newAttIron, wood: newAttWood, food: newAttFood, updated_at: nowIso }).eq('player_id', playerId),
+      supabase.from('army').update({ soldiers: newDefSoldiers, updated_at: nowIso }).eq('player_id', defender_id),
+      supabase.from('resources').update({ gold: newDefGold, iron: newDefIron, wood: newDefWood, food: newDefFood, updated_at: nowIso }).eq('player_id', defender_id),
       supabase.from('attacks').insert({
-        attacker_id: playerId,
+        attacker_id:     playerId,
         defender_id,
-        turns_used: turnsUsed,
-        atk_power: atkPower,
-        def_power: defPower,
-        outcome: result.outcome,
+        turns_used:      turnsUsed,
+        atk_power:       result.attackerECP,
+        def_power:       result.defenderECP,
+        outcome:         dbOutcome,
         attacker_losses: result.attackerLosses,
-        defender_losses: safeDefenderLosses,
-        slaves_taken: safeSlavesTaken,
-        gold_stolen: goldStolen,
-        iron_stolen: ironStolen,
-        wood_stolen: woodStolen,
-        food_stolen: foodStolen,
-        season_id: seasonId,
+        defender_losses: safeDefLosses,
+        slaves_taken:    safeSlaves,
+        gold_stolen:     goldStolen,
+        iron_stolen:     ironStolen,
+        wood_stolen:     woodStolen,
+        food_stolen:     foodStolen,
+        season_id:       seasonId,
       }),
     ])
 
-    // Recalculate power for both sides (army counts changed after battle)
+    // Recalculate stored power for both sides (army counts changed)
     await Promise.all([
       recalculatePower(playerId, supabase),
       recalculatePower(defender_id, supabase),
@@ -242,16 +249,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       result: {
-        outcome: result.outcome,
-        atk_power: atkPower,
-        def_power: defPower,
+        outcome:         result.outcome,
+        ratio:           result.ratio,
+        attacker_ecp:    result.attackerECP,
+        defender_ecp:    result.defenderECP,
         attacker_losses: result.attackerLosses,
-        defender_losses: safeDefenderLosses,
-        slaves_taken: safeSlavesTaken,
-        gold_stolen: goldStolen,
-        iron_stolen: ironStolen,
-        wood_stolen: woodStolen,
-        food_stolen: foodStolen,
+        defender_losses: safeDefLosses,
+        slaves_created:  safeSlaves,
+        gold_stolen:     goldStolen,
+        iron_stolen:     ironStolen,
+        wood_stolen:     woodStolen,
+        food_stolen:     foodStolen,
       },
       turns: newAttTurns,
       resources: {

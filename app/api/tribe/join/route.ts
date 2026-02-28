@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('tribe_id', tribe_id)
 
-    if ((memberCount ?? 0) >= BALANCE.tribe.maxMembers) {
+    if ((memberCount ?? 0) >= BALANCE.clan.maxMembers) {
       return NextResponse.json({ error: 'Tribe is full' }, { status: 400 })
     }
 

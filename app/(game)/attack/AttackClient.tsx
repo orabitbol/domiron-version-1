@@ -20,6 +20,8 @@ interface Target {
   tribe_name: string | null
   soldiers: number
   is_vacation: boolean
+  resource_shield_active: boolean
+  soldier_shield_active: boolean
 }
 
 interface Props {
@@ -31,6 +33,7 @@ interface Props {
 const OUTCOME_COLORS: Record<string, string> = {
   crushing_win:  'text-game-green-bright',
   win:           'text-game-green-bright',
+  partial:       'text-game-gold-bright',
   draw:          'text-game-gold-bright',
   loss:          'text-game-red-bright',
   crushing_loss: 'text-game-red-bright',
@@ -39,9 +42,34 @@ const OUTCOME_COLORS: Record<string, string> = {
 const OUTCOME_LABELS: Record<string, string> = {
   crushing_win:  'Crushing Victory',
   win:           'Victory',
+  partial:       'Draw',
   draw:          'Draw',
   loss:          'Defeat',
   crushing_loss: 'Crushing Defeat',
+}
+
+/** Two small dots: resource shield (gold) + soldier shield (blue) */
+function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: boolean }) {
+  return (
+    <div className="flex gap-1.5 items-center">
+      <span
+        title="Resource Shield"
+        className={`inline-block w-2.5 h-2.5 rounded-full border ${
+          resource
+            ? 'bg-game-gold-bright border-game-gold-bright'
+            : 'bg-transparent border-game-border'
+        }`}
+      />
+      <span
+        title="Soldier Shield"
+        className={`inline-block w-2.5 h-2.5 rounded-full border ${
+          soldier
+            ? 'bg-blue-400 border-blue-400'
+            : 'bg-transparent border-game-border'
+        }`}
+      />
+    </div>
+  )
 }
 
 export function AttackClient({ player, targets, resources }: Props) {
@@ -143,6 +171,22 @@ export function AttackClient({ player, targets, resources }: Props) {
         onChange={(e) => setSearch(e.target.value)}
       />
 
+      {/* Shield legend */}
+      <div className="flex gap-4 text-game-xs font-body text-game-text-muted">
+        <span className="flex gap-1.5 items-center">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-game-gold-bright" />
+          Resource Shield
+        </span>
+        <span className="flex gap-1.5 items-center">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400" />
+          Soldier Shield
+        </span>
+        <span className="flex gap-1.5 items-center">
+          <span className="inline-block w-2.5 h-2.5 rounded-full border border-game-border" />
+          Inactive
+        </span>
+      </div>
+
       {/* Targets table */}
       {filtered.length === 0 ? (
         <EmptyState
@@ -151,7 +195,7 @@ export function AttackClient({ player, targets, resources }: Props) {
         />
       ) : (
         <GameTable
-          headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Turns', 'Food Cost', 'Action']}
+          headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Shields', 'Turns', 'Food Cost', 'Action']}
           striped
           hoverable
           rows={filtered.map((target) => {
@@ -180,6 +224,11 @@ export function AttackClient({ player, targets, resources }: Props) {
               <span key="soldiers" className="text-game-sm font-body tabular-nums">
                 {formatNumber(target.soldiers)}
               </span>,
+              <ShieldIndicators
+                key="shields"
+                resource={target.resource_shield_active}
+                soldier={target.soldier_shield_active}
+              />,
               <Input
                 key="turns"
                 type="number"
@@ -221,6 +270,13 @@ export function AttackClient({ player, targets, resources }: Props) {
                 <span className="text-game-text-white font-heading uppercase">{confirmTarget.army_name}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-game-text-secondary">Shields</span>
+                <ShieldIndicators
+                  resource={confirmTarget.resource_shield_active}
+                  soldier={confirmTarget.soldier_shield_active}
+                />
+              </div>
+              <div className="flex justify-between">
                 <span className="text-game-text-secondary">Turns</span>
                 <span className="text-game-text-white font-semibold">{getTargetTurns(confirmTarget.id)}</span>
               </div>
@@ -256,7 +312,7 @@ export function AttackClient({ player, targets, resources }: Props) {
         )}
       </Modal>
 
-      {/* Attack result modal */}
+      {/* Battle result modal */}
       <Modal
         isOpen={!!attackResult}
         onClose={() => setAttackResult(null)}
@@ -278,15 +334,15 @@ export function AttackClient({ player, targets, resources }: Props) {
             <div className="grid grid-cols-2 gap-3 text-game-sm font-body">
               <div className="bg-game-elevated border border-game-border rounded p-3">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">
-                  Your Power
+                  Your ECP
                 </p>
-                <p className="text-game-text-white font-semibold">{formatNumber(attackResult.atk_power)}</p>
+                <p className="text-game-text-white font-semibold">{formatNumber(attackResult.attacker_ecp)}</p>
               </div>
               <div className="bg-game-elevated border border-game-border rounded p-3">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">
-                  Enemy Power
+                  Enemy ECP
                 </p>
-                <p className="text-game-text-white font-semibold">{formatNumber(attackResult.def_power)}</p>
+                <p className="text-game-text-white font-semibold">{formatNumber(attackResult.defender_ecp)}</p>
               </div>
             </div>
 
@@ -299,10 +355,10 @@ export function AttackClient({ player, targets, resources }: Props) {
                 <span className="text-game-text-secondary">Enemy Losses</span>
                 <span className="text-game-green-bright font-semibold">{formatNumber(attackResult.defender_losses)}</span>
               </div>
-              {attackResult.slaves_taken > 0 && (
+              {attackResult.slaves_created > 0 && (
                 <div className="flex justify-between">
                   <span className="text-game-text-secondary">Slaves Taken</span>
-                  <span className="text-game-gold-bright font-semibold">{formatNumber(attackResult.slaves_taken)}</span>
+                  <span className="text-game-gold-bright font-semibold">{formatNumber(attackResult.slaves_created)}</span>
                 </div>
               )}
             </div>

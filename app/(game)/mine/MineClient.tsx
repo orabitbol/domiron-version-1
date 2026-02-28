@@ -36,7 +36,7 @@ export function MineClient({ player, army, resources }: Props) {
   const totalSlaves = army.slaves
   const totalFarmers = army.farmers
 
-  const cityMult = BALANCE.production.cityMultipliers[player.city as keyof typeof BALANCE.production.cityMultipliers]
+  const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city as keyof typeof BALANCE.cities.CITY_PRODUCTION_MULT] ?? 1
   const baseMin = BALANCE.production.baseMin
   const baseMax = BALANCE.production.baseMax
 
@@ -240,7 +240,7 @@ export function MineClient({ player, army, resources }: Props) {
             Production per tick = Units × random({baseMin}–{baseMax}) × City Multiplier (×{cityMult})
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
-            {Object.entries(BALANCE.production.cityMultipliers).map(([city, mult]) => (
+            {Object.entries(BALANCE.cities.CITY_PRODUCTION_MULT).map(([city, mult]) => (
               <div
                 key={city}
                 className={`text-center rounded px-2 py-1 border ${

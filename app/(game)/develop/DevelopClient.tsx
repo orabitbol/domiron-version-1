@@ -166,17 +166,20 @@ export function DevelopClient({ player, development, resources, army }: Props) {
     }
   }
 
-  const currentCity = BALANCE.cities[player.city as keyof typeof BALANCE.cities]
-  const nextCityKey = (player.city + 1) as keyof typeof BALANCE.cities
-  const nextCity = nextCityKey <= 5 ? BALANCE.cities[nextCityKey] : null
+  const currentCityName = BALANCE.cities.names[player.city] ?? `City ${player.city}`
+  const currentCityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city] ?? 1
+  const hasNextCity = player.city < BALANCE.cities.total
+  const nextCityNum  = player.city + 1
+  const nextCityReqs = hasNextCity ? BALANCE.cities.promotionRequirements[nextCityNum] : null
+  const nextCityName = hasNextCity ? (BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`) : null
 
   const totalResources = resources.gold + resources.iron + resources.wood + resources.food
-  const meetsResources = nextCity ? totalResources >= nextCity.requiredResources : false
-  const meetsSoldiers = nextCity ? army.soldiers >= nextCity.requiredSoldiers : false
-  const canMoveCity = meetsResources && meetsSoldiers && !!nextCity
+  const meetsResources = nextCityReqs ? totalResources >= (nextCityReqs.requiredResources ?? Infinity) : false
+  const meetsSoldiers  = nextCityReqs ? army.soldiers   >= (nextCityReqs.requiredSoldiers  ?? Infinity) : false
+  const canMoveCity    = meetsResources && meetsSoldiers && hasNextCity
 
   // Population per tick table
-  const popPerTickEntries = Object.entries(BALANCE.production.populationPerTick) as [string, number][]
+  const popPerTickEntries = Object.entries(BALANCE.training.populationPerTick) as [string, number][]
 
   return (
     <div className="space-y-6">
@@ -230,10 +233,10 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
             const prodMin = BALANCE.production.baseMin
             const prodMax = BALANCE.production.baseMax
-            const cityMult = BALANCE.production.cityMultipliers[player.city as keyof typeof BALANCE.production.cityMultipliers]
+            const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city] ?? 1
             const description =
               card.field === 'population_level'
-                ? `${card.description} Level ${currentLevel}: ${BALANCE.production.populationPerTick[currentLevel as keyof typeof BALANCE.production.populationPerTick] ?? '?'} pop/tick`
+                ? `${card.description} Level ${currentLevel}: ${BALANCE.training.populationPerTick[currentLevel] ?? '?'} pop/tick`
                 : `${card.description} Base: ${prodMin}–${prodMax} × City ×${cityMult}`
 
             return (
@@ -285,30 +288,30 @@ export function DevelopClient({ player, development, resources, army }: Props) {
           <div className="flex items-center gap-3">
             <Badge variant="gold">City {player.city}</Badge>
             <span className="font-heading text-game-base text-game-text-white uppercase">
-              {currentCity.name}
+              {currentCityName}
             </span>
             <span className="text-game-text-muted text-game-sm font-body">
-              ×{currentCity.multiplier} production
+              ×{currentCityMult} production
             </span>
           </div>
 
-          {nextCity ? (
+          {hasNextCity ? (
             <div className="border border-game-border rounded-lg p-4 space-y-3">
               <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-secondary">
-                Next: City {nextCityKey} — {nextCity.name}
+                Next: City {nextCityNum} — {nextCityName}
               </p>
               <div className="space-y-2 text-game-sm font-body">
                 <div className="flex items-center justify-between">
                   <span className="text-game-text-secondary">Soldiers required</span>
-                  <span className={army.soldiers >= nextCity.requiredSoldiers ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                    {formatNumber(army.soldiers)} / {formatNumber(nextCity.requiredSoldiers)}
+                  <span className={meetsSoldiers ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(army.soldiers)} / {nextCityReqs?.requiredSoldiers != null ? formatNumber(nextCityReqs.requiredSoldiers) : '—'}
                     {meetsSoldiers ? ' ✓' : ''}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-game-text-secondary">Total resources required</span>
                   <span className={meetsResources ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                    {formatNumber(totalResources)} / {formatNumber(nextCity.requiredResources)}
+                    {formatNumber(totalResources)} / {nextCityReqs?.requiredResources != null ? formatNumber(nextCityReqs.requiredResources) : '—'}
                     {meetsResources ? ' ✓' : ''}
                   </span>
                 </div>
@@ -319,12 +322,12 @@ export function DevelopClient({ player, development, resources, army }: Props) {
                 loading={loadingCity}
                 onClick={handleMoveCity}
               >
-                Move to {nextCity.name}
+                Move to {nextCityName}
               </Button>
             </div>
           ) : (
             <div className="text-game-sm text-game-text-muted font-body">
-              You are in the highest city — {currentCity.name}.
+              You are in the highest city — {currentCityName}.
             </div>
           )}
         </div>

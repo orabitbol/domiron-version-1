@@ -24,7 +24,9 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
   const [loading, setLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
-  const interestRate = bank.interest_level * BALANCE.bank.interestPerLevel * 100
+  // BANK_INTEREST_RATE_PER_LEVEL is [TUNE: unassigned] — display 0 until set
+  const ratePerLevel = BALANCE.bank.BANK_INTEREST_RATE_PER_LEVEL ?? 0
+  const interestRate = bank.interest_level * ratePerLevel * 100
   const maxDeposit = Math.floor(resources.gold * BALANCE.bank.maxDepositPercent)
   const upgradeLevel = bank.interest_level + 1
   const upgradeCost = BALANCE.bank.upgradeBaseCost * upgradeLevel
@@ -273,7 +275,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
               Upgrade Interest Rate
             </h2>
             <p className="text-game-sm text-game-text-secondary font-body mt-1">
-              Each level adds {(BALANCE.bank.interestPerLevel * 100).toFixed(3)}% interest per tick.
+              Each level adds {(ratePerLevel * 100).toFixed(3)}% interest per tick.
               Current: Level {bank.interest_level} ({interestRate.toFixed(3)}%/tick)
             </p>
             <div className="mt-2 flex items-center gap-2">

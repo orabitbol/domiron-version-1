@@ -1,4 +1,4 @@
-// GET /api/hero/shield — returns available shield options and costs
+// GET /api/hero/shield — returns canonical shield configuration (costs + timings)
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
@@ -10,9 +10,15 @@ export async function GET() {
 
   return NextResponse.json({
     data: {
-      shields: {
-        soldier_shield: BALANCE.hero.shields.soldierShield,
-        resource_shield: BALANCE.hero.shields.resourceShield,
+      soldier_shield: {
+        mana_cost:      BALANCE.hero.SOLDIER_SHIELD_MANA,
+        duration_hours: BALANCE.hero.SHIELD_ACTIVE_HOURS,
+        cooldown_hours: BALANCE.hero.SHIELD_COOLDOWN_HOURS,
+      },
+      resource_shield: {
+        mana_cost:      BALANCE.hero.RESOURCE_SHIELD_MANA,
+        duration_hours: BALANCE.hero.SHIELD_ACTIVE_HOURS,
+        cooldown_hours: BALANCE.hero.SHIELD_COOLDOWN_HOURS,
       },
     },
   })

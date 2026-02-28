@@ -106,12 +106,12 @@ export function TrainingClient({ player: initialPlayer, army: initialArmy, train
     }
   }
 
-  const advCost = BALANCE.training.advanced.costPerLevel
+  const advCost = BALANCE.training.advancedCost
 
   function canAffordUnit(unit: BasicUnit) {
     const amt = parseInt(amounts[unit] || '0')
     if (!amt) return false
-    const costGold = BALANCE.training.units[unit].goldCost * amt
+    const costGold = BALANCE.training.unitCost[unit as keyof typeof BALANCE.training.unitCost].gold * amt
     return resources.gold >= costGold
   }
 
@@ -207,9 +207,9 @@ export function TrainingClient({ player: initialPlayer, army: initialArmy, train
         </h2>
         <div className="space-y-4">
           {(['soldier', 'spy', 'scout', 'cavalry', 'farmer'] as BasicUnit[]).map((unit) => {
-            const cfg = BALANCE.training.units[unit]
+            const cfg = BALANCE.training.unitCost[unit as keyof typeof BALANCE.training.unitCost]
             const amt = parseInt(amounts[unit] || '0') || 0
-            const totalCost = cfg.goldCost * amt
+            const totalCost = cfg.gold * amt
             return (
               <div
                 key={unit}
@@ -223,12 +223,12 @@ export function TrainingClient({ player: initialPlayer, army: initialArmy, train
                     <span>
                       Cost:{' '}
                       <span className="text-res-gold font-semibold">
-                        {formatNumber(cfg.goldCost)} Gold
+                        {formatNumber(cfg.gold)} Gold
                       </span>
                       {' '}each
                     </span>
                     {unit === 'cavalry' && 'soldierRatio' in cfg && (
-                      <Badge variant="default">1 per {(cfg as { goldCost: number; capacityCost: number; soldierRatio: number }).soldierRatio} soldiers</Badge>
+                      <Badge variant="default">1 per {(cfg as { gold: number; capacityCost: number; soldierRatio: number }).soldierRatio} soldiers</Badge>
                     )}
                     {cfg.capacityCost > 0 && (
                       <span>Capacity: {cfg.capacityCost}</span>
@@ -276,14 +276,14 @@ export function TrainingClient({ player: initialPlayer, army: initialArmy, train
         <p className="text-game-sm text-game-text-muted font-body mb-4">
           Each level costs {formatNumber(advCost.gold)} Gold +{' '}
           {formatNumber(advCost.food)} Food × (current level + 1). Adds{' '}
-          {(BALANCE.training.advanced.multiplierPerLevel * 100).toFixed(0)}% power per level.
+          {(BALANCE.training.advancedMultiplierPerLevel * 100).toFixed(0)}% power per level.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {(['attack', 'defense', 'spy', 'scout'] as AdvancedType[]).map((type) => {
             const level = training[`${type}_level` as keyof Training] as number
             const nextLevelCostGold = advCost.gold * (level + 1)
             const nextLevelCostFood = advCost.food * (level + 1)
-            const multiplier = (1 + level * BALANCE.training.advanced.multiplierPerLevel).toFixed(2)
+            const multiplier = (1 + level * BALANCE.training.advancedMultiplierPerLevel).toFixed(2)
             return (
               <div
                 key={type}

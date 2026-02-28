@@ -153,11 +153,8 @@ export interface Bank {
   player_id: string
   balance: number
   interest_level: number
-  /**
-   * v5: lifetime deposit count. Max 5 total deposits per player account.
-   * DB migration required: ADD COLUMN total_deposits integer NOT NULL DEFAULT 0
-   */
-  total_deposits: number
+  deposits_today: number
+  last_deposit_reset: string
   updated_at: string
 }
 

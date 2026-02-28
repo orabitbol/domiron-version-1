@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const levelField = `${type}_level` as 'attack_level' | 'defense_level' | 'spy_level' | 'scout_level'
     const currentLevel = training[levelField]
-    const { costPerLevel } = BALANCE.training.advanced
+    const costPerLevel = BALANCE.training.advancedCost
 
     // Cost = base_cost * (current_level + 1) for each resource
     const goldCost = costPerLevel.gold * (currentLevel + 1)

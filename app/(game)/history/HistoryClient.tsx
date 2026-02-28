@@ -48,11 +48,9 @@ interface Props {
 }
 
 const OUTCOME_BADGE: Record<AttackOutcome, { label: string; variant: 'green' | 'gold' | 'red' }> = {
-  crushing_win:  { label: 'Crushing Win',  variant: 'green' },
-  win:           { label: 'Victory',       variant: 'green' },
-  draw:          { label: 'Draw',          variant: 'gold' },
-  loss:          { label: 'Defeat',        variant: 'red' },
-  crushing_loss: { label: 'Crushing Loss', variant: 'red' },
+  win:     { label: 'Victory', variant: 'green' },
+  partial: { label: 'Draw',    variant: 'gold' },
+  loss:    { label: 'Defeat',  variant: 'red' },
 }
 
 function formatDate(iso: string) {
@@ -192,11 +190,9 @@ export function HistoryClient({
               const stolen = totalStolen(row)
               // Reverse outcome badge for defender perspective
               const defOutcome: AttackOutcome =
-                row.outcome === 'crushing_win' ? 'crushing_loss'
-                : row.outcome === 'win' ? 'loss'
+                row.outcome === 'win'  ? 'loss'
                 : row.outcome === 'loss' ? 'win'
-                : row.outcome === 'crushing_loss' ? 'crushing_win'
-                : 'draw'
+                : 'partial'
               const defOutcomeBadge = OUTCOME_BADGE[defOutcome]
 
               return [

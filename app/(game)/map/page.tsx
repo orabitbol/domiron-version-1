@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { Map, AlertCircle } from 'lucide-react'
 import { BALANCE } from '@/lib/game/balance'
 
-const CITY_MULTIPLIERS: Record<number, number> = BALANCE.production.cityMultipliers as Record<number, number>
+const CITY_MULTIPLIERS: Record<number, number> = BALANCE.cities.CITY_PRODUCTION_MULT
 
 const CITIES = [
   {

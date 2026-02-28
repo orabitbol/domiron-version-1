@@ -73,6 +73,11 @@ export function calcHeroManaGain(heroLevel: number, vipUntil: string | null): nu
   return mana
 }
 
+// Tribe mana regen per tick
+export function calcTribeManaGain(memberCount: number): number {
+  return Math.max(1, Math.floor(memberCount * BALANCE.tribe.manaPerMemberPerTick))
+}
+
 // Bank interest: applied once per day (on tick when date changes)
 //
 // interest = floor(balance × BANK_INTEREST_RATE_BASE)

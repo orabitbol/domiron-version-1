@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       const res  = player.resources as unknown as { gold: number; iron: number; wood: number; food: number }
 
       // 1. Turns
-      const newTurns = calcTurnsToAdd(player.turns, player.max_turns, player.is_vacation)
+      const newTurns = calcTurnsToAdd(player.turns, player.is_vacation)
 
       // 2. Population growth
       const popGrowth = calcPopulationGrowth(dev.population_level, player.vip_until)

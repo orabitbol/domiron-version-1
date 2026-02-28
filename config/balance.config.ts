@@ -187,21 +187,13 @@ export const BALANCE = {
   // Hero NEVER multiplies ClanBonus.
   // ═══════════════════════════════════════
   hero: {
-    maxLevel:   100,
-    xpPerLevel: 100,
-
-    xpGains: {
-      weakOpponent:   10,
-      equalOpponent:  25,
-      strongOpponent: 50,
-      achievementMin: 100,
-      achievementMax: 500,
-    },
+    xpPerLevel: 100,  // [TUNE] XP needed per level (used by Hero page progress bar)
 
     manaPerTick: {
       base:         1,
       level10bonus: 1,
       level50bonus: 1,
+      vipBonus:     1,  // [TUNE]
     },
 
     // ── Hero Effect System ─────────────────────────────────────────────────
@@ -229,6 +221,10 @@ export const BALANCE = {
 
     SHIELD_ACTIVE_HOURS:   23,  // [FIXED] Duration of shield protection
     SHIELD_COOLDOWN_HOURS:  1,  // [FIXED] Vulnerability window before next shield can start
+
+    // Mana cost per shield type — flat keys, accessed as BALANCE.hero.SOLDIER_SHIELD_MANA
+    SOLDIER_SHIELD_MANA:  10,  // [TUNE]
+    RESOURCE_SHIELD_MANA: 10,  // [TUNE]
   },
 
   // ═══════════════════════════════════════
@@ -276,12 +272,18 @@ export const BALANCE = {
       loss:    0.0,
     } as const,
 
+    // Cavalry tier multiplier (Tier 2 relative to Tier 1)
+    cavalryMultiplier: 2, // [TUNE]
+
     // Attack cost
     MIN_TURNS_PER_ATTACK: 1,  // [FIXED]
     MAX_TURNS_PER_ATTACK: 10, // [FIXED]
 
     // food_cost = deployed_soldiers × FOOD_PER_SOLDIER
     FOOD_PER_SOLDIER: 1, // [TUNE]
+
+    // food gate cost per turn used (attack screen pre-check)
+    foodCostPerTurn: 1, // [TUNE]
 
     // Kill cooldown — per (attacker_id → target_id) pair
     KILL_COOLDOWN_HOURS: 6, // [FIXED]
@@ -318,6 +320,10 @@ export const BALANCE = {
     BANK_INTEREST_RATE_PER_LEVEL: undefined as unknown as number, // [TUNE: unassigned]
 
     upgradeBaseCost: 2_000, // [TUNE]
+
+    // Deposit limits
+    depositsPerDay:    5,   // [TUNE] Max deposits per calendar day (resets at midnight)
+    maxDepositPercent: 1.0, // [TUNE] Max fraction of gold on hand allowed per deposit
   },
 
   // ═══════════════════════════════════════
@@ -325,10 +331,12 @@ export const BALANCE = {
   // ═══════════════════════════════════════
   training: {
     unitCost: {
-      soldier: { gold: 60  }, // [TUNE]
-      slave:   { gold: 10  }, // [TUNE]
-      spy:     { gold: 80  }, // [TUNE]
-      scout:   { gold: 80  }, // [TUNE]
+      soldier:  { gold: 60,  capacityCost: 1              }, // [TUNE]
+      slave:    { gold: 10,  capacityCost: 0              }, // [TUNE]
+      spy:      { gold: 80,  capacityCost: 1              }, // [TUNE]
+      scout:    { gold: 80,  capacityCost: 1              }, // [TUNE]
+      cavalry:  { gold: 200, capacityCost: 2, soldierRatio: 5 }, // [TUNE]
+      farmer:   { gold: 20,  capacityCost: 0              }, // [TUNE]
     },
 
     populationPerTick: {
@@ -339,6 +347,38 @@ export const BALANCE = {
     advancedMultiplierPerLevel: 0.08,                    // [TUNE]
     advancedCost: { gold: 300, food: 300 },              // [TUNE]
     EXPONENTIAL_GROWTH_FLOOR:   10_000,                  // [TUNE]
+
+    // Capacity system: base + fortification levels × per-level bonus
+    baseCapacity:                 1_000, // [TUNE]
+    capacityPerDevelopmentLevel:    200, // [TUNE]
+  },
+
+  // ═══════════════════════════════════════
+  // TRIBE SPELLS & TAX
+  //
+  // Tribe spells are activated by the tribe leader and cost tribe mana.
+  // mass_spy is instant (durationHours: 0); all others are timed buffs.
+  // taxLimits caps the per-city maximum daily tax in gold.
+  // ═══════════════════════════════════════
+  tribe: {
+    spells: {
+      combat_boost:        { manaCost: 20, durationHours:  6 }, // [TUNE]
+      tribe_shield:        { manaCost: 30, durationHours: 12 }, // [TUNE]
+      production_blessing: { manaCost: 25, durationHours:  8 }, // [TUNE]
+      mass_spy:            { manaCost: 15, durationHours:  0 }, // [TUNE] instant
+      war_cry:             { manaCost: 40, durationHours:  4 }, // [TUNE]
+    } as Record<string, { manaCost: number; durationHours: number }>,
+
+    taxLimits: {
+      city1:  1_000, // [TUNE]
+      city2:  2_500, // [TUNE]
+      city3:  5_000, // [TUNE]
+      city4: 10_000, // [TUNE]
+      city5: 20_000, // [TUNE]
+    } as Record<string, number>,
+
+    // Tribe mana regeneration per tick, per member.
+    manaPerMemberPerTick: 1, // [TUNE] e.g. 5 members → 5 mana/tick
   },
 
   // ═══════════════════════════════════════
@@ -444,6 +484,16 @@ export const BALANCE = {
       4: 'Grandoria',
       5: 'Nerokvor',
     } as Record<number, string>,
+
+    // ── City promotion requirements [TUNE: unassigned] ────
+    // Requirements to move from city C-1 → C.
+    // City 1 is starting city; no promotion required to reach it.
+    promotionRequirements: {
+      2: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
+      3: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
+      4: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
+      5: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
+    } as Record<number, { requiredSoldiers: number; requiredResources: number }>,
   },
 
   // ═══════════════════════════════════════

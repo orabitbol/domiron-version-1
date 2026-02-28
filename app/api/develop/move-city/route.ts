@@ -27,26 +27,28 @@ export async function POST() {
       return NextResponse.json({ error: 'Already in the highest city' }, { status: 400 })
     }
 
-    const nextCityNum = (player.city + 1) as 1 | 2 | 3 | 4 | 5
-    const nextCity = BALANCE.cities[nextCityNum]
+    const nextCityNum  = player.city + 1
+    const nextCityReqs = BALANCE.cities.promotionRequirements[nextCityNum]
+    const nextCityName = BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`
 
     const totalResources = resources.gold + resources.iron + resources.wood + resources.food
 
-    if (army.soldiers < nextCity.requiredSoldiers) {
+    // If promotion requirements are tuned (not undefined), enforce them
+    if (nextCityReqs?.requiredSoldiers != null && army.soldiers < nextCityReqs.requiredSoldiers) {
       return NextResponse.json({
-        error: `Need ${nextCity.requiredSoldiers} soldiers (you have ${army.soldiers})`,
+        error: `Need ${nextCityReqs.requiredSoldiers} soldiers (you have ${army.soldiers})`,
       }, { status: 400 })
     }
 
-    if (totalResources < nextCity.requiredResources) {
+    if (nextCityReqs?.requiredResources != null && totalResources < nextCityReqs.requiredResources) {
       return NextResponse.json({
-        error: `Need ${nextCity.requiredResources} total resources (you have ${totalResources})`,
+        error: `Need ${nextCityReqs.requiredResources} total resources (you have ${totalResources})`,
       }, { status: 400 })
     }
 
     await supabase.from('players').update({ city: nextCityNum }).eq('id', playerId)
 
-    return NextResponse.json({ data: { city: nextCityNum, cityName: nextCity.name } })
+    return NextResponse.json({ data: { city: nextCityNum, cityName: nextCityName } })
   } catch (err) {
     console.error('Develop/move-city error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

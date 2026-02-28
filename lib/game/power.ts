@@ -8,8 +8,16 @@
  * Uses deterministic formulas (no random factor, no turn bonus) for stored values.
  */
 import { BALANCE } from '@/lib/game/balance'
-import { calcPowerTotal } from '@/lib/game/tick'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
+function calcPowerTotal(
+  powerAttack: number,
+  powerDefense: number,
+  powerSpy: number,
+  powerScout: number,
+): number {
+  return powerAttack + powerDefense + powerSpy + powerScout
+}
 
 // Spy weapon multipliers (owned = 1 / not owned = 0, stacks multiplicatively)
 const SPY_WEAPON_MULTIPLIERS = {
@@ -84,7 +92,7 @@ export async function recalculatePower(
     weapons.master_knife * atkWeapons.master_knife.power +
     weapons.knight_axe   * atkWeapons.knight_axe.power   +
     weapons.iron_ball    * atkWeapons.iron_ball.power
-  const attackTrainMult = 1 + training.attack_level * BALANCE.training.advanced.multiplierPerLevel
+  const attackTrainMult = 1 + training.attack_level * BALANCE.training.advancedMultiplierPerLevel
   const powerAttack = Math.floor(
     (baseAttackUnits + attackWeaponPower) * attackTrainMult * getRaceAttackMult(race)
   )
@@ -99,14 +107,14 @@ export async function recalculatePower(
   if (weapons.plate_armor   > 0) defWeaponMult *= defWeapons.plate_armor.multiplier
   if (weapons.mithril_armor > 0) defWeaponMult *= defWeapons.mithril_armor.multiplier
   if (weapons.gods_armor    > 0) defWeaponMult *= defWeapons.gods_armor.multiplier
-  const defenseTrainMult = 1 + training.defense_level * BALANCE.training.advanced.multiplierPerLevel
+  const defenseTrainMult = 1 + training.defense_level * BALANCE.training.advancedMultiplierPerLevel
   const fortMult = 1 + (development.fortification_level - 1) * 0.10
   const powerDefense = Math.floor(
     baseDefenseUnits * defWeaponMult * defenseTrainMult * fortMult * getRaceDefenseMult(race)
   )
 
   // ── Spy Power ───────────────────────────────────────────────────────────────
-  const spyTrainMult = 1 + training.spy_level * BALANCE.training.advanced.multiplierPerLevel
+  const spyTrainMult = 1 + training.spy_level * BALANCE.training.advancedMultiplierPerLevel
   let spyWeaponMult = 1.0
   if (weapons.shadow_cloak > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.shadow_cloak
   if (weapons.dark_mask    > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.dark_mask
@@ -116,7 +124,7 @@ export async function recalculatePower(
   )
 
   // ── Scout Power ─────────────────────────────────────────────────────────────
-  const scoutTrainMult = 1 + training.scout_level * BALANCE.training.advanced.multiplierPerLevel
+  const scoutTrainMult = 1 + training.scout_level * BALANCE.training.advancedMultiplierPerLevel
   let scoutWeaponMult = 1.0
   if (weapons.scout_boots  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.scout_boots
   if (weapons.scout_cloak  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.scout_cloak

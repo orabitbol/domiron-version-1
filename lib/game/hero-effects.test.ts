@@ -473,3 +473,134 @@ describe('loot decay — applies regardless of shield or protection state', () =
   })
 
 })
+
+// ─────────────────────────────────────────
+// 9. Expired shield — vulnerability window
+//    (ends_at passed, cooldown_ends_at not yet passed)
+// ─────────────────────────────────────────
+
+describe('isShieldActive + calcActiveHeroEffects — vulnerability window', () => {
+
+  // A shield that expired but is still in cooldown:
+  // ends_at = PAST (already expired), cooldown_ends_at = FUTURE (cooldown ongoing)
+  const cooldownOnlyEffect: PlayerHeroEffect = {
+    id:               'cooldown-id',
+    player_id:        'player-1',
+    type:             'RESOURCE_SHIELD',
+    starts_at:        PAST,
+    ends_at:          PAST,              // protection window is over
+    cooldown_ends_at: FUTURE,            // still in vulnerability window
+    metadata:         null,
+  }
+
+  it('isShieldActive returns false during vulnerability window', () => {
+    expect(isShieldActive([cooldownOnlyEffect], 'RESOURCE_SHIELD', NOW)).toBe(false)
+  })
+
+  it('calcActiveHeroEffects does NOT count shield during vulnerability window', () => {
+    const totals = calcActiveHeroEffects([cooldownOnlyEffect], NOW)
+    expect(totals.resourceShieldActive).toBe(false)
+  })
+
+  it('loot applies normally during defender vulnerability window', () => {
+    // Shield expired → resourceShieldActive = false → loot is non-zero on win
+    const result = resolveCombat(makeBaseInputs({
+      attackerPP:           100_000,
+      defenderPP:           1_000,
+      resourceShieldActive: false,   // simulates expired shield
+    }))
+    expect(result.outcome).toBe('win')
+    expect(result.loot.gold).toBeGreaterThan(0)
+  })
+
+  it('cooldown period only prevents re-activation, not further attacks', () => {
+    // The vulnerability window is a server-side activation gate — it does not
+    // affect combat resolution. A fresh active shield would block loot;
+    // the cooldown-only state does not.
+    const freshShield: PlayerHeroEffect = {
+      ...cooldownOnlyEffect,
+      ends_at: FUTURE,        // active shield
+    }
+    const totals = calcActiveHeroEffects([freshShield], NOW)
+    expect(totals.resourceShieldActive).toBe(true)
+  })
+
+})
+
+// ─────────────────────────────────────────
+// 10. DefenderECP = 0 edge case
+// ─────────────────────────────────────────
+
+describe('resolveCombat — defenderECP = 0 edge case', () => {
+
+  it('outcome is win when defenderPP = 0 (no clan, no defense bonus)', () => {
+    const result = resolveCombat(makeBaseInputs({ defenderPP: 0 }))
+    expect(result.outcome).toBe('win')
+    expect(result.defenderECP).toBe(0)
+  })
+
+  it('attacker still incurs losses even when defenderECP = 0 (ATTACKER_FLOOR applies)', () => {
+    const result = resolveCombat(makeBaseInputs({ defenderPP: 0 }))
+    // ATTACKER_FLOOR (0.03) means attacker loses ≥3% of deployed soldiers
+    expect(result.attackerLosses).toBeGreaterThan(0)
+  })
+
+  it('defender loses soldiers at MAX_LOSS_RATE when defenderECP = 0', () => {
+    const result = resolveCombat(makeBaseInputs({
+      defenderPP: 0,
+      deployedSoldiers: 1_000,
+      defenderSoldiers: 1_000,
+    }))
+    // Defender has zero ECP → ratio is essentially infinite → max losses
+    expect(result.defenderLosses).toBeGreaterThan(0)
+  })
+
+  it('loot is applied at win rate when defenderECP = 0', () => {
+    const result = resolveCombat(makeBaseInputs({
+      defenderPP:       0,
+      defenderUnbanked: { gold: 10_000, iron: 10_000, wood: 10_000, food: 10_000 },
+    }))
+    expect(result.outcome).toBe('win')
+    expect(result.loot.gold).toBeGreaterThan(0)
+  })
+
+})
+
+// ─────────────────────────────────────────
+// 11. JS Date vs DB ISO string — parsing consistency
+// ─────────────────────────────────────────
+
+describe('calcActiveHeroEffects — date string parsing consistency', () => {
+
+  it('effect with ends_at exactly equal to now is treated as EXPIRED (boundary: nowMs >= endsAtMs)', () => {
+    const exactNowIso = NOW.toISOString()
+    const effect: PlayerHeroEffect = { ...makeEffect('ATTACK_POWER_10'), ends_at: exactNowIso }
+    const totals = calcActiveHeroEffects([effect], NOW)
+    // nowMs >= new Date(exactNowIso).getTime() → expired
+    expect(totals.totalAttackBonus).toBe(0)
+  })
+
+  it('effect with ends_at 1 ms in the future is ACTIVE', () => {
+    const oneMsAhead = new Date(NOW.getTime() + 1).toISOString()
+    const effect: PlayerHeroEffect = { ...makeEffect('ATTACK_POWER_10'), ends_at: oneMsAhead }
+    const totals = calcActiveHeroEffects([effect], NOW)
+    expect(totals.totalAttackBonus).toBe(BALANCE.hero.EFFECT_RATES.ATTACK_POWER_10)
+  })
+
+  it('UTC ISO string is parsed without timezone skew', () => {
+    // Using an explicit UTC suffix to confirm no TZ conversion issues
+    const utcEndsAt = '2026-06-01T12:00:00.001Z'   // 1ms after NOW (which is 12:00:00.000Z)
+    const effect: PlayerHeroEffect = { ...makeEffect('DEFENSE_POWER_10'), ends_at: utcEndsAt }
+    const totals = calcActiveHeroEffects([effect], NOW)
+    expect(totals.totalDefenseBonus).toBe(BALANCE.hero.EFFECT_RATES.DEFENSE_POWER_10)
+  })
+
+  it('non-UTC ISO string (with offset) is also parsed correctly by JS Date', () => {
+    // JS Date constructor handles any ISO 8601 string — this confirms DB strings work
+    const withOffset = '2026-06-01T14:00:00.001+02:00'  // same instant as 12:00:00.001Z
+    const effect: PlayerHeroEffect = { ...makeEffect('SLAVE_OUTPUT_10'), ends_at: withOffset }
+    const totals = calcActiveHeroEffects([effect], NOW)
+    expect(totals.totalSlaveBonus).toBe(BALANCE.hero.EFFECT_RATES.SLAVE_OUTPUT_10)
+  })
+
+})
