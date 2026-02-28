@@ -19,7 +19,6 @@ import {
   calculatePersonalPower,
   calculateClanBonus,
   calculateECP,
-  clampHeroMultiplier,
   calculateCombatRatio,
   determineCombatOutcome,
   calculateSoldierLosses,
@@ -35,7 +34,6 @@ import {
 import type {
   PersonalPowerInputs,
   ClanContext,
-  HeroContext,
   UnbankedResources,
   CombatResolutionInputs,
 } from '@/lib/game/combat'
@@ -83,7 +81,6 @@ const BASE_INPUTS: PersonalPowerInputs = {
   development: EMPTY_DEVELOPMENT,
 }
 
-const NO_HERO: HeroContext = { multiplier: 1.0 }
 const NO_CLAN: null = null
 
 const UNBANKED_1000: UnbankedResources = { gold: 1000, iron: 1000, wood: 1000, food: 1000 }
@@ -251,66 +248,42 @@ describe('calculateClanBonus', () => {
     const playerPP = 10_000
     const clan: ClanContext = { totalClanPP: 5_000, developmentLevel: 1 }
     const bonus = calculateClanBonus(playerPP, clan)
-    const ecp   = calculateECP(playerPP, NO_HERO, clan)
-    // ECP = (PP × 1.0) + ClanBonus = PP + bonus
-    expect(ecp).toBe(Math.floor(playerPP * 1.0 + bonus))
+    const ecp   = calculateECP(playerPP, clan)   // no hero bonus → default 0
+    // ECP = (PP × (1 + 0)) + ClanBonus = PP + bonus
+    expect(ecp).toBe(Math.floor(playerPP + bonus))
   })
 
 })
 
 // ─────────────────────────────────────────
-// 3. HERO MULTIPLIER
+// 3. HERO EFFECT — ECP FORMULA
 // ─────────────────────────────────────────
 
-describe('clampHeroMultiplier', () => {
+describe('calculateECP — hero attack bonus does not multiply ClanBonus', () => {
 
-  // HERO_MAX_BONUS is currently [TUNE: unassigned].
-  // clampHeroMultiplier is a runtime guard — it throws until the value is configured.
-  // All calls to this function will throw until HERO_MAX_BONUS is set in balance.config.ts.
-
-  it('throws when HERO_MAX_BONUS is unassigned', () => {
-    expect(() => clampHeroMultiplier(1.0)).toThrow(
-      'BALANCE.hero.HERO_MAX_BONUS is not assigned'
-    )
-  })
-
-  it('throws for any multiplier input when HERO_MAX_BONUS is unassigned', () => {
-    expect(() => clampHeroMultiplier(9.99)).toThrow()
-    expect(() => clampHeroMultiplier(1.10)).toThrow()
-  })
-
-  // ── Re-enable once HERO_MAX_BONUS is assigned ────────────────────────────
-  // it('returns multiplier unchanged when within allowed range', () => {
-  //   expect(clampHeroMultiplier(1.10)).toBe(1.10)
-  // })
-  // it('clamps to 1 + HERO_MAX_BONUS when too high', () => {
-  //   const max = 1 + BALANCE.hero.HERO_MAX_BONUS
-  //   expect(clampHeroMultiplier(9.99)).toBe(max)
-  // })
-  // it('no-hero state: multiplier 1.0 passes through unchanged', () => {
-  //   expect(clampHeroMultiplier(1.0)).toBe(1.0)
-  // })
-
-})
-
-describe('calculateECP — hero does not multiply clan bonus', () => {
-
-  it('ECP = (PP × heroMult) + clanBonus, not (PP + clanBonus) × heroMult', () => {
-    const playerPP = 10_000
-    const heroMult = 1.30
-    const hero: HeroContext = { multiplier: heroMult }
+  it('ECP = (PP × (1 + heroBonus)) + clanBonus, not (PP + clanBonus) × (1 + heroBonus)', () => {
+    const playerPP  = 10_000
+    const heroBonus = 0.30
     const clan: ClanContext = { totalClanPP: 100_000, developmentLevel: 5 }
 
     const clanBonus = calculateClanBonus(playerPP, clan)
-    const ecp       = calculateECP(playerPP, hero, clan)
+    const ecp       = calculateECP(playerPP, clan, heroBonus)
 
     // Correct:   (10000 × 1.30) + clanBonus
-    const correct   = Math.floor((playerPP * heroMult) + clanBonus)
+    const correct   = Math.floor((playerPP * (1 + heroBonus)) + clanBonus)
     // Incorrect: (10000 + clanBonus) × 1.30
-    const incorrect = Math.floor((playerPP + clanBonus) * heroMult)
+    const incorrect = Math.floor((playerPP + clanBonus) * (1 + heroBonus))
 
     expect(ecp).toBe(correct)
     expect(ecp).not.toBe(incorrect)
+  })
+
+  it('no hero effect: ECP = PP + clanBonus (heroBonus = 0)', () => {
+    const playerPP = 10_000
+    const clan: ClanContext = { totalClanPP: 5_000, developmentLevel: 1 }
+    const bonus = calculateClanBonus(playerPP, clan)
+    const ecp   = calculateECP(playerPP, clan)
+    expect(ecp).toBe(Math.floor(playerPP * 1.0 + bonus))
   })
 
 })
@@ -702,8 +675,6 @@ describe('resolveCombat', () => {
       defenderPP:           5_000,
       deployedSoldiers:     1_000,
       defenderSoldiers:     1_000,
-      attackerHero:         NO_HERO,
-      defenderHero:         NO_HERO,
       attackerClan:         NO_CLAN,
       defenderClan:         NO_CLAN,
       defenderUnbanked:     UNBANKED_1000,
@@ -711,7 +682,7 @@ describe('resolveCombat', () => {
       killCooldownActive:   false,
       attackerIsProtected:  false,
       defenderIsProtected:  false,
-      // VIP boost defaults — zero means no boost active
+      // Hero effect defaults — zero means no active hero effects
       attackBonus:          0,
       defenseBonus:         0,
       soldierShieldActive:  false,
@@ -758,23 +729,21 @@ describe('resolveCombat', () => {
     expect(result.slavesCreated).toBe(0)
   })
 
-  it('attackerECP > defenderECP when attacker has large hero bonus', () => {
-    // HERO_MAX_BONUS is [TUNE: unassigned]; use a representative value for this integration test.
-    // Update this once HERO_MAX_BONUS is set in balance.config.ts.
+  it('attackerECP > defenderECP when attacker has max hero attack bonus', () => {
     const result = resolveCombat(makeBaseInputs({
-      attackerHero: { multiplier: 1.50 }, // representative: +50% hero bonus
+      attackBonus: BALANCE.hero.MAX_STACK_RATE,  // 0.50 = max hero attack bonus
     }))
     expect(result.attackerECP).toBeGreaterThan(result.defenderECP)
   })
 
-  it('attackerECP matches manual calculation: (PP × heroMult) + clanBonus', () => {
-    const pp   = 10_000
-    const hero: HeroContext = { multiplier: 1.20 }
+  it('attackerECP matches manual calculation: (PP × (1 + attackBonus)) + clanBonus', () => {
+    const pp          = 10_000
+    const attackBonus = 0.20
     const clan: ClanContext = { totalClanPP: 50_000, developmentLevel: 3 }
-    const result = resolveCombat(makeBaseInputs({ attackerPP: pp, attackerHero: hero, attackerClan: clan }))
+    const result = resolveCombat(makeBaseInputs({ attackerPP: pp, attackBonus, attackerClan: clan }))
 
     const manualClanBonus = calculateClanBonus(pp, clan)
-    const manualECP       = Math.floor((pp * 1.20) + manualClanBonus)
+    const manualECP       = Math.floor((pp * (1 + attackBonus)) + manualClanBonus)
     expect(result.attackerECP).toBe(manualECP)
   })
 

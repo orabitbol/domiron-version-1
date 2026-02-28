@@ -1,15 +1,15 @@
 /**
- * Domiron v5 — VIP Boost System Unit Tests
+ * Domiron v5 — Hero Effect System Unit Tests
  *
  * Tests:
  *   1. clampBonus
- *   2. calcActiveBoostTotals — slave stacking + 50% clamp
+ *   2. calcActiveHeroEffects — slave stacking + 50% clamp
  *   3. isShieldActive
  *   4. applyTurnsPack — 200 cap enforcement
  *   5. Combat integration: Resource Shield blocks loot
  *   6. Combat integration: Soldier Shield blocks defender losses
- *   7. Combat integration: Attack boost multiplies PP only (NOT ClanBonus)
- *   8. Combat integration: Attack boost does not affect defender ECP
+ *   7. Combat integration: Hero attack bonus multiplies PP only (NOT ClanBonus)
+ *   8. Combat integration: Loot decay applies regardless of shield state
  *
  * Run: npx vitest run
  */
@@ -18,40 +18,41 @@ import { describe, it, expect } from 'vitest'
 import { BALANCE } from '@/lib/game/balance'
 import {
   clampBonus,
-  calcActiveBoostTotals,
+  calcActiveHeroEffects,
   isShieldActive,
   applyTurnsPack,
-} from '@/lib/game/boosts'
+} from '@/lib/game/hero-effects'
 import {
   calculateClanBonus,
   calculateECP,
+  getLootDecayMultiplier,
   resolveCombat,
 } from '@/lib/game/combat'
-import type { PlayerBoost, ActiveBoostTotals } from '@/lib/game/boosts'
+import type { PlayerHeroEffect } from '@/lib/game/hero-effects'
 import type { ClanContext, CombatResolutionInputs } from '@/lib/game/combat'
 
 // ─────────────────────────────────────────
 // SHARED FIXTURES
 // ─────────────────────────────────────────
 
-const NOW  = new Date('2026-06-01T12:00:00Z')
-const PAST = new Date('2026-06-01T10:00:00Z').toISOString()   // 2h ago — expired
-const FUTURE = new Date('2026-06-02T12:00:00Z').toISOString() // 24h ahead — active
+const NOW    = new Date('2026-06-01T12:00:00Z')
+const PAST   = new Date('2026-06-01T10:00:00Z').toISOString()   // 2h ago — expired
+const FUTURE = new Date('2026-06-02T12:00:00Z').toISOString()   // 24h ahead — active
 
-function makeBoost(type: PlayerBoost['type'], active = true): PlayerBoost {
+function makeEffect(type: PlayerHeroEffect['type'], active = true): PlayerHeroEffect {
   return {
     id:               'test-id',
     player_id:        'player-1',
     type,
     starts_at:        PAST,
-    ends_at:          active ? FUTURE : PAST,  // expired if active=false
+    ends_at:          active ? FUTURE : PAST,
     cooldown_ends_at: null,
     metadata:         null,
   }
 }
 
-const NO_CLAN: null           = null
-const UNBANKED_1000           = { gold: 1000, iron: 1000, wood: 1000, food: 1000 }
+const NO_CLAN: null        = null
+const UNBANKED_1000        = { gold: 1000, iron: 1000, wood: 1000, food: 1000 }
 
 function makeBaseInputs(overrides: Partial<CombatResolutionInputs> = {}): CombatResolutionInputs {
   return {
@@ -105,13 +106,13 @@ describe('clampBonus', () => {
 })
 
 // ─────────────────────────────────────────
-// 2. calcActiveBoostTotals — slave stacking + clamp
+// 2. calcActiveHeroEffects — slave stacking + clamp
 // ─────────────────────────────────────────
 
-describe('calcActiveBoostTotals', () => {
+describe('calcActiveHeroEffects', () => {
 
-  it('returns all zeros with no boosts', () => {
-    const totals = calcActiveBoostTotals([], NOW)
+  it('returns all zeros with no effects', () => {
+    const totals = calcActiveHeroEffects([], NOW)
     expect(totals.totalSlaveBonus).toBe(0)
     expect(totals.totalAttackBonus).toBe(0)
     expect(totals.totalDefenseBonus).toBe(0)
@@ -119,83 +120,76 @@ describe('calcActiveBoostTotals', () => {
     expect(totals.soldierShieldActive).toBe(false)
   })
 
-  it('expired boosts are not counted', () => {
-    const totals = calcActiveBoostTotals([makeBoost('SLAVE_OUTPUT_30', false)], NOW)
+  it('expired effects are not counted', () => {
+    const totals = calcActiveHeroEffects([makeEffect('SLAVE_OUTPUT_30', false)], NOW)
     expect(totals.totalSlaveBonus).toBe(0)
   })
 
   it('SLAVE_OUTPUT_10 = 10%', () => {
-    const totals = calcActiveBoostTotals([makeBoost('SLAVE_OUTPUT_10')], NOW)
-    expect(totals.totalSlaveBonus).toBe(0.10)
+    expect(calcActiveHeroEffects([makeEffect('SLAVE_OUTPUT_10')], NOW).totalSlaveBonus).toBe(0.10)
   })
 
   it('SLAVE_OUTPUT_20 = 20%', () => {
-    const totals = calcActiveBoostTotals([makeBoost('SLAVE_OUTPUT_20')], NOW)
-    expect(totals.totalSlaveBonus).toBe(0.20)
+    expect(calcActiveHeroEffects([makeEffect('SLAVE_OUTPUT_20')], NOW).totalSlaveBonus).toBe(0.20)
   })
 
   it('SLAVE_OUTPUT_30 = 30%', () => {
-    const totals = calcActiveBoostTotals([makeBoost('SLAVE_OUTPUT_30')], NOW)
-    expect(totals.totalSlaveBonus).toBe(0.30)
+    expect(calcActiveHeroEffects([makeEffect('SLAVE_OUTPUT_30')], NOW).totalSlaveBonus).toBe(0.30)
   })
 
-  it('slave boosts stack: 10% + 20% = 30%', () => {
-    const totals = calcActiveBoostTotals([
-      makeBoost('SLAVE_OUTPUT_10'),
-      makeBoost('SLAVE_OUTPUT_20'),
+  it('slave effects stack: 10% + 20% ≈ 30%', () => {
+    const totals = calcActiveHeroEffects([
+      makeEffect('SLAVE_OUTPUT_10'),
+      makeEffect('SLAVE_OUTPUT_20'),
     ], NOW)
     // toBeCloseTo used because 0.10 + 0.20 = 0.30000000000000004 in IEEE 754
     expect(totals.totalSlaveBonus).toBeCloseTo(0.30, 10)
   })
 
-  it('slave boosts clamp at 50%: 30% + 30% → 0.50', () => {
-    const totals = calcActiveBoostTotals([
-      makeBoost('SLAVE_OUTPUT_30'),
-      makeBoost('SLAVE_OUTPUT_30'),
+  it('slave effects clamp at 50%: 30% + 30% → 0.50', () => {
+    const totals = calcActiveHeroEffects([
+      makeEffect('SLAVE_OUTPUT_30'),
+      makeEffect('SLAVE_OUTPUT_30'),
     ], NOW)
     expect(totals.totalSlaveBonus).toBe(0.50)
   })
 
-  it('slave boosts clamp at 50%: 10% + 20% + 30% → 0.50', () => {
-    const totals = calcActiveBoostTotals([
-      makeBoost('SLAVE_OUTPUT_10'),
-      makeBoost('SLAVE_OUTPUT_20'),
-      makeBoost('SLAVE_OUTPUT_30'),
+  it('slave effects clamp at 50%: 10% + 20% + 30% → 0.50', () => {
+    const totals = calcActiveHeroEffects([
+      makeEffect('SLAVE_OUTPUT_10'),
+      makeEffect('SLAVE_OUTPUT_20'),
+      makeEffect('SLAVE_OUTPUT_30'),
     ], NOW)
     expect(totals.totalSlaveBonus).toBe(0.50)
   })
 
-  it('attack boost: ATTACK_POWER_10 = 10%', () => {
-    const totals = calcActiveBoostTotals([makeBoost('ATTACK_POWER_10')], NOW)
-    expect(totals.totalAttackBonus).toBe(0.10)
+  it('ATTACK_POWER_10 = 10%', () => {
+    expect(calcActiveHeroEffects([makeEffect('ATTACK_POWER_10')], NOW).totalAttackBonus).toBe(0.10)
   })
 
-  it('attack boosts stack and clamp at 50%', () => {
+  it('attack effects stack and clamp at 50%', () => {
     // 6 × 10% = 60% → clamped to 50%
-    const boosts = Array(6).fill(null).map(() => makeBoost('ATTACK_POWER_10'))
-    const totals = calcActiveBoostTotals(boosts, NOW)
+    const effects = Array(6).fill(null).map(() => makeEffect('ATTACK_POWER_10'))
+    const totals = calcActiveHeroEffects(effects, NOW)
     expect(totals.totalAttackBonus).toBe(0.50)
   })
 
-  it('defense boost: DEFENSE_POWER_10 = 10%', () => {
-    const totals = calcActiveBoostTotals([makeBoost('DEFENSE_POWER_10')], NOW)
-    expect(totals.totalDefenseBonus).toBe(0.10)
+  it('DEFENSE_POWER_10 = 10%', () => {
+    expect(calcActiveHeroEffects([makeEffect('DEFENSE_POWER_10')], NOW).totalDefenseBonus).toBe(0.10)
   })
 
   it('RESOURCE_SHIELD activates resource shield flag', () => {
-    const totals = calcActiveBoostTotals([makeBoost('RESOURCE_SHIELD')], NOW)
-    expect(totals.resourceShieldActive).toBe(true)
+    expect(calcActiveHeroEffects([makeEffect('RESOURCE_SHIELD')], NOW).resourceShieldActive).toBe(true)
   })
 
   it('SOLDIER_SHIELD activates soldier shield flag', () => {
-    const totals = calcActiveBoostTotals([makeBoost('SOLDIER_SHIELD')], NOW)
-    expect(totals.soldierShieldActive).toBe(true)
+    expect(calcActiveHeroEffects([makeEffect('SOLDIER_SHIELD')], NOW).soldierShieldActive).toBe(true)
   })
 
-  it('boost categories are independent — slave boost does not affect attack bonus', () => {
-    const totals = calcActiveBoostTotals([
-      makeBoost('SLAVE_OUTPUT_30'),
-      makeBoost('ATTACK_POWER_10'),
+  it('effect categories are independent', () => {
+    const totals = calcActiveHeroEffects([
+      makeEffect('SLAVE_OUTPUT_30'),
+      makeEffect('ATTACK_POWER_10'),
     ], NOW)
     expect(totals.totalSlaveBonus).toBe(0.30)
     expect(totals.totalAttackBonus).toBe(0.10)
@@ -211,22 +205,22 @@ describe('calcActiveBoostTotals', () => {
 describe('isShieldActive', () => {
 
   it('returns true for an active Resource Shield', () => {
-    expect(isShieldActive([makeBoost('RESOURCE_SHIELD')], 'RESOURCE_SHIELD', NOW)).toBe(true)
+    expect(isShieldActive([makeEffect('RESOURCE_SHIELD')], 'RESOURCE_SHIELD', NOW)).toBe(true)
   })
 
   it('returns false for an expired Resource Shield', () => {
-    expect(isShieldActive([makeBoost('RESOURCE_SHIELD', false)], 'RESOURCE_SHIELD', NOW)).toBe(false)
+    expect(isShieldActive([makeEffect('RESOURCE_SHIELD', false)], 'RESOURCE_SHIELD', NOW)).toBe(false)
   })
 
-  it('returns false when no shield of that type exists', () => {
-    expect(isShieldActive([makeBoost('SOLDIER_SHIELD')], 'RESOURCE_SHIELD', NOW)).toBe(false)
+  it('returns false when checking for wrong type', () => {
+    expect(isShieldActive([makeEffect('SOLDIER_SHIELD')], 'RESOURCE_SHIELD', NOW)).toBe(false)
   })
 
   it('returns true for an active Soldier Shield', () => {
-    expect(isShieldActive([makeBoost('SOLDIER_SHIELD')], 'SOLDIER_SHIELD', NOW)).toBe(true)
+    expect(isShieldActive([makeEffect('SOLDIER_SHIELD')], 'SOLDIER_SHIELD', NOW)).toBe(true)
   })
 
-  it('returns false with empty boost list', () => {
+  it('returns false with empty effect list', () => {
     expect(isShieldActive([], 'RESOURCE_SHIELD', NOW)).toBe(false)
     expect(isShieldActive([], 'SOLDIER_SHIELD', NOW)).toBe(false)
   })
@@ -273,7 +267,7 @@ describe('resolveCombat — Resource Shield', () => {
 
   it('loot = 0 when resource shield is active (win scenario)', () => {
     const result = resolveCombat(makeBaseInputs({
-      attackerPP:           100_000,  // force win
+      attackerPP:           100_000,
       defenderPP:           1_000,
       resourceShieldActive: true,
     }))
@@ -283,23 +277,29 @@ describe('resolveCombat — Resource Shield', () => {
 
   it('loot = 0 when resource shield is active (partial scenario)', () => {
     const result = resolveCombat(makeBaseInputs({
-      attackerPP:           5_500,  // slightly ahead → likely partial
+      attackerPP:           5_500,
       defenderPP:           5_000,
       resourceShieldActive: true,
     }))
     expect(result.loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 
-  it('soldier losses still apply when resource shield is active', () => {
+  it('defender still loses soldiers when resource shield is active', () => {
     const result = resolveCombat(makeBaseInputs({
       attackerPP:           100_000,
       defenderPP:           1_000,
       resourceShieldActive: true,
     }))
-    // Attacker still takes losses
-    expect(result.attackerLosses).toBeGreaterThan(0)
-    // Defender still takes losses (no soldier shield)
     expect(result.defenderLosses).toBeGreaterThan(0)
+  })
+
+  it('slaves are created normally when resource shield is active', () => {
+    const result = resolveCombat(makeBaseInputs({
+      attackerPP:           100_000,
+      defenderPP:           1_000,
+      resourceShieldActive: true,
+    }))
+    expect(result.slavesCreated).toBeGreaterThan(0)
   })
 
   it('loot is NOT zero without resource shield (control check)', () => {
@@ -357,7 +357,7 @@ describe('resolveCombat — Soldier Shield', () => {
     expect(result.loot.gold).toBeGreaterThan(0)
   })
 
-  it('both shields active: defenderLosses = 0 AND loot = 0', () => {
+  it('both shields active: defenderLosses = 0, slavesCreated = 0, loot = 0', () => {
     const result = resolveCombat(makeBaseInputs({
       attackerPP:           100_000,
       defenderPP:           1_000,
@@ -369,78 +369,107 @@ describe('resolveCombat — Soldier Shield', () => {
     expect(result.loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 
-  it('defenderLosses are NOT zero without soldier shield (control check)', () => {
+  it('attackerLosses still apply when both shields are active', () => {
     const result = resolveCombat(makeBaseInputs({
-      attackerPP:          100_000,
-      defenderPP:          1_000,
-      soldierShieldActive: false,
+      attackerPP:           100_000,
+      defenderPP:           1_000,
+      soldierShieldActive:  true,
+      resourceShieldActive: true,
     }))
-    expect(result.defenderLosses).toBeGreaterThan(0)
+    expect(result.attackerLosses).toBeGreaterThan(0)
   })
 
 })
 
 // ─────────────────────────────────────────
-// 7. Attack boost multiplies PP only — NOT ClanBonus
+// 7. Hero attack bonus multiplies PP only — NOT ClanBonus
 // ─────────────────────────────────────────
 
-describe('calculateECP — attack/defense boost does not multiply ClanBonus', () => {
+describe('calculateECP — hero bonus does not multiply ClanBonus', () => {
 
-  const playerPP  = 10_000
-  const attackBoost = 0.20
+  const playerPP    = 10_000
+  const attackBonus = 0.20
   const clan: ClanContext = { totalClanPP: 100_000, developmentLevel: 5 }
 
-  it('ECP = (PP × (1 + boost)) + clanBonus, NOT (PP + clanBonus) × (1 + boost)', () => {
+  it('ECP = (PP × (1 + bonus)) + clanBonus, NOT (PP + clanBonus) × (1 + bonus)', () => {
     const clanBonus = calculateClanBonus(playerPP, clan)
-    const ecp = calculateECP(playerPP, clan, attackBoost)
+    const ecp       = calculateECP(playerPP, clan, attackBonus)
 
-    // Correct formula
-    const correct   = Math.floor((playerPP * (1 + attackBoost)) + clanBonus)
-    // Forbidden formula
-    const forbidden = Math.floor((playerPP + clanBonus) * (1 + attackBoost))
+    const correct   = Math.floor((playerPP * (1 + attackBonus)) + clanBonus)
+    const forbidden = Math.floor((playerPP + clanBonus) * (1 + attackBonus))
 
     expect(ecp).toBe(correct)
     expect(ecp).not.toBe(forbidden)
   })
 
-  it('attack boost with no clan: ECP = PP × (1 + boost)', () => {
-    const ecp = calculateECP(playerPP, null, attackBoost)
-    expect(ecp).toBe(Math.floor(playerPP * (1 + attackBoost)))
+  it('hero bonus with no clan: ECP = PP × (1 + bonus)', () => {
+    const ecp = calculateECP(playerPP, null, attackBonus)
+    expect(ecp).toBe(Math.floor(playerPP * (1 + attackBonus)))
   })
 
-  it('attack boost increases attackerECP in resolveCombat', () => {
+  it('attack bonus increases attackerECP but not defenderECP', () => {
     const withBoost    = resolveCombat(makeBaseInputs({ attackBonus: 0.30 }))
-    const withoutBoost = resolveCombat(makeBaseInputs({ attackBonus: 0     }))
+    const withoutBoost = resolveCombat(makeBaseInputs({ attackBonus: 0    }))
     expect(withBoost.attackerECP).toBeGreaterThan(withoutBoost.attackerECP)
-  })
-
-  it('attack boost does not change defenderECP', () => {
-    const withBoost    = resolveCombat(makeBaseInputs({ attackBonus: 0.50 }))
-    const withoutBoost = resolveCombat(makeBaseInputs({ attackBonus: 0     }))
     expect(withBoost.defenderECP).toBe(withoutBoost.defenderECP)
   })
 
-  it('defense boost increases defenderECP but not attackerECP', () => {
+  it('defense bonus increases defenderECP but not attackerECP', () => {
     const withDefBoost    = resolveCombat(makeBaseInputs({ defenseBonus: 0.30 }))
-    const withoutDefBoost = resolveCombat(makeBaseInputs({ defenseBonus: 0     }))
+    const withoutDefBoost = resolveCombat(makeBaseInputs({ defenseBonus: 0    }))
     expect(withDefBoost.defenderECP).toBeGreaterThan(withoutDefBoost.defenderECP)
     expect(withDefBoost.attackerECP).toBe(withoutDefBoost.attackerECP)
   })
 
-  it('boost = 0 does not change ECP (identity case)', () => {
-    const eCPWithZeroBoost = calculateECP(playerPP, clan, 0)
-    const eCPNoBoost       = calculateECP(playerPP, clan)
-    expect(eCPWithZeroBoost).toBe(eCPNoBoost)
+  it('bonus = 0 does not change ECP (identity case)', () => {
+    expect(calculateECP(playerPP, clan, 0)).toBe(calculateECP(playerPP, clan))
   })
 
-  it('50% boost cap: boost 0.70 input treated as 0.70 (caller must clamp before passing)', () => {
-    // The clamping responsibility is on the caller (getActiveBoostTotals → clampBonus).
-    // calculateECP accepts whatever value is passed — it does NOT re-clamp internally.
-    // This test documents that design decision.
-    const clampedECP = calculateECP(playerPP, null, 0.50)  // max allowed
-    const overCapECP = calculateECP(playerPP, null, 0.70)  // caller failed to clamp
-    expect(overCapECP).toBeGreaterThan(clampedECP)
-    // Correct usage: always pass clampBonus(rawTotal) into calculateECP.
+})
+
+// ─────────────────────────────────────────
+// 8. Loot decay applies regardless of shield state
+// ─────────────────────────────────────────
+
+describe('loot decay — applies regardless of shield or protection state', () => {
+
+  it('decay multiplier is the same whether or not resource shield is active', () => {
+    // The decay step is determined by attackCountInWindow — not by shield state.
+    // This confirms that shields do NOT affect the decay counter.
+    expect(getLootDecayMultiplier(1)).toBe(1.00)
+    expect(getLootDecayMultiplier(2)).toBe(0.70)
+    expect(getLootDecayMultiplier(5)).toBe(0.10)
+  })
+
+  it('5th attack under resource shield still counts as 5th attack (10% decay floor)', () => {
+    // Even though loot = 0 due to shield, the CALLER must still count this attack
+    // in attackCountInWindow. Here we verify the decay function returns 0.10 for attack 5.
+    const decayAt5 = getLootDecayMultiplier(5)
+    expect(decayAt5).toBe(BALANCE.antiFarm.LOOT_DECAY_STEPS[4])
+  })
+
+  it('loot is 0 at attack count 5 + resource shield (both apply)', () => {
+    // Shield makes loot = 0 regardless of decay step
+    const result = resolveCombat(makeBaseInputs({
+      attackerPP:           100_000,
+      defenderPP:           1_000,
+      attackCountInWindow:  5,
+      resourceShieldActive: true,
+    }))
+    expect(result.loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
+  })
+
+  it('loot without shield at attack 5 is reduced to 10% (not 0)', () => {
+    // Without shield, the 5th attack uses the 0.10 decay floor — loot is small but nonzero
+    const result = resolveCombat(makeBaseInputs({
+      attackerPP:           100_000,
+      defenderPP:           1_000,
+      attackCountInWindow:  5,
+      resourceShieldActive: false,
+      defenderUnbanked:     { gold: 100_000, iron: 100_000, wood: 100_000, food: 100_000 },
+    }))
+    expect(result.outcome).toBe('win')
+    expect(result.loot.gold).toBeGreaterThan(0)
   })
 
 })

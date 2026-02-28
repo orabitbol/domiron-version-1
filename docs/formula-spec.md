@@ -1,7 +1,7 @@
 # Domiron v5 — Formula & Implementation Specification
 
-**Status:** Final v1 (corrected)
-**Source files:** `config/balance.config.ts`, `lib/game/combat.ts`, `lib/game/tick.ts`
+**Status:** Final v2 (hero effect system implemented)
+**Source files:** `config/balance.config.ts`, `lib/game/combat.ts`, `lib/game/tick.ts`, `lib/game/boosts.ts`, `lib/game/hero-effects.ts`
 **All constants annotated [FIXED] or [TUNE]. Do not change [FIXED] without GDD update.**
 
 Annotation key:
@@ -17,7 +17,7 @@ Annotation key:
 1. [Constants & Types](#1-constants--types)
 2. [Personal Power (PP)](#2-personal-power-pp)
 3. [Clan Combat Bonus](#3-clan-combat-bonus)
-4. [Hero Multiplier](#4-hero-multiplier)
+4. [Hero Effect System](#4-hero-effect-system)
 5. [Effective Combat Power (ECP)](#5-effective-combat-power-ecp)
 6. [Combat Outcome](#6-combat-outcome)
 7. [Soldier Losses](#7-soldier-losses)
@@ -85,9 +85,16 @@ BALANCE = {
   },
 
   hero: {
-    HERO_MAX_BONUS: undefined,  // [TUNE: unassigned] Must be set before production
-    // ⚠️ clampHeroMultiplier() throws at runtime if this is unassigned.
-    // Range guidance once monetization is designed: 0.15–0.50.
+    MAX_STACK_RATE: 0.50,                    // [FIXED] Hard cap on any single bonus category
+    EFFECT_RATES: {
+      SLAVE_OUTPUT_10:  0.10,                // [FIXED] +10% slave production per tick
+      SLAVE_OUTPUT_20:  0.20,                // [FIXED] +20% slave production per tick
+      SLAVE_OUTPUT_30:  0.30,                // [FIXED] +30% slave production per tick
+      ATTACK_POWER_10:  0.10,                // [FIXED] +10% attacker PP (never multiplies ClanBonus)
+      DEFENSE_POWER_10: 0.10,                // [FIXED] +10% defender PP (never multiplies ClanBonus)
+    },
+    SHIELD_ACTIVE_HOURS:   23,               // [FIXED] Duration of shield protection
+    SHIELD_COOLDOWN_HOURS:  1,               // [FIXED] Vulnerability window before next shield
   },
 
   combat: {
@@ -145,10 +152,6 @@ interface PersonalPowerInputs {
 interface ClanContext {
   totalClanPP:      number   // Σ PP of all current members
   developmentLevel: number   // 1–5
-}
-
-interface HeroContext {
-  multiplier: number         // 1.0 = no hero; clamped to 1 + HERO_MAX_BONUS
 }
 
 interface UnbankedResources {
@@ -340,31 +343,69 @@ A maxed clan always hits the cap. The 20% ceiling is the binding constraint, not
 
 ---
 
-## 4. Hero Multiplier
+## 4. Hero Effect System
+
+The Hero system is the sole monetization lever for temporary combat and production modifiers.
+Hero effects are stored in `player_hero_effects` (or `player_boosts` for the legacy VIP path)
+and queried at combat time. They **never** modify PP or the clan bonus.
+
+### Effect Types
+
+| Type | Category | Bonus |
+|---|---|---|
+| `SLAVE_OUTPUT_10` | Production | +10% slave output per tick |
+| `SLAVE_OUTPUT_20` | Production | +20% slave output per tick |
+| `SLAVE_OUTPUT_30` | Production | +30% slave output per tick |
+| `ATTACK_POWER_10` | Combat ECP | +10% attacker PP |
+| `DEFENSE_POWER_10` | Combat ECP | +10% defender PP |
+| `RESOURCE_SHIELD` | Shield | Loot = 0 when defending |
+| `SOLDIER_SHIELD` | Shield | DefenderLosses = 0 when defending |
+
+### Stacking & Clamping
+
+Effects in the same category are **additive** and capped at `MAX_STACK_RATE = 0.50` per category.
+Clamping is **server-side mandatory** — call `clampBonus()` before passing any total into a formula.
 
 ```
-HeroMultiplier = 1 + HeroBonusRate
-HeroBonusRate  ≤ HERO_MAX_BONUS     [TUNE: unassigned]
+TotalBonus[category] = clampBonus(Σ EFFECT_RATES[effect_i])   // 0.0 – 0.50
 ```
 
-- No hero active → `HeroMultiplier = 1.0`
-- Hero affects **ECP only**. Never PP. Never ranking.
-
-> ⚠️ **HERO_MAX_BONUS is intentionally unassigned.**
-> It must be determined during monetization tier design.
-> Range guidance once monetization is designed: 0.15–0.50.
-> Do not call `clampHeroMultiplier()` in production logic until HERO_MAX_BONUS is set.
-
-**Validation function (throws if unassigned):**
 ```typescript
-function clampHeroMultiplier(rawMultiplier: number): number {
-  const heroMaxBonus = BALANCE.hero.HERO_MAX_BONUS
-  if (heroMaxBonus === undefined) {
-    throw new Error('BALANCE.hero.HERO_MAX_BONUS is not assigned. Assign before use.')
-  }
-  return Math.min(rawMultiplier, 1 + heroMaxBonus)
+function clampBonus(total: number, max = BALANCE.hero.MAX_STACK_RATE): number {
+  return Math.min(total, max)
 }
 ```
+
+Categories are **independent**: slave bonus never contaminates attack bonus and vice versa.
+
+### Shield Model
+
+```
+Active window:        now < ends_at                         (23 hours)
+Vulnerability window: ends_at ≤ now < cooldown_ends_at     (1 hour)
+```
+
+- `cooldown_ends_at = ends_at + SHIELD_COOLDOWN_HOURS (1h)`
+- During the vulnerability window the effect is expired — no protection applies.
+- A new shield of the same type can only start after `cooldown_ends_at` has passed.
+- Other players **must not** see shield expiration times.
+  UI rule: show two status circles on the player info card (Resource Shield, Soldier Shield) —
+  active/inactive state only, no timer or countdown exposed to anyone other than the owner.
+
+### Active Query
+
+```sql
+-- Only effects where ends_at > now() are considered active.
+SELECT * FROM player_hero_effects
+WHERE player_id = $1 AND ends_at > now()
+```
+
+### Key Invariants
+
+- Hero effects **never** modify PP. `calculatePersonalPower()` has no hero parameter.
+- Attack/Defense bonuses multiply **only** PlayerPP — never ClanBonus.
+- Shields apply **inside** combat resolution, never at the gate.
+- Loot decay counting proceeds regardless of shield state (decay is tracked by attack count, not loot amount).
 
 ---
 
@@ -374,35 +415,37 @@ function clampHeroMultiplier(rawMultiplier: number): number {
 
 ```
 Step 1:  ClanBonus = calculateClanBonus(PlayerPP, clan)
-Step 2:  ECP = (PlayerPP × HeroMultiplier × (1 + VIPBoost)) + ClanBonus
+Step 2:  ECP = (PlayerPP × (1 + heroBonus)) + ClanBonus
 ```
 
 **Why this order matters:**
-Hero and VIP boost both multiply **only** PlayerPP. Computing `(PlayerPP + ClanBonus) × multiplier`
+`heroBonus` multiplies **only** PlayerPP. Computing `(PlayerPP + ClanBonus) × (1 + heroBonus)`
 would allow a monetization lever to amplify a social mechanic, creating exploitable compounding.
-This is explicitly forbidden.
+This is explicitly forbidden by the architecture.
 
 ### Attacker vs. Defender
 
 ```
-AttackerECP = (AttackerPP × AttackerHeroMultiplier × (1 + AttackBoost)) + AttackerClanBonus
-DefenderECP = (DefenderPP × DefenderHeroMultiplier × (1 + DefenseBoost)) + DefenderClanBonus
+AttackerECP = (AttackerPP × (1 + TotalAttackBonus)) + AttackerClanBonus
+DefenderECP = (DefenderPP × (1 + TotalDefenseBonus)) + DefenderClanBonus
+
+TotalAttackBonus  = clampBonus(Σ active ATTACK_POWER_* effects)   // 0.0 – 0.50
+TotalDefenseBonus = clampBonus(Σ active DEFENSE_POWER_* effects)  // 0.0 – 0.50
 ```
 
-`AttackBoost` and `DefenseBoost` are pre-clamped values (0–0.50) from `getActiveBoostTotals()`.
-With no boost active they default to 0, making `(1 + 0) = 1` and leaving the formula unchanged.
+With no hero effects active, `heroBonus = 0`, making `(1 + 0) = 1` — formula is unchanged.
 
 ### Pseudocode
 
 ```typescript
+// lib/game/combat.ts — calculateECP
 function calculateECP(
-  playerPP: number,
-  hero:     HeroContext,
-  clan:     ClanContext | null,
-  boost:    number = 0,   // pre-clamped VIP boost, 0–0.50
+  playerPP:  number,
+  clan:      ClanContext | null,
+  heroBonus: number = 0,   // pre-clamped from clampBonus(), 0–0.50
 ): number {
   const clanBonus = calculateClanBonus(playerPP, clan)
-  return Math.floor((playerPP * hero.multiplier * (1 + boost)) + clanBonus)
+  return Math.floor((playerPP * (1 + heroBonus)) + clanBonus)
 }
 ```
 
@@ -867,7 +910,9 @@ Boundary:    Executed at end of Day 90 tick
 - [x] `tick.turnsPerTick` = 3
 - [x] `pp.*` — all weights, `SOLDIER_V`, `SOLDIER_K`, sub-score value tables
 - [x] `clan.*` — efficiency table, cap rate, cooldowns
-- [x] `hero.HERO_MAX_BONUS` — `[TUNE: unassigned]` (explicitly undefined, throws on use)
+- [x] `hero.MAX_STACK_RATE` = 0.50 [FIXED]
+- [x] `hero.EFFECT_RATES` — per-effect rates (SLAVE_OUTPUT_10/20/30, ATTACK_POWER_10, DEFENSE_POWER_10) [FIXED]
+- [x] `hero.SHIELD_ACTIVE_HOURS` = 23, `hero.SHIELD_COOLDOWN_HOURS` = 1 [FIXED]
 - [x] `combat.*` — thresholds, loss rates, capture rate, loot rate, food cost, cooldown/protection hours
 - [x] `antiFarm.*` — decay window and steps
 - [x] `bank.maxLifetimeDeposits` = 5, `BANK_INTEREST_RATE_BASE` and `BANK_INTEREST_RATE_PER_LEVEL` unassigned
@@ -878,8 +923,7 @@ Boundary:    Executed at end of Day 90 tick
 - [x] `calcSoldierScore()` — generic `SOLDIER_V × SOLDIER_K ^ (tier - 1)` formula; accepts tier array or army object
 - [x] `calculatePersonalPower()` — PP formula with all sub-scores
 - [x] `calculateClanBonus()` — efficiency × totalClanPP, capped at 0.20 × playerPP
-- [x] `clampHeroMultiplier()` — throws if `HERO_MAX_BONUS` is unassigned
-- [x] `calculateECP()` — correct order: (PP × hero) + clan, no cross-multiplication
+- [x] `calculateECP()` — correct order: `(PP × (1 + heroBonus)) + clanBonus`; hero never multiplies ClanBonus
 - [x] `calculateCombatRatio()` — R = attackerECP / defenderECP
 - [x] `determineCombatOutcome()` — win / partial / loss thresholds
 - [x] `calculateSoldierLosses()` — clamp formula; protection is a flag (no gate block)
@@ -915,29 +959,30 @@ Boundary:    Executed at end of Day 90 tick
 - [x] Kill cooldown: active/inactive boundary at 6h
 - [x] Protection: active/inactive boundary at 24h
 - [x] Turn regen: +3, cap=200, no-regen at cap, daily consistency
-- [x] Hero: `clampHeroMultiplier` throws when `HERO_MAX_BONUS` is unassigned
+- [x] ECP: hero bonus multiplies PP only, not ClanBonus — verified in boosts and hero-effects test suites
 
 ### `types/game.ts`
 - [x] `AttackOutcome` → `'win' | 'partial' | 'loss'`
 - [x] `Bank.total_deposits` added (deprecates `deposits_today`)
 - [x] `AttackResult` updated with `ratio`, `attacker_ecp`, `defender_ecp`, `slaves_created`
 
-### `lib/game/boosts.ts` (VIP extension)
+### `lib/game/boosts.ts` (legacy VIP path — reads from `BALANCE.hero.*`)
 - [x] `BoostType` — 7-value enum matching `boost_type` DB enum
 - [x] `PlayerBoost`, `ActiveBoostTotals` — TypeScript interfaces
-- [x] `clampBonus(total, max)` — enforces MAX_STACK_RATE (0.50)
-- [x] `calcActiveBoostTotals(boosts, now)` — stacks + clamps all categories
+- [x] `clampBonus(total, max)` — enforces `BALANCE.hero.MAX_STACK_RATE` (0.50)
+- [x] `calcActiveBoostTotals(boosts, now)` — reads rates from `BALANCE.hero.EFFECT_RATES`
 - [x] `isShieldActive(boosts, type, now)` — active-window check for shields
 - [x] `applyTurnsPack(currentTurns, amount)` — turn purchase clamped to 200
-- [x] `getActiveBoostTotals(supabase, playerId)` — server-side DB query helper
+- [x] `getActiveBoostTotals(supabase, playerId)` — server-side DB query helper (table: `player_boosts`)
 
-### `config/balance.config.ts` (VIP extension)
-- [x] `BALANCE.boosts.MAX_STACK_RATE` = 0.50 [FIXED]
-- [x] `BALANCE.boosts.SLAVE_OUTPUT_RATES` — per-product rates [FIXED]
-- [x] `BALANCE.boosts.ATTACK_POWER_10` = 0.10 [FIXED]
-- [x] `BALANCE.boosts.DEFENSE_POWER_10` = 0.10 [FIXED]
-- [x] `BALANCE.boosts.SHIELD_ACTIVE_HOURS` = 23 [FIXED]
-- [x] `BALANCE.boosts.SHIELD_COOLDOWN_HOURS` = 1 [FIXED]
+### `lib/game/hero-effects.ts` (canonical hero effect implementation)
+- [x] `HeroEffectType` — 7-value string union, same values as `BoostType`
+- [x] `PlayerHeroEffect`, `ActiveHeroEffects` — TypeScript interfaces
+- [x] `clampBonus(total, max)` — enforces `BALANCE.hero.MAX_STACK_RATE` (0.50)
+- [x] `calcActiveHeroEffects(effects, now)` — stacks + clamps all categories from `BALANCE.hero.EFFECT_RATES`
+- [x] `isShieldActive(effects, type, now)` — active-window check for RESOURCE_SHIELD / SOLDIER_SHIELD
+- [x] `applyTurnsPack(currentTurns, amount)` — turn purchase clamped to `BALANCE.tick.maxTurns`
+- [x] `getActiveHeroEffects(supabase, playerId)` — server-side DB query helper (table: `player_hero_effects`)
 
 ### `supabase/migrations/0002_player_boosts.sql`
 - [x] `boost_type` enum with 7 values
@@ -985,7 +1030,10 @@ CREATE INDEX IF NOT EXISTS idx_attacks_pair_created
 
 ## 18. VIP Boost System
 
-**Status:** Additive extension — does NOT modify PP, clan cap, loss cap, loot base rate, or turn regen.
+**Status:** Implemented. Both `lib/game/boosts.ts` (legacy VIP, table `player_boosts`) and
+`lib/game/hero-effects.ts` (canonical, table `player_hero_effects`) implement the same logic.
+Both modules read constants from `BALANCE.hero.*` — there is no `BALANCE.boosts.*` namespace.
+Does NOT modify PP, clan cap, loss cap, loot base rate, or turn regen.
 
 ### Core Design Rules
 
@@ -1016,15 +1064,17 @@ SlaveOutput = BaseRate[r] × CITY_PRODUCTION_MULT[city] × VipMult × (1 + Total
 TotalSlaveBonus = clampBonus(Σ active slave output boosts)   // 0.0 – 0.50
 ```
 
-### ECP Formula (with boost)
+### ECP Formula (with hero effects)
 
 ```
-AttackerECP = (AttackerPP × HeroMultiplier × (1 + TotalAttackBonus)) + AttackerClanBonus
-DefenderECP = (DefenderPP × HeroMultiplier × (1 + TotalDefenseBonus)) + DefenderClanBonus
+AttackerECP = (AttackerPP × (1 + TotalAttackBonus)) + AttackerClanBonus
+DefenderECP = (DefenderPP × (1 + TotalDefenseBonus)) + DefenderClanBonus
 
-TotalAttackBonus  = clampBonus(Σ active ATTACK_POWER_* boosts)   // 0.0 – 0.50
-TotalDefenseBonus = clampBonus(Σ active DEFENSE_POWER_* boosts)  // 0.0 – 0.50
+TotalAttackBonus  = clampBonus(Σ active ATTACK_POWER_* effects)   // 0.0 – 0.50
+TotalDefenseBonus = clampBonus(Σ active DEFENSE_POWER_* effects)  // 0.0 – 0.50
 ```
+
+See Section 5 for the full ECP pseudocode and the forbidden alternative formula.
 
 ### Shield Model
 
@@ -1036,12 +1086,12 @@ Vulnerability window: ends_at ≤ now < cooldown_ends_at  (1 hour)
 - Other players **must not** see the shield expiration time.
 - During the vulnerability window the boost is expired — no protection applies.
 
-### Combat Integration Order (with boosts)
+### Combat Integration Order (with hero effects)
 
 ```
 1.  calculatePersonalPower(attacker), calculatePersonalPower(defender)
-2.  calculateECP(attackerPP, attackerHero, attackerClan, attackBonus)
-    calculateECP(defenderPP, defenderHero, defenderClan, defenseBonus)
+2.  calculateECP(attackerPP, attackerClan, totalAttackBonus)
+    calculateECP(defenderPP, defenderClan, totalDefenseBonus)
 3.  calculateCombatRatio(attackerECP, defenderECP)
 4.  determineCombatOutcome(ratio)
 5.  calculateSoldierLosses(...)
@@ -1065,11 +1115,13 @@ Turn packs are applied instantly. The existing 200-turn cap is never bypassed.
 
 | Function | Location | Description |
 |---|---|---|
-| `clampBonus(total, max)` | `lib/game/boosts.ts` | Clamps a stacking bonus to max (default 0.50) |
-| `calcActiveBoostTotals(boosts, now)` | `lib/game/boosts.ts` | Computes totals from a boost list |
-| `isShieldActive(boosts, type, now)` | `lib/game/boosts.ts` | Checks if a specific shield is active |
-| `applyTurnsPack(currentTurns, amount)` | `lib/game/boosts.ts` | Applies turn purchase respecting cap |
-| `getActiveBoostTotals(supabase, playerId)` | `lib/game/boosts.ts` | DB query → computed totals |
+| `clampBonus(total, max)` | `lib/game/boosts.ts` / `hero-effects.ts` | Clamps a stacking bonus to max (default `BALANCE.hero.MAX_STACK_RATE` = 0.50) |
+| `calcActiveBoostTotals(boosts, now)` | `lib/game/boosts.ts` | Computes totals from `player_boosts` row list |
+| `calcActiveHeroEffects(effects, now)` | `lib/game/hero-effects.ts` | Computes totals from `player_hero_effects` row list |
+| `isShieldActive(boosts, type, now)` | `lib/game/boosts.ts` / `hero-effects.ts` | Checks if a specific shield is active |
+| `applyTurnsPack(currentTurns, amount)` | `lib/game/boosts.ts` / `hero-effects.ts` | Applies turn purchase respecting cap |
+| `getActiveBoostTotals(supabase, playerId)` | `lib/game/boosts.ts` | DB query → computed totals (legacy path) |
+| `getActiveHeroEffects(supabase, playerId)` | `lib/game/hero-effects.ts` | DB query → computed totals (canonical path) |
 
 ### Data Model
 

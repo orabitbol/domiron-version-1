@@ -27,8 +27,8 @@
  *   1. calculatePersonalPower(attacker), calculatePersonalPower(defender)
  *   2. calculateClanBonus(attackerPP, attackerClan)
  *      calculateClanBonus(defenderPP, defenderClan)
- *   3. calculateECP(attackerPP, attackerHero, attackerClan, attackBonus)
- *      calculateECP(defenderPP, defenderHero, defenderClan, defenseBonus)
+ *   3. calculateECP(attackerPP, attackerClan, attackBonus)
+ *      calculateECP(defenderPP, defenderClan, defenseBonus)
  *   4. calculateCombatRatio(attackerECP, defenderECP)
  *   5. determineCombatOutcome(ratio)
  *   6. calculateSoldierLosses(...)
@@ -63,16 +63,6 @@ export interface ClanContext {
   developmentLevel: number
 }
 
-/** Hero context passed into ECP calculation. */
-export interface HeroContext {
-  /**
-   * HeroMultiplier = 1 + HeroBonusRate.
-   * No hero active → pass { multiplier: 1.0 }.
-   * Must be clamped externally to 1 + HERO_MAX_BONUS before being passed here.
-   */
-  multiplier: number
-}
-
 export interface UnbankedResources {
   gold: number
   iron: number
@@ -96,8 +86,6 @@ export interface CombatResolutionInputs {
   /** Soldiers the attacker chose to deploy. Losses apply only to this count. */
   deployedSoldiers: number
   defenderSoldiers: number
-  attackerHero:     HeroContext
-  defenderHero:     HeroContext
   /** null if attacker has no clan. */
   attackerClan:     ClanContext | null
   /** null if defender has no clan. */
@@ -339,47 +327,27 @@ export function calculateClanBonus(playerPP: number, clan: ClanContext | null): 
 type ClanDevLevel = 1 | 2 | 3 | 4 | 5
 
 // ─────────────────────────────────────────
-// C. HERO MULTIPLIER
-// ─────────────────────────────────────────
-
-/**
- * HeroMultiplier = 1 + HeroBonusRate, where HeroBonusRate ≤ HERO_MAX_BONUS.
- *
- * ⚠️  HERO_MAX_BONUS is currently unassigned in config.
- *     Do not call this function in production until HERO_MAX_BONUS is set.
- *
- * No hero active → pass heroMultiplier = 1.0, skip this clamp.
- */
-export function clampHeroMultiplier(rawMultiplier: number): number {
-  const heroMaxBonus = BALANCE.hero.HERO_MAX_BONUS
-  if (heroMaxBonus === undefined) {
-    throw new Error('BALANCE.hero.HERO_MAX_BONUS is not assigned. Assign before use.')
-  }
-  return Math.min(rawMultiplier, 1 + heroMaxBonus)
-}
-
-// ─────────────────────────────────────────
-// D. EFFECTIVE COMBAT POWER (ECP)
+// C. EFFECTIVE COMBAT POWER (ECP)
 // ─────────────────────────────────────────
 
 /**
  * Order of operations (mandatory):
  *   Step 1: ClanBonus = min(TotalClanPP × EfficiencyRate, 0.20 × PlayerPP)
- *   Step 2: ECP = (PlayerPP × HeroMultiplier × (1 + boost)) + ClanBonus
+ *   Step 2: ECP = (PlayerPP × (1 + heroBonus)) + ClanBonus
  *
- * Hero and VIP boost both multiply ONLY PlayerPP — never ClanBonus.
- * This prevents any monetization lever from amplifying the social mechanic (clan).
+ * heroBonus is the pre-clamped total from active hero effects (0 – 0.50).
+ * It multiplies ONLY PlayerPP — never ClanBonus.
+ * This prevents the monetization lever (hero) from amplifying the social mechanic (clan).
  *
- * @param boost Pre-clamped VIP attack or defense bonus (0 – 0.50). Default 0.
+ * @param heroBonus Pre-clamped TotalAttackBonus or TotalDefenseBonus (0 – 0.50). Default 0.
  */
 export function calculateECP(
-  playerPP: number,
-  hero:     HeroContext,
-  clan:     ClanContext | null,
-  boost:    number = 0,
+  playerPP:  number,
+  clan:      ClanContext | null,
+  heroBonus: number = 0,
 ): number {
   const clanBonus = calculateClanBonus(playerPP, clan)
-  return Math.floor((playerPP * hero.multiplier * (1 + boost)) + clanBonus)
+  return Math.floor((playerPP * (1 + heroBonus)) + clanBonus)
 }
 
 // ─────────────────────────────────────────
@@ -604,10 +572,10 @@ export function calcTurnsAfterRegen(currentTurns: number): number {
  *   - Triggering PP recalculation after soldier count changes
  */
 export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionResult {
-  // Step 1: ECP = (PP × HeroMultiplier × (1 + boost)) + ClanBonus
-  // Boost multiplies PP only — clan bonus is computed inside calculateECP and never touched by boost.
-  const attackerECP = calculateECP(inputs.attackerPP, inputs.attackerHero, inputs.attackerClan, inputs.attackBonus)
-  const defenderECP = calculateECP(inputs.defenderPP, inputs.defenderHero, inputs.defenderClan, inputs.defenseBonus)
+  // Step 1: ECP = (PP × (1 + heroBonus)) + ClanBonus
+  // heroBonus multiplies PP only — clan bonus is never touched by the hero effect.
+  const attackerECP = calculateECP(inputs.attackerPP, inputs.attackerClan, inputs.attackBonus)
+  const defenderECP = calculateECP(inputs.defenderPP, inputs.defenderClan, inputs.defenseBonus)
 
   // Step 2: Ratio → outcome
   const ratio   = calculateCombatRatio(attackerECP, defenderECP)

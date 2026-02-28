@@ -171,15 +171,23 @@ export const BALANCE = {
   // ═══════════════════════════════════════
   // HERO SYSTEM
   //
-  // ⚠️  HERO_MAX_BONUS is intentionally unassigned.
-  //     It must be determined during monetization tier design.
-  //     Range guidance once monetization is designed: 0.15–0.50.
-  //     Do not use HERO_MAX_BONUS in production logic until it is assigned.
+  // Hero is the sole monetization lever. All temporary power modifiers
+  // flow through the Hero system. Hero never modifies PP, clan cap,
+  // loss cap, loot base rate, kill cooldown, or turn regen.
+  //
+  // Hero modifies only:
+  //   (a) ECP — via temporary attack/defense effect boosts
+  //   (b) Slave production — via temporary slave output boosts
+  //   (c) Combat resolution — via Resource Shield and Soldier Shield
+  //
+  // ECP formula with hero effects:
+  //   AttackerECP = (AttackerPP × (1 + TotalAttackBonus)) + AttackerClanBonus
+  //   DefenderECP = (DefenderPP × (1 + TotalDefenseBonus)) + DefenderClanBonus
+  //
+  // Hero NEVER multiplies ClanBonus.
   // ═══════════════════════════════════════
   hero: {
-    HERO_MAX_BONUS: undefined as unknown as number, // [TUNE: unassigned]
-
-    maxLevel:  100,
+    maxLevel:   100,
     xpPerLevel: 100,
 
     xpGains: {
@@ -194,13 +202,33 @@ export const BALANCE = {
       base:         1,
       level10bonus: 1,
       level50bonus: 1,
-      vipBonus:     1,
     },
 
-    shields: {
-      soldierShield:  { manaCost: 25, durationHours: 1 },
-      resourceShield: { manaCost: 25, durationHours: 1 },
-    },
+    // ── Hero Effect System ─────────────────────────────────────────────────
+    //
+    // Temporary effects purchased through the Hero system.
+    // Effects are stored in the player_hero_effects table.
+    // Active query: WHERE player_id = $1 AND ends_at > now()
+    //
+    // Stack rule: multiple effects of the same category are additive,
+    // capped at MAX_STACK_RATE per category. Clamping is server-side only.
+    //
+    // Shield model: 23h active → 1h vulnerability cooldown.
+    // Expiration timer visible only to the owner (Hero page).
+    // Other players must NOT see shield expiration time.
+
+    MAX_STACK_RATE: 0.50,  // [FIXED] Hard cap on any single bonus category
+
+    EFFECT_RATES: {
+      SLAVE_OUTPUT_10: 0.10,  // [FIXED] +10% slave production per tick
+      SLAVE_OUTPUT_20: 0.20,  // [FIXED] +20% slave production per tick
+      SLAVE_OUTPUT_30: 0.30,  // [FIXED] +30% slave production per tick
+      ATTACK_POWER_10:  0.10, // [FIXED] +10% attacker PP (never multiplies ClanBonus)
+      DEFENSE_POWER_10: 0.10, // [FIXED] +10% defender PP (never multiplies ClanBonus)
+    } as const,
+
+    SHIELD_ACTIVE_HOURS:   23,  // [FIXED] Duration of shield protection
+    SHIELD_COOLDOWN_HOURS:  1,  // [FIXED] Vulnerability window before next shield can start
   },
 
   // ═══════════════════════════════════════
@@ -208,7 +236,8 @@ export const BALANCE = {
   //
   // R = AttackerECP / DefenderECP
   //
-  // ECP = (PlayerPP × HeroMultiplier) + ClanBonus
+  // ECP = (PlayerPP × (1 + HeroBonus)) + ClanBonus
+  //   HeroBonus = TotalAttackBonus or TotalDefenseBonus from active hero effects
   //
   // Outcome:
   //   R ≥ WIN_THRESHOLD  → win
@@ -437,36 +466,6 @@ export const BALANCE = {
     accountDeletionAfterInactiveSeasons: 3,
     vacationTurnsMultiplier:             0.33, // [TUNE]
     // Full reset at season end. Cosmetics only carry over.
-  },
-
-  // ═══════════════════════════════════════
-  // VIP BOOSTS
-  //
-  // Temporary, stackable power modifiers purchasable by players.
-  // Boosts NEVER affect PP or clan cap.
-  // Attack/Defense boosts multiply PP only — NEVER ClanBonus.
-  // All bonus categories are hard-capped at MAX_STACK_RATE.
-  //
-  // Shield model: 23h active → 1h vulnerability window.
-  // Other players must NOT see shield expiration time.
-  // ═══════════════════════════════════════
-  boosts: {
-    MAX_STACK_RATE: 0.50,  // [FIXED] hard cap per bonus category (e.g. 0.10+0.20+0.30 → 0.50)
-
-    // Slave output boost rates — additive per active boost
-    SLAVE_OUTPUT_RATES: {
-      SLAVE_OUTPUT_10: 0.10,  // [FIXED]
-      SLAVE_OUTPUT_20: 0.20,  // [FIXED]
-      SLAVE_OUTPUT_30: 0.30,  // [FIXED]
-    } as const,
-
-    // Combat boost rates — multiply PP only, never ClanBonus
-    ATTACK_POWER_10:  0.10,  // [FIXED] +10% attacker PP
-    DEFENSE_POWER_10: 0.10,  // [FIXED] +10% defender PP
-
-    // Shield timing [FIXED]
-    SHIELD_ACTIVE_HOURS:   23,  // active window
-    SHIELD_COOLDOWN_HOURS:  1,  // vulnerability window after active period ends
   },
 
   // ═══════════════════════════════════════
