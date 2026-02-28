@@ -1,207 +1,627 @@
 /**
- * Domiron — Combat Formula Logic
- * All numbers come from BALANCE — never hardcoded here.
+ * Domiron v5 — Combat & Economy Engine
+ *
+ * Pure functions only. No side effects. No DB calls. No randomness.
+ * All constants imported from BALANCE — never hardcoded here.
+ *
+ * ── Beginner Protection Contract ────────────────────────────────────────────
+ * Attacks on protected players are NEVER blocked at the gate level.
+ * Protection is a flag applied inside combat resolution:
+ *   defenderIsProtected = true  → defenderLosses = 0, loot = 0
+ *   attackerIsProtected = true  → attackerLosses = 0
+ * The attacker ALWAYS pays turns + food regardless of protection state.
+ * This is intentional: the attack resolves for UX (battle screen shown),
+ * but causes no permanent damage or resource transfer.
+ *
+ * ── Soldier Tier Contract ────────────────────────────────────────────────────
+ * SoldierScore = Σ Count[tier] × TierValue[tier]
+ * TierValue[tier] = SOLDIER_V × SOLDIER_K ^ (tier - 1)
+ *
+ * Current DB tier mapping:
+ *   Tier 1 → army.soldiers
+ *   Tier 2 → army.cavalry  (tier assignment subject to final design decision)
+ *
+ * Future soldier tier columns require DB schema extension.
+ *
+ * ── Order of Operations (full resolution) ────────────────────────────────────
+ *   1. calculatePersonalPower(attacker), calculatePersonalPower(defender)
+ *   2. calculateClanBonus(attackerPP, attackerClan)
+ *      calculateClanBonus(defenderPP, defenderClan)
+ *   3. calculateECP(attackerPP, attackerHero, attackerClanBonus)
+ *      calculateECP(defenderPP, defenderHero, defenderClanBonus)
+ *   4. calculateCombatRatio(attackerECP, defenderECP)
+ *   5. determineCombatOutcome(ratio)
+ *   6. calculateSoldierLosses(...)
+ *   7. convertKilledToSlaves(defenderLosses)
+ *   8. calculateLoot(...)
  */
+
 import { BALANCE } from '@/lib/game/balance'
-import type { Army, Weapons, Training, Development, Player, AttackOutcome } from '@/types/game'
+import type { Army, Weapons, Training, Development } from '@/types/game'
 
-interface CombatStats {
-  army: Army
-  weapons: Weapons
-  training: Training
+// ─────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────
+
+export type CombatOutcome = 'win' | 'partial' | 'loss'
+
+/** All inputs needed to compute a player's PersonalPower. */
+export interface PersonalPowerInputs {
+  army:        Pick<Army, 'soldiers' | 'cavalry' | 'spies' | 'scouts'>
+  weapons:     Weapons
+  training:    Training
   development: Development
-  player: Player
-  tribeDefenseBonus?: number
 }
 
-// Calculate total weapon power for attack weapons
-function calcAttackWeaponPower(weapons: Weapons): number {
-  const w = BALANCE.weapons.attack
-  return (
-    weapons.slingshot    * w.slingshot.power    +
-    weapons.boomerang    * w.boomerang.power    +
-    weapons.pirate_knife * w.pirate_knife.power +
-    weapons.axe          * w.axe.power          +
-    weapons.master_knife * w.master_knife.power +
-    weapons.knight_axe   * w.knight_axe.power   +
-    weapons.iron_ball    * w.iron_ball.power
-  )
+/** Clan context passed into ECP calculation. */
+export interface ClanContext {
+  /** Sum of PP of all current clan members at the moment of combat. */
+  totalClanPP:      number
+  /** Clan development level (1–5). Clans start at level 1. */
+  developmentLevel: number
 }
 
-// Calculate defense multiplier from defense weapons (stacks multiplicatively)
-function calcDefenseWeaponMultiplier(weapons: Weapons): number {
-  const w = BALANCE.weapons.defense
-  let multiplier = 1.0
-  if (weapons.wood_shield   > 0) multiplier *= w.wood_shield.multiplier
-  if (weapons.iron_shield   > 0) multiplier *= w.iron_shield.multiplier
-  if (weapons.leather_armor > 0) multiplier *= w.leather_armor.multiplier
-  if (weapons.chain_armor   > 0) multiplier *= w.chain_armor.multiplier
-  if (weapons.plate_armor   > 0) multiplier *= w.plate_armor.multiplier
-  if (weapons.mithril_armor > 0) multiplier *= w.mithril_armor.multiplier
-  if (weapons.gods_armor    > 0) multiplier *= w.gods_armor.multiplier
-  return multiplier
+/** Hero context passed into ECP calculation. */
+export interface HeroContext {
+  /**
+   * HeroMultiplier = 1 + HeroBonusRate.
+   * No hero active → pass { multiplier: 1.0 }.
+   * Must be clamped externally to 1 + HERO_MAX_BONUS before being passed here.
+   */
+  multiplier: number
 }
 
-// Training multiplier: 1 + (level × 0.08)
-function trainingMultiplier(level: number): number {
-  return 1 + level * BALANCE.training.advanced.multiplierPerLevel
+export interface UnbankedResources {
+  gold: number
+  iron: number
+  wood: number
+  food: number
 }
 
-// Turn bonus: +15% for turns 1-5, +12% for turns 6-10
-function calcTurnBonus(turns: number): number {
-  const { turns1to5, turns6to10 } = BALANCE.combat.turnBonus
-  let bonus = 1.0
-  for (let i = 1; i <= turns; i++) {
-    bonus += i <= 5 ? turns1to5 : turns6to10
-  }
-  return bonus
+export interface SoldierLossResult {
+  /** Soldiers lost by the attacker. Applied to deployed count only. */
+  attackerLosses: number
+  /**
+   * Soldiers lost by the defender.
+   * 0 if killCooldownActive or defenderIsProtected.
+   */
+  defenderLosses: number
 }
 
-// Race attack bonus multiplier
-function getRaceAttackBonus(race: string): number {
-  const r = BALANCE.raceBonuses
-  if (race === 'orc')   return 1 + r.orc.attackBonus
-  if (race === 'human') return 1 + r.human.attackBonus
-  return 1.0
+export interface CombatResolutionInputs {
+  attackerPP:       number
+  defenderPP:       number
+  /** Soldiers the attacker chose to deploy. Losses apply only to this count. */
+  deployedSoldiers: number
+  defenderSoldiers: number
+  attackerHero:     HeroContext
+  defenderHero:     HeroContext
+  /** null if attacker has no clan. */
+  attackerClan:     ClanContext | null
+  /** null if defender has no clan. */
+  defenderClan:     ClanContext | null
+  defenderUnbanked: UnbankedResources
+  /**
+   * Attacks by this attacker on this specific target within DECAY_WINDOW_HOURS.
+   * Must include the current attack (minimum value: 1).
+   */
+  attackCountInWindow: number
+  /**
+   * True if the last time this attacker killed defender soldiers was within
+   * KILL_COOLDOWN_HOURS. When true: defenderLosses = 0, slavesCreated = 0.
+   * Loot still resolves normally based on outcome.
+   */
+  killCooldownActive: boolean
+  /**
+   * True if attacker is within PROTECTION_HOURS of account creation.
+   * When true: attackerLosses = 0.
+   * Attacker still pays turns + food.
+   */
+  attackerIsProtected: boolean
+  /**
+   * True if defender is within PROTECTION_HOURS of account creation.
+   * When true: defenderLosses = 0, loot = 0.
+   * Attack is NOT blocked — it resolves for UX with zero permanent effect.
+   */
+  defenderIsProtected: boolean
 }
 
-// Race defense bonus multiplier
-function getRaceDefenseBonus(race: string): number {
-  const r = BALANCE.raceBonuses
-  if (race === 'orc')   return 1 + r.orc.defenseBonus
-  if (race === 'dwarf') return 1 + r.dwarf.defenseBonus
-  return 1.0
-}
-
-// Fortification multiplier: +10% defense per level
-function fortificationMultiplier(level: number): number {
-  return 1 + (level - 1) * 0.10
-}
-
-// Random factor within [min, max]
-function randomFactor(min: number, max: number): number {
-  return min + Math.random() * (max - min)
-}
-
-export function calculateAttackPower(
-  attacker: CombatStats,
-  turnsUsed: number
-): number {
-  const baseUnits = attacker.army.soldiers + attacker.army.cavalry * BALANCE.combat.cavalryMultiplier
-  const weaponPower = calcAttackWeaponPower(attacker.weapons)
-  const turnBonus = calcTurnBonus(turnsUsed)
-  const trainMult = trainingMultiplier(attacker.training.attack_level)
-  const raceMult = getRaceAttackBonus(attacker.player.race)
-  const rng = randomFactor(BALANCE.combat.randomRange.min, BALANCE.combat.randomRange.max)
-
-  return Math.floor(
-    (baseUnits + weaponPower) * trainMult * turnBonus * raceMult * rng
-  )
-}
-
-export function calculateDefensePower(
-  defender: CombatStats
-): number {
-  const baseUnits = defender.army.soldiers + defender.army.cavalry * BALANCE.combat.cavalryMultiplier
-  const weaponMult = calcDefenseWeaponMultiplier(defender.weapons)
-  const trainMult = trainingMultiplier(defender.training.defense_level)
-  const fortMult = fortificationMultiplier(defender.development.fortification_level)
-  const raceMult = getRaceDefenseBonus(defender.player.race)
-  const tribeBonus = defender.tribeDefenseBonus ?? 0
-
-  return Math.floor(
-    (baseUnits * weaponMult) * trainMult * fortMult * raceMult + tribeBonus
-  )
-}
-
-export interface CombatResult {
-  outcome: AttackOutcome
-  atkPower: number
-  defPower: number
+export interface CombatResolutionResult {
+  outcome:        CombatOutcome
+  ratio:          number
+  attackerECP:    number
+  defenderECP:    number
   attackerLosses: number
   defenderLosses: number
-  slavesTaken: number
-  goldStolen: number
-  ironStolen: number
-  woodStolen: number
-  foodStolen: number
+  slavesCreated:  number
+  loot:           UnbankedResources
 }
 
-export function resolveCombat(
-  atkPower: number,
-  defPower: number,
-  attackerArmy: Army,
-  defenderArmy: Army,
-  defenderResources: { gold: number; iron: number; wood: number; food: number },
-  isNoDamageMode: boolean   // >5 attacks on same target today
-): CombatResult {
-  const ratio = defPower > 0 ? atkPower / defPower : 2.0
-  const outcomes = BALANCE.combat.outcomes
+// ─────────────────────────────────────────
+// A. PERSONAL POWER
+// ─────────────────────────────────────────
 
-  let outcome: AttackOutcome
-  let attackerLossPct: number
-  let defenderLossPct: number
-  let resourceStealPct: number
-  let slaveStealPct: number
+/**
+ * PP = (SoldierScore          × W_SOLDIERS)
+ *    + (EquipScore            × W_EQUIPMENT)
+ *    + (SkillScore            × W_SKILLS)
+ *    + (min(DevScore, DEV_CAP) × W_DEVELOPMENT)
+ *    + (SpyScore              × W_SPY)
+ *
+ * PP recalculates ONLY when:
+ *   - Soldier count changes (train, combat losses)
+ *   - Equipment changes (buy, sell)
+ *   - Skill level changes
+ *   - Development level changes
+ *
+ * PP does NOT recalculate on:
+ *   - Clan join / leave
+ *   - Hero activation / deactivation
+ *   - Resource changes
+ *   - City migration alone
+ */
+export function calculatePersonalPower(inputs: PersonalPowerInputs): number {
+  const { pp } = BALANCE
 
-  if (ratio >= outcomes.crushingVictory.minRatio) {
-    outcome = 'crushing_win'
-    attackerLossPct = outcomes.crushingVictory.attackerLosses
-    defenderLossPct = outcomes.crushingVictory.defenderLosses
-    resourceStealPct = outcomes.crushingVictory.resourceSteal
-    slaveStealPct = outcomes.crushingVictory.slaveSteal
-  } else if (ratio >= outcomes.victory.minRatio) {
-    outcome = 'win'
-    attackerLossPct = outcomes.victory.attackerLosses
-    defenderLossPct = outcomes.victory.defenderLosses
-    resourceStealPct = outcomes.victory.resourceSteal
-    slaveStealPct = outcomes.victory.slaveSteal
-  } else if (ratio >= outcomes.draw.minRatio) {
-    outcome = 'draw'
-    attackerLossPct = outcomes.draw.attackerLosses
-    defenderLossPct = outcomes.draw.defenderLosses
-    resourceStealPct = outcomes.draw.resourceSteal
-    slaveStealPct = outcomes.draw.slaveSteal
-  } else if (ratio >= outcomes.defeat.minRatio) {
-    outcome = 'loss'
-    attackerLossPct = outcomes.defeat.attackerLosses
-    defenderLossPct = outcomes.defeat.defenderLosses
-    resourceStealPct = outcomes.defeat.resourceSteal
-    slaveStealPct = outcomes.defeat.slaveSteal
-  } else {
-    outcome = 'crushing_loss'
-    attackerLossPct = outcomes.crushingDefeat.attackerLosses
-    defenderLossPct = outcomes.crushingDefeat.defenderLosses
-    resourceStealPct = outcomes.crushingDefeat.resourceSteal
-    slaveStealPct = outcomes.crushingDefeat.slaveSteal
+  const soldierScore = calcSoldierScore(inputs.army)
+  const equipScore   = calcEquipScore(inputs.weapons)
+  const skillScore   = calcSkillScore(inputs.training)
+  const devScore     = Math.min(calcDevScore(inputs.development), pp.DEV_CAP)
+  const spyScore     = calcSpyScore(inputs.army)
+
+  return Math.floor(
+    soldierScore * pp.W_SOLDIERS   +
+    equipScore   * pp.W_EQUIPMENT  +
+    skillScore   * pp.W_SKILLS     +
+    devScore     * pp.W_DEVELOPMENT +
+    spyScore     * pp.W_SPY
+  )
+}
+
+/**
+ * SoldierScore = Σ Count[tier] × TierValue[tier]
+ * TierValue[tier] = SOLDIER_V × SOLDIER_K ^ (tier - 1)
+ *
+ * soldiersByTier is a 0-indexed array where index 0 = Tier 1 count.
+ *
+ * Current DB mapping passed by calculatePersonalPower:
+ *   [army.soldiers, army.cavalry]
+ *   Tier 1 → soldiers | Tier 2 → cavalry (pending final tier-assignment decision)
+ */
+export function calcSoldierScore(soldiersByTierOrArmy: number[] | Pick<Army, 'soldiers' | 'cavalry'>): number {
+  const { SOLDIER_V, SOLDIER_K } = BALANCE.pp
+
+  // Accept either a raw tier array or an Army-shaped object
+  const tierCounts: number[] = Array.isArray(soldiersByTierOrArmy)
+    ? soldiersByTierOrArmy
+    : [soldiersByTierOrArmy.soldiers, soldiersByTierOrArmy.cavalry]
+
+  return tierCounts.reduce((sum, count, index) => {
+    const tier      = index + 1  // tier is 1-indexed
+    const tierValue = SOLDIER_V * Math.pow(SOLDIER_K, tier - 1)
+    return sum + count * tierValue
+  }, 0)
+}
+
+/**
+ * EquipScore = Σ(attackWeapon_count × EQUIPMENT_PP[weapon])   ← additive per unit
+ *           + Σ(defenseItem_owned  ? EQUIPMENT_PP[item] : 0)  ← binary per item
+ *           + Σ(spyItem_owned      ? EQUIPMENT_PP[item] : 0)  ← binary
+ *           + Σ(scoutItem_owned    ? EQUIPMENT_PP[item] : 0)  ← binary
+ */
+function calcEquipScore(weapons: Weapons): number {
+  const { EQUIPMENT_PP } = BALANCE.pp
+
+  const attackScore =
+    weapons.slingshot    * EQUIPMENT_PP.slingshot    +
+    weapons.boomerang    * EQUIPMENT_PP.boomerang    +
+    weapons.pirate_knife * EQUIPMENT_PP.pirate_knife +
+    weapons.axe          * EQUIPMENT_PP.axe          +
+    weapons.master_knife * EQUIPMENT_PP.master_knife +
+    weapons.knight_axe   * EQUIPMENT_PP.knight_axe   +
+    weapons.iron_ball    * EQUIPMENT_PP.iron_ball
+
+  const defenseScore =
+    (weapons.wood_shield   > 0 ? EQUIPMENT_PP.wood_shield   : 0) +
+    (weapons.iron_shield   > 0 ? EQUIPMENT_PP.iron_shield   : 0) +
+    (weapons.leather_armor > 0 ? EQUIPMENT_PP.leather_armor : 0) +
+    (weapons.chain_armor   > 0 ? EQUIPMENT_PP.chain_armor   : 0) +
+    (weapons.plate_armor   > 0 ? EQUIPMENT_PP.plate_armor   : 0) +
+    (weapons.mithril_armor > 0 ? EQUIPMENT_PP.mithril_armor : 0) +
+    (weapons.gods_armor    > 0 ? EQUIPMENT_PP.gods_armor    : 0)
+
+  const spyGearScore =
+    (weapons.shadow_cloak > 0 ? EQUIPMENT_PP.shadow_cloak : 0) +
+    (weapons.dark_mask    > 0 ? EQUIPMENT_PP.dark_mask    : 0) +
+    (weapons.elven_gear   > 0 ? EQUIPMENT_PP.elven_gear   : 0)
+
+  const scoutGearScore =
+    (weapons.scout_boots  > 0 ? EQUIPMENT_PP.scout_boots  : 0) +
+    (weapons.scout_cloak  > 0 ? EQUIPMENT_PP.scout_cloak  : 0) +
+    (weapons.elven_boots  > 0 ? EQUIPMENT_PP.elven_boots  : 0)
+
+  return attackScore + defenseScore + spyGearScore + scoutGearScore
+}
+
+/**
+ * SkillScore = Σ(Level[skill] × SKILL_PP[skill])
+ */
+function calcSkillScore(training: Training): number {
+  const { SKILL_PP } = BALANCE.pp
+  return (
+    training.attack_level  * SKILL_PP.attack  +
+    training.defense_level * SKILL_PP.defense +
+    training.spy_level     * SKILL_PP.spy     +
+    training.scout_level   * SKILL_PP.scout
+  )
+}
+
+/**
+ * DevScore_raw = Σ(Level[dev] × DEVELOPMENT_PP[dev])
+ * Applied as: min(DevScore_raw, DEV_CAP) inside calculatePersonalPower.
+ */
+function calcDevScore(development: Development): number {
+  const { DEVELOPMENT_PP } = BALANCE.pp
+  return (
+    development.gold_level          * DEVELOPMENT_PP.gold          +
+    development.food_level          * DEVELOPMENT_PP.food          +
+    development.wood_level          * DEVELOPMENT_PP.wood          +
+    development.iron_level          * DEVELOPMENT_PP.iron          +
+    development.population_level    * DEVELOPMENT_PP.population    +
+    development.fortification_level * DEVELOPMENT_PP.fortification
+  )
+}
+
+/**
+ * SpyScore = (spies × SPY_UNIT_VALUE) + (scouts × SCOUT_UNIT_VALUE)
+ */
+function calcSpyScore(army: Pick<Army, 'spies' | 'scouts'>): number {
+  return (
+    army.spies  * BALANCE.pp.SPY_UNIT_VALUE   +
+    army.scouts * BALANCE.pp.SCOUT_UNIT_VALUE
+  )
+}
+
+// ─────────────────────────────────────────
+// B. CLAN COMBAT BONUS
+// ─────────────────────────────────────────
+
+/**
+ * ClanBonus_raw = TotalClanPP × EfficiencyRate(devLevel)
+ * ClanBonus     = min(ClanBonus_raw, 0.20 × PlayerPP)
+ *
+ * Rules:
+ *   - Additive only. Never multiplied by Hero.
+ *   - Affects: attack, defense, spy, scout during combat only.
+ *   - Never affects: loot, economy, PP, ranking.
+ *   - Returns 0 if clan is null (clanless player).
+ */
+export function calculateClanBonus(playerPP: number, clan: ClanContext | null): number {
+  if (!clan) return 0
+
+  const efficiencyRate = BALANCE.clan.EFFICIENCY[clan.developmentLevel as ClanDevLevel]
+  if (!efficiencyRate) return 0
+
+  const raw = clan.totalClanPP * efficiencyRate
+  const cap = BALANCE.clan.BONUS_CAP_RATE * playerPP
+
+  return Math.floor(Math.min(raw, cap))
+}
+
+type ClanDevLevel = 1 | 2 | 3 | 4 | 5
+
+// ─────────────────────────────────────────
+// C. HERO MULTIPLIER
+// ─────────────────────────────────────────
+
+/**
+ * HeroMultiplier = 1 + HeroBonusRate, where HeroBonusRate ≤ HERO_MAX_BONUS.
+ *
+ * ⚠️  HERO_MAX_BONUS is currently unassigned in config.
+ *     Do not call this function in production until HERO_MAX_BONUS is set.
+ *
+ * No hero active → pass heroMultiplier = 1.0, skip this clamp.
+ */
+export function clampHeroMultiplier(rawMultiplier: number): number {
+  const heroMaxBonus = BALANCE.hero.HERO_MAX_BONUS
+  if (heroMaxBonus === undefined) {
+    throw new Error('BALANCE.hero.HERO_MAX_BONUS is not assigned. Assign before use.')
+  }
+  return Math.min(rawMultiplier, 1 + heroMaxBonus)
+}
+
+// ─────────────────────────────────────────
+// D. EFFECTIVE COMBAT POWER (ECP)
+// ─────────────────────────────────────────
+
+/**
+ * Order of operations (mandatory):
+ *   Step 1: ClanBonus = min(TotalClanPP × EfficiencyRate, 0.20 × PlayerPP)
+ *   Step 2: ECP = (PlayerPP × HeroMultiplier) + ClanBonus
+ *
+ * Hero multiplies ONLY PlayerPP — never ClanBonus.
+ * This prevents the monetization lever (hero) from amplifying the social mechanic (clan).
+ */
+export function calculateECP(
+  playerPP: number,
+  hero:     HeroContext,
+  clan:     ClanContext | null,
+): number {
+  const clanBonus = calculateClanBonus(playerPP, clan)
+  return Math.floor((playerPP * hero.multiplier) + clanBonus)
+}
+
+// ─────────────────────────────────────────
+// E. COMBAT RATIO & OUTCOME
+// ─────────────────────────────────────────
+
+/**
+ * R = AttackerECP / DefenderECP
+ * DefenderECP = 0 → ratio treated as WIN_THRESHOLD + 1 (automatic win).
+ */
+export function calculateCombatRatio(attackerECP: number, defenderECP: number): number {
+  if (defenderECP <= 0) return BALANCE.combat.WIN_THRESHOLD + 1
+  return attackerECP / defenderECP
+}
+
+/**
+ * R ≥ WIN_THRESHOLD  → 'win'
+ * R < LOSS_THRESHOLD → 'loss'
+ * Otherwise          → 'partial'
+ *
+ * Tuning target: ~50–60% of same-PP same-city combats produce 'partial'.
+ */
+export function determineCombatOutcome(ratio: number): CombatOutcome {
+  if (ratio >= BALANCE.combat.WIN_THRESHOLD)  return 'win'
+  if (ratio <  BALANCE.combat.LOSS_THRESHOLD) return 'loss'
+  return 'partial'
+}
+
+// ─────────────────────────────────────────
+// F. SOLDIER LOSSES
+// ─────────────────────────────────────────
+
+/**
+ * DefenderLossRate = clamp(BASE_LOSS × R, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE)
+ * AttackerLossRate = clamp(BASE_LOSS / R, ATTACKER_FLOOR,       MAX_LOSS_RATE)
+ *
+ * killed_soldiers_attacker = floor(deployedSoldiers  × AttackerLossRate)
+ * killed_soldiers_defender = floor(defenderSoldiers  × DefenderLossRate)
+ *
+ * Guarantees:
+ *   - Neither side ever exceeds MAX_LOSS_RATE (30%) per battle.
+ *   - Attacker always loses ≥ ATTACKER_FLOOR (never zero-cost attack).
+ *   - Defender bleeds ≥ DEFENDER_BLEED_FLOOR even from a far-weaker attacker.
+ *
+ * Protection & cooldown flags:
+ *   killCooldownActive   → defenderLosses = 0 (attacker still loses normally)
+ *   defenderIsProtected  → defenderLosses = 0
+ *   attackerIsProtected  → attackerLosses = 0 (attacker still pays turns + food)
+ *
+ * Losses apply to deployed soldiers only, not total army.
+ */
+export function calculateSoldierLosses(
+  deployedSoldiers:    number,
+  defenderSoldiers:    number,
+  ratio:               number,
+  killCooldownActive:  boolean,
+  attackerIsProtected: boolean,
+  defenderIsProtected: boolean,
+): SoldierLossResult {
+  const { BASE_LOSS, MAX_LOSS_RATE, DEFENDER_BLEED_FLOOR, ATTACKER_FLOOR } = BALANCE.combat
+
+  const rawAttackerRate  = BASE_LOSS / Math.max(ratio, 0.01)
+  const attackerLossRate = attackerIsProtected
+    ? 0
+    : clamp(rawAttackerRate, ATTACKER_FLOOR, MAX_LOSS_RATE)
+
+  const rawDefenderRate  = BASE_LOSS * ratio
+  const defenderLossRate = (killCooldownActive || defenderIsProtected)
+    ? 0
+    : clamp(rawDefenderRate, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE)
+
+  return {
+    attackerLosses: Math.floor(deployedSoldiers * attackerLossRate),
+    defenderLosses: Math.floor(defenderSoldiers * defenderLossRate),
+  }
+}
+
+// ─────────────────────────────────────────
+// G. SLAVE CONVERSION
+// ─────────────────────────────────────────
+
+/**
+ * slaves_gained = floor(killed_soldiers_defender × CAPTURE_RATE)
+ *
+ * Slave rules (enforced by game logic, not this formula):
+ *   - Slaves are permanent. No auto-expiry.
+ *   - Slaves produce resources via tick production.
+ *   - Slaves cannot be converted back to soldiers.
+ *   - Slaves do not contribute to ECP or combat in any way.
+ */
+export function convertKilledToSlaves(defenderSoldiersKilled: number): number {
+  return Math.floor(defenderSoldiersKilled * BALANCE.combat.CAPTURE_RATE)
+}
+
+// ─────────────────────────────────────────
+// H. KILL COOLDOWN CHECK
+// ─────────────────────────────────────────
+
+/**
+ * Returns true if the kill cooldown is still active for (attacker → target).
+ * lastKillAt is the timestamp of the last attack where defenderLosses > 0.
+ * When active: defenderLosses = 0 in combat, loot still applies.
+ */
+export function isKillCooldownActive(lastKillAt: Date | null, now: Date = new Date()): boolean {
+  if (!lastKillAt) return false
+  const elapsedMs  = now.getTime() - lastKillAt.getTime()
+  const cooldownMs = BALANCE.combat.KILL_COOLDOWN_HOURS * 60 * 60 * 1000
+  return elapsedMs < cooldownMs
+}
+
+// ─────────────────────────────────────────
+// I. NEW PLAYER PROTECTION CHECK
+// ─────────────────────────────────────────
+
+/**
+ * Returns true if the player is within the 24-hour new-player protection window.
+ *
+ * Protection does NOT block attacks.
+ * When defenderIsProtected: loot = 0, defenderLosses = 0.
+ * When attackerIsProtected: attackerLosses = 0.
+ * Attacker always pays turns + food.
+ */
+export function isNewPlayerProtected(playerCreatedAt: Date, now: Date = new Date()): boolean {
+  const elapsedMs     = now.getTime() - playerCreatedAt.getTime()
+  const protectionMs  = BALANCE.combat.PROTECTION_HOURS * 60 * 60 * 1000
+  return elapsedMs < protectionMs
+}
+
+// ─────────────────────────────────────────
+// J. LOOT DECAY
+// ─────────────────────────────────────────
+
+/**
+ * Returns the decay multiplier for this attack based on how many times
+ * the attacker has attacked this specific target within DECAY_WINDOW_HOURS.
+ *
+ * attackCountInWindow must include the current attack (minimum 1).
+ *
+ *   1st  → 1.00 | 2nd → 0.70 | 3rd → 0.40 | 4th → 0.20 | 5th+ → 0.10
+ */
+export function getLootDecayMultiplier(attackCountInWindow: number): number {
+  const steps = BALANCE.antiFarm.LOOT_DECAY_STEPS
+  const index = Math.min(attackCountInWindow - 1, steps.length - 1)
+  return steps[Math.max(0, index)]
+}
+
+// ─────────────────────────────────────────
+// K. LOOT CALCULATION
+// ─────────────────────────────────────────
+
+/**
+ * BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE      (0.20)
+ * FinalLoot[r] = BaseLoot[r] × OutcomeMultiplier × DecayFactor
+ *
+ * OutcomeMultiplier: win=1.0, partial=0.5, loss=0.0
+ * No hard cap. No power-gap block. City restriction is the access limiter.
+ *
+ * Returns zero loot if outcome is 'loss' or defender is protected.
+ */
+export function calculateLoot(
+  unbanked:            UnbankedResources,
+  outcome:             CombatOutcome,
+  attackCountInWindow: number,
+  defenderIsProtected: boolean,
+): UnbankedResources {
+  if (defenderIsProtected || outcome === 'loss') {
+    return { gold: 0, iron: 0, wood: 0, food: 0 }
   }
 
-  const maxSteal = BALANCE.combat.maxResourceStealPercent
+  const outcomeMult = BALANCE.combat.LOOT_OUTCOME_MULTIPLIER[outcome]
+  const decayFactor = getLootDecayMultiplier(attackCountInWindow)
+  const totalMult   = BALANCE.combat.BASE_LOOT_RATE * outcomeMult * decayFactor
 
-  // No-damage mode: only steal resources, no soldier loss or capture
-  const effectiveDefenderLossPct = isNoDamageMode ? 0 : defenderLossPct
-  const effectiveSlaveStealPct = isNoDamageMode ? 0 : slaveStealPct
+  return {
+    gold: Math.floor(unbanked.gold * totalMult),
+    iron: Math.floor(unbanked.iron * totalMult),
+    wood: Math.floor(unbanked.wood * totalMult),
+    food: Math.floor(unbanked.food * totalMult),
+  }
+}
 
-  const attackerLosses = Math.floor(attackerArmy.soldiers * attackerLossPct)
-  const defenderLosses = Math.floor(defenderArmy.soldiers * effectiveDefenderLossPct)
-  const slavesTaken = Math.floor(defenderArmy.soldiers * effectiveSlaveStealPct)
+// ─────────────────────────────────────────
+// L. FOOD COST
+// ─────────────────────────────────────────
 
-  const stealFactor = Math.min(resourceStealPct, maxSteal)
-  const goldStolen   = Math.floor(defenderResources.gold  * stealFactor)
-  const ironStolen   = Math.floor(defenderResources.iron  * stealFactor)
-  const woodStolen   = Math.floor(defenderResources.wood  * stealFactor)
-  const foodStolen   = Math.floor(defenderResources.food  * stealFactor)
+/**
+ * food_cost = deployed_soldiers × FOOD_PER_SOLDIER
+ *
+ * Food must be the primary aggression bottleneck.
+ * Design constraint: MaxAttacks/day via food < MaxAttacks/day via turns.
+ */
+export function calculateFoodCost(deployedSoldiers: number): number {
+  return deployedSoldiers * BALANCE.combat.FOOD_PER_SOLDIER
+}
+
+// ─────────────────────────────────────────
+// M. TURN REGEN
+// ─────────────────────────────────────────
+
+/**
+ * new_turns = min(current_turns + 3, 200)
+ * Regen only occurs when current_turns < MAX_TURNS.
+ */
+export function calcTurnsAfterRegen(currentTurns: number): number {
+  if (currentTurns >= BALANCE.tick.maxTurns) return BALANCE.tick.maxTurns
+  return Math.min(currentTurns + BALANCE.tick.turnsPerTick, BALANCE.tick.maxTurns)
+}
+
+// ─────────────────────────────────────────
+// N. FULL COMBAT RESOLVER
+// ─────────────────────────────────────────
+
+/**
+ * Orchestrates a full combat resolution in the correct order of operations.
+ * PP values must be pre-computed by the caller via calculatePersonalPower().
+ *
+ * The API route (caller) is responsible for:
+ *   - Gate checks (same clan, same city, sufficient turns/food)
+ *   - NOT blocking attacks due to protection — protection is a flag here
+ *   - Querying attackCountInWindow and lastKillAt from the DB
+ *   - Writing results back to the DB
+ *   - Triggering PP recalculation after soldier count changes
+ */
+export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionResult {
+  // Step 1: Clan bonuses — computed first, additive, never multiplied by hero
+  const attackerClanBonus = calculateClanBonus(inputs.attackerPP, inputs.attackerClan)
+  const defenderClanBonus = calculateClanBonus(inputs.defenderPP, inputs.defenderClan)
+
+  // Step 2: ECP = (PP × HeroMultiplier) + ClanBonus
+  const attackerECP = Math.floor((inputs.attackerPP * inputs.attackerHero.multiplier) + attackerClanBonus)
+  const defenderECP = Math.floor((inputs.defenderPP * inputs.defenderHero.multiplier) + defenderClanBonus)
+
+  // Step 3: Ratio → outcome
+  const ratio   = calculateCombatRatio(attackerECP, defenderECP)
+  const outcome = determineCombatOutcome(ratio)
+
+  // Step 4: Soldier losses
+  const losses = calculateSoldierLosses(
+    inputs.deployedSoldiers,
+    inputs.defenderSoldiers,
+    ratio,
+    inputs.killCooldownActive,
+    inputs.attackerIsProtected,
+    inputs.defenderIsProtected,
+  )
+
+  // Step 5: Slave conversion (zero when no kills landed)
+  const slavesCreated = convertKilledToSlaves(losses.defenderLosses)
+
+  // Step 6: Loot (zero when defender is protected or outcome is loss)
+  const loot = calculateLoot(
+    inputs.defenderUnbanked,
+    outcome,
+    inputs.attackCountInWindow,
+    inputs.defenderIsProtected,
+  )
 
   return {
     outcome,
-    atkPower,
-    defPower,
-    attackerLosses,
-    defenderLosses,
-    slavesTaken,
-    goldStolen,
-    ironStolen,
-    woodStolen,
-    foodStolen,
+    ratio,
+    attackerECP,
+    defenderECP,
+    attackerLosses: losses.attackerLosses,
+    defenderLosses: losses.defenderLosses,
+    slavesCreated,
+    loot,
   }
+}
+
+// ─────────────────────────────────────────
+// PRIVATE UTILITIES
+// ─────────────────────────────────────────
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }

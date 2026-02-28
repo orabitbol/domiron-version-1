@@ -1,254 +1,200 @@
 /**
- * Domiron — Balance Configuration
- * 
- * THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL GAME NUMBERS.
- * 
- * - To change a value: edit here + add entry to changelog below.
- * - Admin Panel can override any value at runtime via balance_overrides DB table.
- * - Import this file in all game logic: import { BALANCE } from '@/config/balance.config'
+ * Domiron v5 — Balance Configuration
+ *
+ * SINGLE SOURCE OF TRUTH for all game constants.
+ *
+ * Annotation key:
+ *   [FIXED]              — Confirmed by design spec. Do not change without GDD update.
+ *   [TUNE]               — Value confirmed as needed; exact number set during balance phase.
+ *   [TUNE: placeholder]  — Placeholder value used for structural/test purposes.
+ *                          Replace with tuned value before production.
+ *   [TUNE: unassigned]   — No default. Must be explicitly assigned before this
+ *                          constant can be used in production logic.
+ *
+ * Import rule:
+ *   All game logic imports from '@/lib/game/balance' (barrel re-export).
+ *   Never hardcode these values in API routes or components.
  */
+
+// ─────────────────────────────────────────
+// AUXILIARY TYPES
+// ─────────────────────────────────────────
+
+export type ClanDevLevel = 1 | 2 | 3 | 4 | 5
+
+// ─────────────────────────────────────────
+// MAIN CONFIG EXPORT
+// ─────────────────────────────────────────
 
 export const BALANCE = {
 
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   // TICK SYSTEM
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   tick: {
-    intervalMinutes: 30,
-    turnsPerTick: 3,
-    maxTurns: 30,
+    intervalMinutes: 30,   // [FIXED] Vercel Cron runs every 30 min
+    turnsPerTick:    3,    // [FIXED] +3 turns added per tick
+    maxTurns:        200,  // [FIXED] Hard cap — regen stops at this value
+    turnsPerDay:     144,  // [FIXED] 3 × 48 ticks. Informational; do not use in formulas.
   },
 
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   // STARTING RESOURCES (new player)
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   startingResources: {
-    gold: 5000,
-    iron: 5000,
-    wood: 5000,
-    food: 5000,
-    turns: 100,
+    gold:  5000,  // [TUNE]
+    iron:  5000,  // [TUNE]
+    wood:  5000,  // [TUNE]
+    food:  5000,  // [TUNE]
+    turns: 50,    // [TUNE] Start below cap so regen is immediately visible
   },
 
-  // ─────────────────────────────────────────
-  // CATCH-UP BONUS (mid-season registration)
-  // ─────────────────────────────────────────
-  catchUpBonus: {
-    day1to7:   1,   // ×1 — normal start
-    day8to30:  2,   // ×2 resources
-    day31to60: 5,   // ×5 resources
-    day61to80: 10,  // ×10 resources
-    day81to90: 20,  // ×20 resources
+  // ═══════════════════════════════════════
+  // PERSONAL POWER (PP) WEIGHTS & SUB-SCORE VALUES
+  //
+  // PP = (SoldierScore          × W_SOLDIERS)
+  //    + (EquipScore            × W_EQUIPMENT)
+  //    + (SkillScore            × W_SKILLS)
+  //    + (min(DevScore, DEV_CAP) × W_DEVELOPMENT)
+  //    + (SpyScore              × W_SPY)
+  //
+  // Target distribution at mid-season balanced player:
+  //   Soldiers ~45% | Equipment ~25% | Skills ~15% | Dev ~10% | Spy ~5%
+  // ═══════════════════════════════════════
+  pp: {
+    // Component weights [TUNE: placeholder] — tune until distribution matches targets
+    W_SOLDIERS:    1.0,
+    W_EQUIPMENT:   1.0,
+    W_SKILLS:      1.0,
+    W_DEVELOPMENT: 1.0,
+    W_SPY:         1.0,
+
+    // Hard cap on DevScore before weight multiplication [TUNE: placeholder]
+    DEV_CAP: 10_000,
+
+    // ── Soldier tier formula parameters ───────────────────
+    //
+    // TierValue[tier] = SOLDIER_V × SOLDIER_K ^ (tier - 1)
+    //
+    // SoldierScore = Σ Count[tier] × TierValue[tier]
+    //
+    // Tier → unit column mapping (current DB schema):
+    //   Tier 1 → army.soldiers
+    //   Tier 2 → army.cavalry  (tier assignment pending final design decision)
+    //
+    // Future tier columns (e.g. elite soldiers) require DB schema extension.
+    //
+    SOLDIER_V: 1,   // [TUNE: placeholder] Base PP value for a Tier 1 soldier
+    SOLDIER_K: 3,   // [TUNE: placeholder] Inter-tier multiplier (must be > 1)
+    //
+    // Tuning guide:
+    //   At SOLDIER_V=1, SOLDIER_K=3:
+    //     Tier 1 value = 1, Tier 2 value = 3, Tier 3 value = 9, Tier 4 value = 27
+    //   Adjust SOLDIER_K so that upgrading tiers feels meaningful but lower tiers
+    //   remain useful as an army base (target k ≈ 2.5–3).
+
+    // ── Equipment PP values ────────────────────────────────
+    // These are RANKING contributions — separate from combat power.
+    // Attack weapons: additive per unit. Defense/Spy/Scout gear: binary.
+    EQUIPMENT_PP: {
+      // Attack weapons — PP per unit owned (additive)
+      slingshot:    2,       // [TUNE]
+      boomerang:    5,       // [TUNE]
+      pirate_knife: 12,      // [TUNE]
+      axe:          28,      // [TUNE]
+      master_knife: 64,      // [TUNE]
+      knight_axe:   148,     // [TUNE]
+      iron_ball:    340,     // [TUNE]
+      // Defense equipment — PP granted once if count > 0 (binary)
+      wood_shield:   150,    // [TUNE]
+      iron_shield:   800,    // [TUNE]
+      leather_armor: 2_500,  // [TUNE]
+      chain_armor:   8_000,  // [TUNE]
+      plate_armor:   25_000, // [TUNE]
+      mithril_armor: 70_000, // [TUNE]
+      gods_armor:    150_000,// [TUNE]
+      // Spy gear — binary
+      shadow_cloak: 500,     // [TUNE]
+      dark_mask:    2_000,   // [TUNE]
+      elven_gear:   8_000,   // [TUNE]
+      // Scout gear — binary
+      scout_boots:  500,     // [TUNE]
+      scout_cloak:  2_000,   // [TUNE]
+      elven_boots:  8_000,   // [TUNE]
+    },
+
+    // ── Skill PP values — per training level ──────────────
+    SKILL_PP: {
+      attack:  100, // [TUNE]
+      defense: 100, // [TUNE]
+      spy:     80,  // [TUNE]
+      scout:   80,  // [TUNE]
+    },
+
+    // ── Development PP values — per level ─────────────────
+    DEVELOPMENT_PP: {
+      gold:          50,  // [TUNE]
+      food:          50,  // [TUNE]
+      wood:          50,  // [TUNE]
+      iron:          50,  // [TUNE]
+      population:    75,  // [TUNE]
+      fortification: 100, // [TUNE]
+    },
+
+    // ── Spy/Scout unit PP values ───────────────────────────
+    // Keep low to maintain ~5% total PP contribution.
+    SPY_UNIT_VALUE:   5,  // [TUNE]
+    SCOUT_UNIT_VALUE: 5,  // [TUNE]
   },
 
-  // ─────────────────────────────────────────
-  // RACE BONUSES (applied as multipliers)
-  // ─────────────────────────────────────────
-  raceBonuses: {
-    orc: {
-      attackBonus: 0.10,    // +10%
-      defenseBonus: 0.03,   // +3%
-    },
-    human: {
-      goldProductionBonus: 0.15,  // +15%
-      attackBonus: 0.03,          // +3%
-    },
-    elf: {
-      spyBonus: 0.20,    // +20%
-      scoutBonus: 0.20,  // +20%
-    },
-    dwarf: {
-      defenseBonus: 0.15,         // +15%
-      goldProductionBonus: 0.03,  // +3%
-    },
+  // ═══════════════════════════════════════
+  // CLAN SYSTEM
+  // ═══════════════════════════════════════
+  clan: {
+    maxMembers:                 20,   // [FIXED]
+    BONUS_CAP_RATE:             0.20, // [FIXED] ClanBonus ≤ 0.20 × PlayerPP
+    postMigrationCooldownHours: 48,   // [FIXED]
+    normalLeaveCooldownMinutes: 10,   // [FIXED]
+
+    // Clan combat efficiency per development level.
+    // Clans start at Level 1 automatically (no Level 0 in play).
+    // ClanBonus_raw = TotalClanPP × EFFICIENCY[devLevel]
+    EFFICIENCY: {
+      1: 0.05, // [FIXED]
+      2: 0.08, // [FIXED]
+      3: 0.10, // [FIXED]
+      4: 0.12, // [FIXED]
+      5: 0.15, // [FIXED]
+    } as Record<ClanDevLevel, number>,
   },
 
-  // ─────────────────────────────────────────
-  // COMBAT
-  // ─────────────────────────────────────────
-  combat: {
-    cavalryMultiplier: 1.2,
-    randomRange: { min: 0.92, max: 1.08 },
-
-    // Turn bonus rates
-    turnBonus: {
-      turns1to5:  0.15,   // +15% per turn
-      turns6to10: 0.12,   // +12% per turn (diminishing)
-    },
-
-    // Food cost per turn used in battle
-    foodCostPerTurn: 10,
-
-    // Max attacks on same target before no-damage mode
-    maxDamageAttacksPerDay: 5,
-
-    // Cooldown between attacks (seconds)
-    attackCooldownSeconds: 5,
-
-    // Battle outcomes (ATK/DEF ratio thresholds)
-    outcomes: {
-      crushingVictory: {
-        minRatio: 2.0,
-        attackerLosses: 0.05,
-        defenderLosses: 0.40,
-        resourceSteal: 0.30,
-        slaveSteal: 0.20,
-      },
-      victory: {
-        minRatio: 1.1,
-        attackerLosses: 0.15,
-        defenderLosses: 0.25,
-        resourceSteal: 0.20,
-        slaveSteal: 0.10,
-      },
-      draw: {
-        minRatio: 0.9,
-        attackerLosses: 0.10,
-        defenderLosses: 0.10,
-        resourceSteal: 0.05,
-        slaveSteal: 0,
-      },
-      defeat: {
-        minRatio: 0.5,
-        attackerLosses: 0.30,
-        defenderLosses: 0.05,
-        resourceSteal: 0,
-        slaveSteal: 0,
-      },
-      crushingDefeat: {
-        minRatio: 0,
-        attackerLosses: 0.60,
-        defenderLosses: 0.02,
-        resourceSteal: 0,
-        slaveSteal: 0,
-      },
-    },
-
-    // Hard cap on resources stolen per attack
-    maxResourceStealPercent: 0.50,
-  },
-
-  // ─────────────────────────────────────────
-  // TRAINING
-  // ─────────────────────────────────────────
-  training: {
-    baseCapacity: 2500,
-    capacityPerDevelopmentLevel: 500,
-
-    units: {
-      soldier:  { goldCost: 60,    capacityCost: 83  },
-      slave:    { goldCost: 10,    capacityCost: 150 },
-      spy:      { goldCost: 80,    capacityCost: 62  },
-      scout:    { goldCost: 80,    capacityCost: 62  },
-      cavalry:  { goldCost: 1000,  capacityCost: 0, soldierRatio: 10 }, // 1 per 10 soldiers
-      farmer:   { goldCost: 150,   capacityCost: 0 },
-    },
-
-    // Advanced training
-    advanced: {
-      costPerLevel: { gold: 300, food: 300 },
-      multiplierPerLevel: 0.08,  // level × 0.08 added to 1.0
-      // Level 0: ×1.00, Level 5: ×1.40, Level 10: ×1.80, Level 20: ×2.60
-    },
-  },
-
-  // ─────────────────────────────────────────
-  // PRODUCTION
-  // ─────────────────────────────────────────
-  production: {
-    // Base production per unit per tick (random range)
-    baseMin: 1.0,
-    baseMax: 3.0,
-
-    // City multipliers
-    cityMultipliers: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 },
-
-    // Development upgrade costs (multiplied per level)
-    developmentUpgradeCost: {
-      level2:  { gold: 3,   resource: 3   },
-      level3:  { gold: 9,   resource: 9   },
-      level5:  { gold: 50,  resource: 50  },
-      level10: { gold: 500, resource: 500 },
-    },
-
-    // Population per tick by level
-    populationPerTick: {
-      1: 1, 2: 2, 3: 3, 4: 4, 5: 5,
-      6: 8, 7: 10, 8: 14, 9: 18, 10: 23,
-    },
-  },
-
-  // ─────────────────────────────────────────
-  // WEAPONS — ATTACK
-  // ─────────────────────────────────────────
-  weapons: {
-    attack: {
-      slingshot:    { power: 2,   maxPerPlayer: 25, costIron: 200 },
-      boomerang:    { power: 5,   maxPerPlayer: 12, costIron: 400 },
-      pirate_knife: { power: 12,  maxPerPlayer: 6,  costIron: 800 },
-      axe:          { power: 28,  maxPerPlayer: 3,  costIron: 1600 },
-      master_knife: { power: 64,  maxPerPlayer: 1,  costIron: 3200 },
-      knight_axe:   { power: 148, maxPerPlayer: 1,  costIron: 6400 },
-      iron_ball:    { power: 340, maxPerPlayer: 1,  costIron: 12800 },
-    },
-
-    defense: {
-      wood_shield:   { multiplier: 1.10, costGold: 1500 },
-      iron_shield:   { multiplier: 1.25, costGold: 8000 },
-      leather_armor: { multiplier: 1.40, costGold: 25000 },
-      chain_armor:   { multiplier: 1.55, costGold: 80000 },
-      plate_armor:   { multiplier: 1.70, costGold: 250000 },
-      mithril_armor: { multiplier: 1.90, costGold: 700000 },
-      gods_armor:    { multiplier: 2.20, costGold: 1000000, costIron: 500000, costWood: 300000 },
-    },
-
-    spy: {
-      shadow_cloak: { costGold: 5000 },
-      dark_mask:    { costGold: 20000 },
-      elven_gear:   { costGold: 80000 },
-    },
-
-    scout: {
-      scout_boots:  { costGold: 5000 },
-      scout_cloak:  { costGold: 20000 },
-      elven_boots:  { costGold: 80000 },
-    },
-
-    sellRefundPercent: 0.20,   // 20% of original cost (iron/wood only)
-  },
-
-  // ─────────────────────────────────────────
-  // BANK
-  // ─────────────────────────────────────────
-  bank: {
-    maxDepositPercent: 0.50,    // 50% of gold on hand
-    depositsPerDay: 2,
-    interestPerLevel: 0.00125,  // 0.125% per level
-    upgradeBaseCost: 2000,      // × (level + 1) per upgrade
-    theftProtection: 1.00,      // 100% safe
-  },
-
-  // ─────────────────────────────────────────
-  // HERO
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
+  // HERO SYSTEM
+  //
+  // ⚠️  HERO_MAX_BONUS is intentionally unassigned.
+  //     It must be determined during monetization tier design.
+  //     Range guidance once monetization is designed: 0.15–0.50.
+  //     Do not use HERO_MAX_BONUS in production logic until it is assigned.
+  // ═══════════════════════════════════════
   hero: {
-    maxLevel: 100,
-    xpPerLevel: 100,   // level × 100 XP required
+    HERO_MAX_BONUS: undefined as unknown as number, // [TUNE: unassigned]
+
+    maxLevel:  100,
+    xpPerLevel: 100,
 
     xpGains: {
-      weakOpponent:  10,
-      equalOpponent: 25,
+      weakOpponent:   10,
+      equalOpponent:  25,
       strongOpponent: 50,
-      tribeContributionPerTick: 5,
       achievementMin: 100,
       achievementMax: 500,
     },
 
     manaPerTick: {
-      base: 1,
+      base:         1,
       level10bonus: 1,
       level50bonus: 1,
-      vipBonus: 1,
+      vipBonus:     1,
     },
 
     shields: {
@@ -257,114 +203,272 @@ export const BALANCE = {
     },
   },
 
-  // ─────────────────────────────────────────
-  // TRIBE
-  // ─────────────────────────────────────────
-  tribe: {
-    maxMembers: 25,
+  // ═══════════════════════════════════════
+  // COMBAT RESOLUTION
+  //
+  // R = AttackerECP / DefenderECP
+  //
+  // ECP = (PlayerPP × HeroMultiplier) + ClanBonus
+  //
+  // Outcome:
+  //   R ≥ WIN_THRESHOLD  → win
+  //   R < LOSS_THRESHOLD → loss
+  //   Otherwise          → partial
+  //
+  // Design target: ~50–60% partial for same-PP players within same city.
+  //
+  // BEGINNER PROTECTION NOTE:
+  //   Attacks on protected players are NEVER blocked.
+  //   Protection is a flag applied inside combat resolution:
+  //     defenderIsProtected → defenderLosses = 0, loot = 0
+  //     attackerIsProtected → attackerLosses = 0
+  //   The attacker always pays turns + food regardless of protection.
+  // ═══════════════════════════════════════
+  combat: {
+    // Outcome thresholds [TUNE]
+    WIN_THRESHOLD:  1.30, // [TUNE]
+    LOSS_THRESHOLD: 0.75, // [TUNE]
 
-    defenseContributionPercent: 0.05,  // 5% per member
+    // Soldier loss rates [TUNE]
+    BASE_LOSS:            0.15, // [TUNE: placeholder] Loss rate at R = 1.0
+    MAX_LOSS_RATE:        0.30, // [FIXED] Hard cap — never lose more than 30%
+    DEFENDER_BLEED_FLOOR: 0.05, // [TUNE] Minimum defender loss even from weak attacker
+    ATTACKER_FLOOR:       0.03, // [TUNE] Attacker always loses at least this fraction
 
-    manaPerTick: {
-      base: 1,
-      bonus10to19: 1,
-      bonus20to29: 2,
-      bonus30to39: 3,
-      bonus40to49: 4,
-      bonus50: 5,
+    // Slave conversion
+    CAPTURE_RATE: 0.35, // [TUNE] 30–40% of killed defender soldiers → slaves (permanent)
+
+    // Loot
+    BASE_LOOT_RATE: 0.20, // [FIXED] 20% of each unbanked resource
+
+    LOOT_OUTCOME_MULTIPLIER: {
+      win:     1.0,
+      partial: 0.5,
+      loss:    0.0,
+    } as const,
+
+    // Attack cost
+    MIN_TURNS_PER_ATTACK: 1,  // [FIXED]
+    MAX_TURNS_PER_ATTACK: 10, // [FIXED]
+
+    // food_cost = deployed_soldiers × FOOD_PER_SOLDIER
+    FOOD_PER_SOLDIER: 1, // [TUNE]
+
+    // Kill cooldown — per (attacker_id → target_id) pair
+    KILL_COOLDOWN_HOURS: 6, // [FIXED]
+
+    // New player protection window
+    // Protection does NOT block attacks — see note above.
+    PROTECTION_HOURS: 24, // [FIXED]
+  },
+
+  // ═══════════════════════════════════════
+  // ANTI-FARM / LOOT DECAY
+  // ═══════════════════════════════════════
+  antiFarm: {
+    DECAY_WINDOW_HOURS: 12, // [FIXED]
+
+    // LOOT_DECAY_STEPS[attackNumber - 1], clamped to last entry for 5+.
+    // 1st → 1.0 | 2nd → 0.70 | 3rd → 0.40 | 4th → 0.20 | 5th+ → 0.10
+    LOOT_DECAY_STEPS: [1.0, 0.70, 0.40, 0.20, 0.10] as const,
+  },
+
+  // ═══════════════════════════════════════
+  // BANK
+  // ═══════════════════════════════════════
+  bank: {
+    maxLifetimeDeposits: 5,     // [FIXED] Total deposits across account lifetime
+    theftProtection:     1.00,  // [FIXED] 100% of banked gold is safe
+
+    // Interest formula: interest = floor(balance × BANK_INTEREST_RATE_BASE)
+    //                            + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
+    //
+    // Both rates are [TUNE: unassigned]. Assign during economy balance.
+    // Guideline: total rate should feel meaningful but not dominate gold production.
+    BANK_INTEREST_RATE_BASE:      undefined as unknown as number, // [TUNE: unassigned]
+    BANK_INTEREST_RATE_PER_LEVEL: undefined as unknown as number, // [TUNE: unassigned]
+
+    upgradeBaseCost: 2_000, // [TUNE]
+  },
+
+  // ═══════════════════════════════════════
+  // TRAINING & POPULATION
+  // ═══════════════════════════════════════
+  training: {
+    unitCost: {
+      soldier: { gold: 60  }, // [TUNE]
+      slave:   { gold: 10  }, // [TUNE]
+      spy:     { gold: 80  }, // [TUNE]
+      scout:   { gold: 80  }, // [TUNE]
     },
 
-    taxLimits: {
-      city1: 25000,
-      city2: 100000,
-      city3: 1000000,
-      city4: 10000000,
-      city5: 100000000,
-    },
+    populationPerTick: {
+      1: 1, 2: 2,  3: 3,  4: 4,  5: 5,
+      6: 8, 7: 10, 8: 14, 9: 18, 10: 23,
+    } as Record<number, number>,
 
-    spells: {
-      combat_boost:        { manaCost: 5,  durationHours: 3,  attackBonus: 0.20 },
-      tribe_shield:        { manaCost: 8,  durationHours: 2,  defenseBonus: 0.40 },
-      production_blessing: { manaCost: 4,  durationHours: 6,  productionBonus: 0.50 },
-      mass_spy:            { manaCost: 6,  durationHours: 0 },  // one-time reveal
-      war_cry:             { manaCost: 15, durationHours: 1,  attackBonus: 0.50 },
+    advancedMultiplierPerLevel: 0.08,                    // [TUNE]
+    advancedCost: { gold: 300, food: 300 },              // [TUNE]
+    EXPONENTIAL_GROWTH_FLOOR:   10_000,                  // [TUNE]
+  },
+
+  // ═══════════════════════════════════════
+  // PRODUCTION (slave output per tick)
+  // ═══════════════════════════════════════
+  production: {
+    baseMin: 1.0, // [TUNE]
+    baseMax: 3.0, // [TUNE]
+
+    developmentUpgradeCost: {
+      level2:  { gold: 3,   resource: 3   }, // [TUNE]
+      level3:  { gold: 9,   resource: 9   }, // [TUNE]
+      level5:  { gold: 50,  resource: 50  }, // [TUNE]
+      level10: { gold: 500, resource: 500 }, // [TUNE]
     },
   },
 
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
+  // WEAPONS (combat power — separate from PP ranking values above)
+  // ═══════════════════════════════════════
+  weapons: {
+    attack: {
+      slingshot:    { power: 2,   maxPerPlayer: 25, costIron: 200    },
+      boomerang:    { power: 5,   maxPerPlayer: 12, costIron: 400    },
+      pirate_knife: { power: 12,  maxPerPlayer: 6,  costIron: 800    },
+      axe:          { power: 28,  maxPerPlayer: 3,  costIron: 1_600  },
+      master_knife: { power: 64,  maxPerPlayer: 1,  costIron: 3_200  },
+      knight_axe:   { power: 148, maxPerPlayer: 1,  costIron: 6_400  },
+      iron_ball:    { power: 340, maxPerPlayer: 1,  costIron: 12_800 },
+    },
+    defense: {
+      wood_shield:   { multiplier: 1.10, costGold: 1_500                                          },
+      iron_shield:   { multiplier: 1.25, costGold: 8_000                                          },
+      leather_armor: { multiplier: 1.40, costGold: 25_000                                         },
+      chain_armor:   { multiplier: 1.55, costGold: 80_000                                         },
+      plate_armor:   { multiplier: 1.70, costGold: 250_000                                        },
+      mithril_armor: { multiplier: 1.90, costGold: 700_000                                        },
+      gods_armor:    { multiplier: 2.20, costGold: 1_000_000, costIron: 500_000, costWood: 300_000 },
+    },
+    spy: {
+      shadow_cloak: { costGold: 5_000  },
+      dark_mask:    { costGold: 20_000 },
+      elven_gear:   { costGold: 80_000 },
+    },
+    scout: {
+      scout_boots:  { costGold: 5_000  },
+      scout_cloak:  { costGold: 20_000 },
+      elven_boots:  { costGold: 80_000 },
+    },
+    sellRefundPercent: 0.20,
+  },
+
+  // ═══════════════════════════════════════
   // CITIES
-  // ─────────────────────────────────────────
+  //
+  // 5 cities total. Promotion is sequential (1 → 2 → 3 → 4 → 5 only).
+  // Player must leave clan before promoting.
+  // After migration: 48-hour clan join restriction.
+  // Clan is locked to a single city.
+  //
+  // Promotion threshold formulas (all parameters [TUNE: unassigned]):
+  //   SoldierThreshold(C) = S_base × s_growth ^ (C - 2)
+  //   PowerThreshold(C)   = P_base × p_growth ^ (C - 2)
+  //   ResourceCost(C)[r]  = R_base[r] × r_growth ^ (C - 2)
+  //   for C ∈ {2, 3, 4, 5}
+  //
+  // Production multiplier per city:
+  //   CityProductionMultiplier(C): independently tunable per city tier [TUNE: unassigned]
+  // ═══════════════════════════════════════
   cities: {
-    1: { name: 'Izrahland',    multiplier: 1, requiredSoldiers: 0,     requiredResources: 0 },
-    2: { name: 'Masterina',    multiplier: 2, requiredSoldiers: 200,   requiredResources: 120000 },
-    3: { name: 'Rivercastlor', multiplier: 3, requiredSoldiers: 500,   requiredResources: 500000 },
-    4: { name: 'Grandoria',    multiplier: 4, requiredSoldiers: 1500,  requiredResources: 2000000 },
-    5: { name: 'Nerokvor',     multiplier: 5, requiredSoldiers: 5000,  requiredResources: 10000000 },
+    total: 5, // [FIXED]
+
+    // ── Promotion threshold parameters [TUNE: unassigned] ──
+    S_base:   undefined as unknown as number, // Min soldiers required for City 2
+    P_base:   undefined as unknown as number, // Min PersonalPower required for City 2
+    R_base: {
+      gold: undefined as unknown as number,   // Resource cost (gold) for City 2
+      iron: undefined as unknown as number,   // Resource cost (iron) for City 2
+      wood: undefined as unknown as number,   // Resource cost (wood) for City 2
+      food: undefined as unknown as number,   // Resource cost (food) for City 2
+    },
+    s_growth: undefined as unknown as number, // Per-city multiplier for soldier threshold
+    p_growth: undefined as unknown as number, // Per-city multiplier for PP threshold
+    r_growth: undefined as unknown as number, // Per-city multiplier for resource costs
+
+    // ── City production multipliers [TUNE: unassigned] ────
+    // CityProductionMultiplier(C): applied to slave output per tick.
+    // Higher cities produce more resources — this is the primary promotion incentive.
+    // Each city is independently tunable (not constrained to a linear sequence).
+    CITY_PRODUCTION_MULT: {
+      1: undefined as unknown as number, // [TUNE: unassigned]
+      2: undefined as unknown as number, // [TUNE: unassigned]
+      3: undefined as unknown as number, // [TUNE: unassigned]
+      4: undefined as unknown as number, // [TUNE: unassigned]
+      5: undefined as unknown as number, // [TUNE: unassigned]
+    } as Record<number, number>,
+
+    // City names (display only)
+    names: {
+      1: 'Izrahland',
+      2: 'Masterina',
+      3: 'Rivercastlor',
+      4: 'Grandoria',
+      5: 'Nerokvor',
+    } as Record<number, string>,
   },
 
-  // ─────────────────────────────────────────
-  // RANKING FORMULA WEIGHTS
-  // ─────────────────────────────────────────
-  ranking: {
-    attackWeight:  0.30,
-    defenseWeight: 0.30,
-    spyWeight:     0.20,
-    scoutWeight:   0.20,
+  // ═══════════════════════════════════════
+  // RACE BONUSES (combat only — NEVER affect PP or ranking)
+  // ═══════════════════════════════════════
+  raceBonuses: {
+    orc:   { attackBonus: 0.10, defenseBonus: 0.03 },           // [TUNE]
+    human: { goldProductionBonus: 0.15, attackBonus: 0.03 },    // [TUNE]
+    elf:   { spyBonus: 0.20, scoutBonus: 0.20 },                // [TUNE]
+    dwarf: { defenseBonus: 0.15, goldProductionBonus: 0.03 },   // [TUNE]
   },
 
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   // SEASON
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   season: {
-    durationDays: 90,
-    hallOfFamePlayers: 20,
-    hallOfFameTribes: 5,
-    newPlayerShieldDays: 7,
-    vacationMaxDaysPerSeason: 14,
-    vacationTurnsMultiplier: 0.33,
-    vacationProductionMultiplier: 0.33,
+    durationDays:                        90, // [FIXED]
+    hallOfFamePlayers:                   20,
+    hallOfFameTribes:                    5,
     accountDeletionAfterInactiveSeasons: 3,
+    vacationTurnsMultiplier:             0.33, // [TUNE]
+    // Full reset at season end. Cosmetics only carry over.
   },
 
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   // VIP
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   vip: {
-    productionMultiplier: 1.10,
-    xpMultiplier: 1.20,
-    weeklyTurnsBonus: 50,
-    bankInterestBonus: 0.005,  // +0.5%
-    manaPerTickBonus: 1,
-    crystalCost: 500,
+    productionMultiplier: 1.10, // [TUNE]
+    weeklyTurnsBonus:     50,   // [TUNE]
+    bankInterestBonus:    0,    // [TUNE: unassigned — expressed as additive rate]
+    crystalCost:          500,  // [TUNE]
   },
 
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   // CRYSTALS (premium currency)
-  // ─────────────────────────────────────────
+  // ═══════════════════════════════════════
   crystals: {
     packages: [
-      { name: 'Spark',      crystals: 100,  priceILS: 9.90  },
-      { name: 'Flame',      crystals: 300,  priceILS: 24.90 },
-      { name: 'Fire',       crystals: 700,  priceILS: 49.90 },
-      { name: 'Blaze',      crystals: 1500, priceILS: 89.90 },
-      { name: 'Inferno',    crystals: 3500, priceILS: 179.90 },
-      { name: 'Apocalypse', crystals: 8000, priceILS: 349.90 },
+      { name: 'Spark',      crystals: 100,   priceILS: 9.90   }, // [TUNE]
+      { name: 'Flame',      crystals: 300,   priceILS: 24.90  }, // [TUNE]
+      { name: 'Fire',       crystals: 700,   priceILS: 49.90  }, // [TUNE]
+      { name: 'Blaze',      crystals: 1_500, priceILS: 89.90  }, // [TUNE]
+      { name: 'Inferno',    crystals: 3_500, priceILS: 179.90 }, // [TUNE]
+      { name: 'Apocalypse', crystals: 8_000, priceILS: 349.90 }, // [TUNE]
     ],
     items: {
-      turnBooster:        { crystals: 50,  durationHours: 6,  multiplier: 2 },
-      productionBooster:  { crystals: 80,  durationHours: 24, multiplier: 2 },
-      shield12h:          { crystals: 150, durationHours: 12 },
-      shield24h:          { crystals: 300, durationHours: 24 },
-      vipSeason:          { crystals: 500 },
-      nameChange:         { crystals: 100 },
+      turnBooster:       { crystals: 50,  durationHours: 6,  multiplier: 2 }, // [TUNE]
+      productionBooster: { crystals: 80,  durationHours: 24, multiplier: 2 }, // [TUNE]
+      shield12h:         { crystals: 150, durationHours: 12 },                // [TUNE]
+      shield24h:         { crystals: 300, durationHours: 24 },                // [TUNE]
+      vipSeason:         { crystals: 500 },                                    // [TUNE]
+      nameChange:        { crystals: 100 },                                    // [TUNE]
     },
   },
 
-} as const
-
-// ─────────────────────────────────────────
-// CHANGELOG — log every change here
-// ─────────────────────────────────────────
-/**
- * v1.0 — Initial configuration
- */
+}

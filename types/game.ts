@@ -5,7 +5,14 @@
 
 export type Race = 'orc' | 'human' | 'elf' | 'dwarf'
 export type PlayerRole = 'player' | 'admin'
-export type AttackOutcome = 'crushing_win' | 'win' | 'draw' | 'loss' | 'crushing_loss'
+
+/**
+ * v5 combat outcomes (3-state model).
+ * DB migration required: update attacks.outcome column constraint.
+ * Old values (crushing_win, draw, crushing_loss) are retired.
+ */
+export type AttackOutcome = 'win' | 'partial' | 'loss'
+
 export type HallOfFameType = 'player' | 'tribe'
 export type ToastType = 'attack' | 'victory' | 'defeat' | 'tick' | 'tribe' | 'info' | 'error' | 'success' | 'magic' | 'warning'
 
@@ -146,8 +153,11 @@ export interface Bank {
   player_id: string
   balance: number
   interest_level: number
-  deposits_today: number
-  last_deposit_reset: string
+  /**
+   * v5: lifetime deposit count. Max 5 total deposits per player account.
+   * DB migration required: ADD COLUMN total_deposits integer NOT NULL DEFAULT 0
+   */
+  total_deposits: number
   updated_at: string
 }
 
@@ -300,18 +310,19 @@ export interface AttackListPlayer {
   attack_count_today: number
 }
 
-// Attack result
+// Attack result (v5)
 export interface AttackResult {
-  outcome: AttackOutcome
+  outcome:         AttackOutcome
+  ratio:           number
+  attacker_ecp:    number
+  defender_ecp:    number
   attacker_losses: number
   defender_losses: number
-  slaves_taken: number
-  gold_stolen: number
-  iron_stolen: number
-  wood_stolen: number
-  food_stolen: number
-  atk_power: number
-  def_power: number
+  slaves_created:  number
+  gold_stolen:     number
+  iron_stolen:     number
+  wood_stolen:     number
+  food_stolen:     number
 }
 
 // Ranked player (rankings page)

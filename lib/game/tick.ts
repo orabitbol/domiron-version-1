@@ -1,5 +1,5 @@
 /**
- * Domiron — Tick Processing Logic
+ * Domiron v5 — Tick Processing Logic
  * Called every 30 minutes by Vercel Cron → GET /api/tick
  * All numbers from BALANCE — never hardcoded.
  */
@@ -7,13 +7,20 @@ import { BALANCE } from '@/lib/game/balance'
 import { isVipActive } from '@/lib/utils'
 import type { Player, Development, Army } from '@/types/game'
 
-// Calculate turns to add (capped at max_turns, but never reduces existing turns above cap)
-export function calcTurnsToAdd(currentTurns: number, maxTurns: number, isVacation: boolean): number {
-  // If already at or above cap (e.g. new player with 100 starting turns), do not reduce
+/**
+ * Turn regen per tick.
+ *   new_turns = min(current_turns + TURNS_PER_TICK, MAX_TURNS)
+ *
+ * Regen only happens when current_turns < MAX_TURNS.
+ * If already at or above cap, returns current value unchanged (never reduces).
+ * Vacation modifier reduces regen to 1/3.
+ */
+export function calcTurnsToAdd(currentTurns: number, isVacation: boolean): number {
+  const { turnsPerTick, maxTurns } = BALANCE.tick
   if (currentTurns >= maxTurns) return currentTurns
   const toAdd = isVacation
-    ? Math.ceil(BALANCE.tick.turnsPerTick * BALANCE.season.vacationTurnsMultiplier)
-    : BALANCE.tick.turnsPerTick
+    ? Math.ceil(turnsPerTick * BALANCE.season.vacationTurnsMultiplier)
+    : turnsPerTick
   return Math.min(currentTurns + toAdd, maxTurns)
 }
 
@@ -22,9 +29,7 @@ export function calcPopulationGrowth(
   populationLevel: number,
   vipUntil: string | null
 ): number {
-  const base = BALANCE.production.populationPerTick[
-    populationLevel as keyof typeof BALANCE.production.populationPerTick
-  ] ?? 1
+  const base = BALANCE.training.populationPerTick[populationLevel] ?? 1
   const vipMult = isVipActive(vipUntil) ? BALANCE.vip.productionMultiplier : 1.0
   return Math.floor(base * vipMult)
 }
@@ -35,34 +40,23 @@ export function calcSlaveProduction(
   devLevel: number,
   city: number,
   vipUntil: string | null,
-  raceGoldBonus = 0   // race bonus for gold only
+  raceGoldBonus = 0
 ): { min: number; max: number; avg: number } {
-  const { baseMin, baseMax, cityMultipliers } = BALANCE.production
-  const cityMult = cityMultipliers[city as keyof typeof cityMultipliers] ?? 1
-  const vipMult = isVipActive(vipUntil) ? BALANCE.vip.productionMultiplier : 1.0
+  const { baseMin, baseMax } = BALANCE.production
+  // City multipliers are [TUNE: unassigned] — default to 1 until values are set
+  const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[city] ?? 1
+  const vipMult  = isVipActive(vipUntil) ? BALANCE.vip.productionMultiplier : 1.0
 
-  // Development rate increases per level (approx: level * 0.5 added to base)
+  // Development level adds 0.5 per level to production rate range
   const devOffset = (devLevel - 1) * 0.5
-  const rateMin = (baseMin + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)
-  const rateMax = (baseMax + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)
+  const rateMin   = (baseMin + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)
+  const rateMax   = (baseMax + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)
 
   return {
     min: Math.floor(slavesAllocated * rateMin),
     max: Math.floor(slavesAllocated * rateMax),
     avg: Math.floor(slavesAllocated * ((rateMin + rateMax) / 2)),
   }
-}
-
-// Tribe mana added per tick
-export function calcTribeManaGain(memberCount: number): number {
-  const { base, bonus10to19, bonus20to29, bonus30to39, bonus40to49, bonus50 } = BALANCE.tribe.manaPerTick
-  let extra = 0
-  if (memberCount >= 50) extra = bonus50
-  else if (memberCount >= 40) extra = bonus40to49
-  else if (memberCount >= 30) extra = bonus30to39
-  else if (memberCount >= 20) extra = bonus20to29
-  else if (memberCount >= 10) extra = bonus10to19
-  return base + extra
 }
 
 // Hero mana per tick
@@ -75,26 +69,22 @@ export function calcHeroManaGain(heroLevel: number, vipUntil: string | null): nu
   return mana
 }
 
-// Ranking formula: weighted sum of power scores
-export function calcPowerTotal(
-  attackPower: number,
-  defensePower: number,
-  spyPower: number,
-  scoutPower: number
-): number {
-  const { attackWeight, defenseWeight, spyWeight, scoutWeight } = BALANCE.ranking
-  return Math.floor(
-    attackPower  * attackWeight  +
-    defensePower * defenseWeight +
-    spyPower     * spyWeight     +
-    scoutPower   * scoutWeight
-  )
-}
-
 // Bank interest: applied once per day (on tick when date changes)
-export function calcBankInterest(balance: number, interestLevel: number, vipUntil: string | null): number {
-  const baseRate = interestLevel * BALANCE.bank.interestPerLevel
-  const vipRate = isVipActive(vipUntil) ? BALANCE.vip.bankInterestBonus : 0
-  const totalRate = baseRate + vipRate
+//
+// interest = floor(balance × BANK_INTEREST_RATE_BASE)
+//           + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
+//           + floor(balance × vipRate)
+//
+// ⚠️  BANK_INTEREST_RATE_BASE and BANK_INTEREST_RATE_PER_LEVEL are [TUNE: unassigned].
+//     Do not call this in production until both are set in balance.config.ts.
+export function calcBankInterest(
+  balance:       number,
+  interestLevel: number,
+  vipUntil:      string | null
+): number {
+  const baseRate  = BALANCE.bank.BANK_INTEREST_RATE_BASE
+  const levelRate = interestLevel * BALANCE.bank.BANK_INTEREST_RATE_PER_LEVEL
+  const vipRate   = isVipActive(vipUntil) ? BALANCE.vip.bankInterestBonus : 0
+  const totalRate = baseRate + levelRate + vipRate
   return Math.floor(balance * totalRate)
 }
