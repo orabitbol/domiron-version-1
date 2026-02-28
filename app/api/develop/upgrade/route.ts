@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { recalculatePower } from '@/lib/game/power'
 
 type DevField = 'gold_level' | 'food_level' | 'wood_level' | 'iron_level' | 'population_level' | 'fortification_level'
 
@@ -108,6 +109,11 @@ export async function POST(request: NextRequest) {
     }
 
     await Promise.all(updates)
+
+    // Recalculate power (fortification affects defense power)
+    if (field === 'fortification_level') {
+      await recalculatePower(playerId, supabase)
+    }
 
     const [{ data: updatedDev }, { data: updatedResources }] = await Promise.all([
       supabase.from('development').select('*').eq('player_id', playerId).single(),

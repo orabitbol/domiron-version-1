@@ -7,8 +7,8 @@ import {
   calcTribeManaGain,
   calcHeroManaGain,
   calcBankInterest,
-  calcPowerTotal,
 } from '@/lib/game/tick'
+import { recalculatePower } from '@/lib/game/power'
 import { broadcastTickCompleted } from '@/lib/game/realtime'
 
 // GET /api/tick — called by Vercel Cron every 30 minutes
@@ -148,46 +148,45 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 7. Recalculate rankings (by city and globally)
-    // Simple approach: update power_total for all players, then rank
+    // 7. Recalculate power for all players, then update rankings
     const { data: allPlayers } = await supabase
       .from('players')
-      .select('id, power_attack, power_defense, power_spy, power_scout, city')
+      .select('id, city')
 
     if (allPlayers) {
-      // Compute new power_total for each player
-      const updates = allPlayers.map(p => ({
-        id: p.id,
-        power_total: calcPowerTotal(p.power_attack, p.power_defense, p.power_spy, p.power_scout),
-        city: p.city,
-      }))
+      // Recalculate all power columns for every player
+      await Promise.all(allPlayers.map(p => recalculatePower(p.id, supabase)))
 
-      // Sort globally for rank_global
-      updates.sort((a, b) => b.power_total - a.power_total)
-      const globalRanks = new Map(updates.map((p, i) => [p.id, i + 1]))
+      // Re-fetch updated power_total values for ranking
+      const { data: powered } = await supabase
+        .from('players')
+        .select('id, power_total, city')
 
-      // Sort per city for rank_city
-      const cities = [1, 2, 3, 4, 5]
-      const cityRanks = new Map<string, number>()
-      for (const city of cities) {
-        const cityPlayers = updates.filter(p => p.city === city)
-        cityPlayers.sort((a, b) => b.power_total - a.power_total)
-        cityPlayers.forEach((p, i) => cityRanks.set(p.id, i + 1))
-      }
+      if (powered) {
+        // Sort globally for rank_global
+        const sorted = [...powered].sort((a, b) => b.power_total - a.power_total)
+        const globalRanks = new Map(sorted.map((p, i) => [p.id, i + 1]))
 
-      // Batch update rankings
-      await Promise.all(
-        updates.map(p =>
-          supabase
-            .from('players')
-            .update({
-              power_total: p.power_total,
-              rank_global: globalRanks.get(p.id),
-              rank_city:   cityRanks.get(p.id),
-            })
-            .eq('id', p.id)
+        // Sort per city for rank_city
+        const cityRanks = new Map<string, number>()
+        for (const city of [1, 2, 3, 4, 5]) {
+          const cityPlayers = sorted.filter(p => p.city === city)
+          cityPlayers.forEach((p, i) => cityRanks.set(p.id, i + 1))
+        }
+
+        // Batch update rankings
+        await Promise.all(
+          powered.map(p =>
+            supabase
+              .from('players')
+              .update({
+                rank_global: globalRanks.get(p.id),
+                rank_city:   cityRanks.get(p.id),
+              })
+              .eq('id', p.id)
+          )
         )
-      )
+      }
     }
 
     // 8. Broadcast tick event to all connected players

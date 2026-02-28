@@ -10,10 +10,10 @@ const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-2',
     'font-heading uppercase tracking-wider',
-    'rounded border transition-colors duration-150',
-    'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
+    'rounded-game border transition-all duration-150',
+    'cursor-pointer disabled:cursor-not-allowed disabled:opacity-40',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-game-border-active',
-    'min-h-[44px]',  // mobile touch target
+    'min-h-[40px]',
   ],
   {
     variants: {

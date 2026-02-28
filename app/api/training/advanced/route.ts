@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { recalculatePower } from '@/lib/game/power'
 
 const schema = z.object({
   type: z.enum(['attack', 'defense', 'spy', 'scout']),
@@ -62,6 +63,9 @@ export async function POST(request: NextRequest) {
         updated_at: now,
       }).eq('player_id', playerId),
     ])
+
+    // Recalculate power (training level changed)
+    await recalculatePower(playerId, supabase)
 
     const [{ data: updatedTraining }, { data: updatedResources }] = await Promise.all([
       supabase.from('training').select('*').eq('player_id', playerId).single(),

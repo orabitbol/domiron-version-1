@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { recalculatePower } from '@/lib/game/power'
 
 const schema = z.object({
   unit: z.enum(['soldier', 'spy', 'scout', 'cavalry', 'farmer']),
@@ -81,6 +82,9 @@ export async function POST(request: NextRequest) {
       supabase.from('resources').update({ gold: resources.gold - totalGoldCost, updated_at: now }).eq('player_id', playerId),
       supabase.from('army').update({ ...armyUpdate, updated_at: now }).eq('player_id', playerId),
     ])
+
+    // Recalculate power (army changed)
+    await recalculatePower(playerId, supabase)
 
     // Fetch updated data to return
     const [{ data: updatedArmy }, { data: updatedResources }] = await Promise.all([

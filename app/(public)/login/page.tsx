@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,44 +19,55 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    })
-
+    const result = await signIn('credentials', { email, password, redirect: false })
     setLoading(false)
-
-    if (result?.error) {
-      setError('Invalid email or password')
-    } else {
-      router.push('/base')
-    }
+    if (result?.error) setError('אימייל או סיסמה שגויים')
+    else router.push('/base')
   }
 
   return (
-    <div className="min-h-screen bg-game-bg flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen bg-game-bg flex items-center justify-center px-4 py-8" dir="rtl">
+
+      {/* Stars / glow background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(201,144,26,0.06)_0%,transparent_60%)]" />
+      </div>
+
+      <div className="relative w-full max-w-sm animate-fade-up">
+
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="font-display text-game-4xl text-game-gold-bright uppercase tracking-widest">
+          <div className="flex justify-center mb-4">
+            <div className={cn(
+              'size-20 rounded-2xl flex items-center justify-center text-4xl',
+              'bg-gradient-to-br from-game-gold/15 to-transparent',
+              'border border-game-gold/30 shadow-gold-glow',
+              'animate-float'
+            )}>
+              ⚔️
+            </div>
+          </div>
+          <h1 className="font-display text-game-4xl gold-gradient-text uppercase tracking-widest">
             Domiron
           </h1>
-          <p className="text-game-text-secondary font-body mt-2">
-            Real-time Multiplayer Strategy
+          <p className="text-game-text-secondary font-body mt-2 text-game-sm">
+            הכנס למשחק והמשך את כיבושך
           </p>
         </div>
 
-        {/* Login card */}
-        <div className="bg-game-surface border border-game-border-gold rounded-lg p-6 shadow-gold-glow">
-          <h2 className="font-heading text-game-xl text-game-text-white uppercase tracking-wide mb-6 text-center">
-            Login
+        {/* Card */}
+        <div className={cn(
+          'rounded-game-xl p-6 space-y-5',
+          'bg-game-surface/80 backdrop-blur-game',
+          'border border-game-border-gold/40 shadow-panel'
+        )}>
+          <h2 className="font-heading text-game-base text-game-text-white uppercase tracking-wider text-center">
+            כניסה לחשבון
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="Email"
+              label="אימייל"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -64,7 +76,7 @@ export default function LoginPage() {
               autoComplete="email"
             />
             <Input
-              label="Password"
+              label="סיסמה"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -74,7 +86,9 @@ export default function LoginPage() {
             />
 
             {error && (
-              <p className="text-game-xs text-game-red-bright font-body text-center">{error}</p>
+              <p className="text-game-xs text-game-red-bright font-body text-center bg-game-red/10 border border-game-red/20 rounded-game px-3 py-2">
+                ❌ {error}
+              </p>
             )}
 
             <Button
@@ -82,19 +96,37 @@ export default function LoginPage() {
               variant="primary"
               size="lg"
               loading={loading}
-              className="w-full mt-2"
+              className="w-full"
             >
-              Enter the Battle
+              כנס למשחק ⚔️
             </Button>
           </form>
 
-          <p className="text-center text-game-sm text-game-text-secondary font-body mt-4">
-            No account?{' '}
-            <Link href="/register" className="text-game-gold hover:text-game-gold-bright transition-colors">
-              Register
-            </Link>
+          <div className="text-center">
+            <p className="text-game-sm text-game-text-secondary font-body">
+              אין לך חשבון?{' '}
+              <Link href="/register" className="text-game-gold-bright hover:text-game-gold transition-colors font-semibold">
+                הירשם עכשיו
+              </Link>
+            </p>
+          </div>
+
+          <div className="divider-gold" />
+
+          <p className="text-center text-game-xs text-game-text-muted font-body">
+            בכניסה הינך מסכים ל
+            <Link href="#" className="text-game-gold hover:underline mx-1">תנאי השימוש</Link>
+            ול
+            <Link href="#" className="text-game-gold hover:underline mx-1">מדיניות הפרטיות</Link>
           </p>
         </div>
+
+        <div className="mt-4 text-center">
+          <Link href="/landing" className="text-game-xs text-game-text-muted hover:text-game-text transition-colors font-body">
+            ← חזרה לדף הבית
+          </Link>
+        </div>
+
       </div>
     </div>
   )

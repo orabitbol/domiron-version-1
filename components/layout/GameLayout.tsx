@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils'
 import { Sidebar } from './Sidebar'
 import { ResourceBar } from '@/components/game/ResourceBar'
 import { ToastProvider } from '@/components/game/ToastSystem'
+import { ConnectionStatus } from './ConnectionStatus'
+import { PageTransition } from './PageTransition'
 import { PlayerProvider, usePlayer } from '@/lib/context/PlayerContext'
 import type { PlayerData } from '@/types/game'
 
@@ -22,17 +24,26 @@ function GameContent({ children }: { children: React.ReactNode }) {
         maxTurns={player?.max_turns ?? 30}
         mana={hero?.mana}
       />
+
+      <ConnectionStatus />
       <Sidebar />
+
+      {/* Main content — offset for fixed header + sidebar */}
       <main
         className={cn(
           'pt-header',
           'md:ps-sidebar',
-          'pb-16 md:pb-0',
+          'pb-20 md:pb-0',
           'min-h-screen'
         )}
       >
-        <div className="max-w-content mx-auto px-4 py-6 animate-fade-in">
-          {children}
+        <div className="max-w-content mx-auto px-3 md:px-6 py-5">
+          {/* Glass panel */}
+          <div className="glass-panel p-4 md:p-6 min-h-[calc(100vh-5.5rem)]">
+            <PageTransition>
+              {children}
+            </PageTransition>
+          </div>
         </div>
       </main>
     </>

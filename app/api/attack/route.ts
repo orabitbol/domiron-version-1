@@ -9,6 +9,7 @@ import {
   calculateDefensePower,
   resolveCombat,
 } from '@/lib/game/combat'
+import { recalculatePower } from '@/lib/game/power'
 
 const attackSchema = z.object({
   defender_id: z.string().uuid(),
@@ -231,6 +232,12 @@ export async function POST(request: NextRequest) {
         food_stolen: foodStolen,
         season_id: seasonId,
       }),
+    ])
+
+    // Recalculate power for both sides (army counts changed after battle)
+    await Promise.all([
+      recalculatePower(playerId, supabase),
+      recalculatePower(defender_id, supabase),
     ])
 
     return NextResponse.json({
