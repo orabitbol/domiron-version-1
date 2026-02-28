@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cinzel+Decorative:wght@700&family=Source+Sans+3:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────
+   CSS Custom Properties — Design System Tokens
+   ───────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-primary:     #0D0A07;
+  --bg-surface:     #1A1208;
+  --bg-elevated:    #241A0E;
+  --bg-overlay:     #2E2010;
+
+  /* Borders */
+  --border-default: #3D2E1A;
+  --border-gold:    #8B6914;
+  --border-active:  #C9901A;
+
+  /* Text */
+  --text-primary:   #F0D080;
+  --text-secondary: #A08040;
+  --text-muted:     #5A4020;
+  --text-white:     #F5EDD5;
+  --text-error:     #CC2222;
+  --text-success:   #4A8A2A;
+
+  /* Accents */
+  --gold:           #C9901A;
+  --gold-bright:    #F0C030;
+  --red-blood:      #8B1A1A;
+  --red-bright:     #CC2222;
+  --green-forest:   #2A5A1A;
+  --green-bright:   #4A8A2A;
+  --purple-magic:   #5A2A8A;
+  --purple-bright:  #8A4ACA;
+  --blue-scout:     #1A3A6A;
+
+  /* Resource colors */
+  --color-gold:     #F0C030;
+  --color-iron:     #8090A0;
+  --color-wood:     #8B5A2A;
+  --color-food:     #7AAA3A;
+  --color-mana:     #3A60C0;
+  --color-turns:    #C03030;
+
+  /* Layout */
+  --sidebar-width:      240px;
+  --header-height:      64px;
+  --content-max-width:  960px;
+}
+
+/* ─────────────────────────────────────────────────
+   Base Reset & Global Styles
+   ───────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─────────────────────────────────────────────────
+   Scrollbar (dark themed)
+   ───────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-gold);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+/* ─────────────────────────────────────────────────
+   Selection
+   ───────────────────────────────────────────────── */
+::selection {
+  background-color: rgba(201, 144, 26, 0.3);
+  color: var(--text-white);
+}
+
+/* ─────────────────────────────────────────────────
+   Number inputs — hide arrows
+   ───────────────────────────────────────────────── */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* ─────────────────────────────────────────────────
+   Utility Classes
+   ───────────────────────────────────────────────── */
+@layer utilities {
+  .text-gold {
+    color: var(--text-primary);
+  }
+
+  .bg-game {
+    background-color: var(--bg-primary);
+  }
+
+  .bg-surface {
+    background-color: var(--bg-surface);
+  }
+
+  .border-game {
+    border-color: var(--border-default);
+  }
+
+  .gold-gradient {
+    background: linear-gradient(135deg, #C9901A, #8B6914);
+  }
+
+  .gold-gradient-text {
+    background: linear-gradient(135deg, #F0C030, #C9901A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Shimmer loading animation */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--bg-surface) 25%,
+      var(--bg-elevated) 50%,
+      var(--bg-surface) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ─────────────────────────────────────────────────
+   RTL Support Overrides
+   ───────────────────────────────────────────────── */
+[dir='rtl'] .sidebar {
+  right: 0;
+  left: auto;
+  border-right: none;
+  border-left: 1px solid var(--border-default);
+}
+
+[dir='rtl'] .main-content {
+  margin-right: var(--sidebar-width);
+  margin-left: 0;
+}
