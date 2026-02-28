@@ -7,24 +7,15 @@ import { ResourceBar } from '@/components/game/ResourceBar'
 import { ToastProvider } from '@/components/game/ToastSystem'
 import { ConnectionStatus } from './ConnectionStatus'
 import { PageTransition } from './PageTransition'
-import { PlayerProvider, usePlayer } from '@/lib/context/PlayerContext'
+import { PlayerProvider } from '@/lib/context/PlayerContext'
 import type { PlayerData } from '@/types/game'
 
+// GameContent renders the shell — ResourceBar and Sidebar source their own
+// data directly from PlayerContext, so no props need threading through here.
 function GameContent({ children }: { children: React.ReactNode }) {
-  const { player, resources, hero } = usePlayer()
-
   return (
     <>
-      <ResourceBar
-        gold={resources?.gold ?? 0}
-        iron={resources?.iron ?? 0}
-        wood={resources?.wood ?? 0}
-        food={resources?.food ?? 0}
-        turns={player?.turns ?? 0}
-        maxTurns={player?.max_turns ?? 30}
-        mana={hero?.mana}
-      />
-
+      <ResourceBar />
       <ConnectionStatus />
       <Sidebar />
 
