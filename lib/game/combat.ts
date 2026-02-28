@@ -27,13 +27,15 @@
  *   1. calculatePersonalPower(attacker), calculatePersonalPower(defender)
  *   2. calculateClanBonus(attackerPP, attackerClan)
  *      calculateClanBonus(defenderPP, defenderClan)
- *   3. calculateECP(attackerPP, attackerHero, attackerClanBonus)
- *      calculateECP(defenderPP, defenderHero, defenderClanBonus)
+ *   3. calculateECP(attackerPP, attackerHero, attackerClan, attackBonus)
+ *      calculateECP(defenderPP, defenderHero, defenderClan, defenseBonus)
  *   4. calculateCombatRatio(attackerECP, defenderECP)
  *   5. determineCombatOutcome(ratio)
  *   6. calculateSoldierLosses(...)
+ *      → if soldierShieldActive: defenderLosses = 0
  *   7. convertKilledToSlaves(defenderLosses)
  *   8. calculateLoot(...)
+ *      → if resourceShieldActive: loot = 0
  */
 
 import { BALANCE } from '@/lib/game/balance'
@@ -124,6 +126,32 @@ export interface CombatResolutionInputs {
    * Attack is NOT blocked — it resolves for UX with zero permanent effect.
    */
   defenderIsProtected: boolean
+
+  // ── VIP Boost inputs ─────────────────────────────────────────────────────
+  /**
+   * Pre-clamped attack power boost from getActiveBoostTotals() (0 – 0.50).
+   * Applied as (1 + attackBonus) on attacker PP only — never on ClanBonus.
+   * Default: 0 (no boost).
+   */
+  attackBonus: number
+  /**
+   * Pre-clamped defense power boost from getActiveBoostTotals() (0 – 0.50).
+   * Applied as (1 + defenseBonus) on defender PP only — never on ClanBonus.
+   * Default: 0 (no boost).
+   */
+  defenseBonus: number
+  /**
+   * True if defender has an active Soldier Shield.
+   * When true: defenderLosses = 0, slavesCreated = 0.
+   * Loot still applies unless resourceShieldActive is also true.
+   */
+  soldierShieldActive: boolean
+  /**
+   * True if defender has an active Resource Shield.
+   * When true: all loot = 0.
+   * Combat ratio and soldier losses still resolve normally.
+   */
+  resourceShieldActive: boolean
 }
 
 export interface CombatResolutionResult {
@@ -337,18 +365,21 @@ export function clampHeroMultiplier(rawMultiplier: number): number {
 /**
  * Order of operations (mandatory):
  *   Step 1: ClanBonus = min(TotalClanPP × EfficiencyRate, 0.20 × PlayerPP)
- *   Step 2: ECP = (PlayerPP × HeroMultiplier) + ClanBonus
+ *   Step 2: ECP = (PlayerPP × HeroMultiplier × (1 + boost)) + ClanBonus
  *
- * Hero multiplies ONLY PlayerPP — never ClanBonus.
- * This prevents the monetization lever (hero) from amplifying the social mechanic (clan).
+ * Hero and VIP boost both multiply ONLY PlayerPP — never ClanBonus.
+ * This prevents any monetization lever from amplifying the social mechanic (clan).
+ *
+ * @param boost Pre-clamped VIP attack or defense bonus (0 – 0.50). Default 0.
  */
 export function calculateECP(
   playerPP: number,
   hero:     HeroContext,
   clan:     ClanContext | null,
+  boost:    number = 0,
 ): number {
   const clanBonus = calculateClanBonus(playerPP, clan)
-  return Math.floor((playerPP * hero.multiplier) + clanBonus)
+  return Math.floor((playerPP * hero.multiplier * (1 + boost)) + clanBonus)
 }
 
 // ─────────────────────────────────────────
@@ -573,19 +604,16 @@ export function calcTurnsAfterRegen(currentTurns: number): number {
  *   - Triggering PP recalculation after soldier count changes
  */
 export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionResult {
-  // Step 1: Clan bonuses — computed first, additive, never multiplied by hero
-  const attackerClanBonus = calculateClanBonus(inputs.attackerPP, inputs.attackerClan)
-  const defenderClanBonus = calculateClanBonus(inputs.defenderPP, inputs.defenderClan)
+  // Step 1: ECP = (PP × HeroMultiplier × (1 + boost)) + ClanBonus
+  // Boost multiplies PP only — clan bonus is computed inside calculateECP and never touched by boost.
+  const attackerECP = calculateECP(inputs.attackerPP, inputs.attackerHero, inputs.attackerClan, inputs.attackBonus)
+  const defenderECP = calculateECP(inputs.defenderPP, inputs.defenderHero, inputs.defenderClan, inputs.defenseBonus)
 
-  // Step 2: ECP = (PP × HeroMultiplier) + ClanBonus
-  const attackerECP = Math.floor((inputs.attackerPP * inputs.attackerHero.multiplier) + attackerClanBonus)
-  const defenderECP = Math.floor((inputs.defenderPP * inputs.defenderHero.multiplier) + defenderClanBonus)
-
-  // Step 3: Ratio → outcome
+  // Step 2: Ratio → outcome
   const ratio   = calculateCombatRatio(attackerECP, defenderECP)
   const outcome = determineCombatOutcome(ratio)
 
-  // Step 4: Soldier losses
+  // Step 3: Soldier losses
   const losses = calculateSoldierLosses(
     inputs.deployedSoldiers,
     inputs.defenderSoldiers,
@@ -595,16 +623,25 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
     inputs.defenderIsProtected,
   )
 
-  // Step 5: Slave conversion (zero when no kills landed)
-  const slavesCreated = convertKilledToSlaves(losses.defenderLosses)
+  // Step 4: Soldier Shield — zeroes defender losses (applied after loss calculation)
+  const defenderLosses = (inputs.soldierShieldActive || inputs.defenderIsProtected || inputs.killCooldownActive)
+    ? 0
+    : losses.defenderLosses
 
-  // Step 6: Loot (zero when defender is protected or outcome is loss)
-  const loot = calculateLoot(
+  // Step 5: Slave conversion (zero when no kills landed)
+  const slavesCreated = convertKilledToSlaves(defenderLosses)
+
+  // Step 6: Loot calculation
+  const rawLoot = calculateLoot(
     inputs.defenderUnbanked,
     outcome,
     inputs.attackCountInWindow,
     inputs.defenderIsProtected,
   )
+
+  // Step 7: Resource Shield — zeroes all loot (applied after loot calculation)
+  const ZERO_LOOT = { gold: 0, iron: 0, wood: 0, food: 0 }
+  const loot = inputs.resourceShieldActive ? ZERO_LOOT : rawLoot
 
   return {
     outcome,
@@ -612,7 +649,7 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
     attackerECP,
     defenderECP,
     attackerLosses: losses.attackerLosses,
-    defenderLosses: losses.defenderLosses,
+    defenderLosses,
     slavesCreated,
     loot,
   }

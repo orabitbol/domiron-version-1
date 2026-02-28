@@ -440,6 +440,36 @@ export const BALANCE = {
   },
 
   // ═══════════════════════════════════════
+  // VIP BOOSTS
+  //
+  // Temporary, stackable power modifiers purchasable by players.
+  // Boosts NEVER affect PP or clan cap.
+  // Attack/Defense boosts multiply PP only — NEVER ClanBonus.
+  // All bonus categories are hard-capped at MAX_STACK_RATE.
+  //
+  // Shield model: 23h active → 1h vulnerability window.
+  // Other players must NOT see shield expiration time.
+  // ═══════════════════════════════════════
+  boosts: {
+    MAX_STACK_RATE: 0.50,  // [FIXED] hard cap per bonus category (e.g. 0.10+0.20+0.30 → 0.50)
+
+    // Slave output boost rates — additive per active boost
+    SLAVE_OUTPUT_RATES: {
+      SLAVE_OUTPUT_10: 0.10,  // [FIXED]
+      SLAVE_OUTPUT_20: 0.20,  // [FIXED]
+      SLAVE_OUTPUT_30: 0.30,  // [FIXED]
+    } as const,
+
+    // Combat boost rates — multiply PP only, never ClanBonus
+    ATTACK_POWER_10:  0.10,  // [FIXED] +10% attacker PP
+    DEFENSE_POWER_10: 0.10,  // [FIXED] +10% defender PP
+
+    // Shield timing [FIXED]
+    SHIELD_ACTIVE_HOURS:   23,  // active window
+    SHIELD_COOLDOWN_HOURS:  1,  // vulnerability window after active period ends
+  },
+
+  // ═══════════════════════════════════════
   // VIP
   // ═══════════════════════════════════════
   vip: {

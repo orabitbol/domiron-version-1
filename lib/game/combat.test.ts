@@ -711,6 +711,11 @@ describe('resolveCombat', () => {
       killCooldownActive:   false,
       attackerIsProtected:  false,
       defenderIsProtected:  false,
+      // VIP boost defaults — zero means no boost active
+      attackBonus:          0,
+      defenseBonus:         0,
+      soldierShieldActive:  false,
+      resourceShieldActive: false,
       ...overrides,
     }
   }

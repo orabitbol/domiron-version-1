@@ -31,6 +31,7 @@ Annotation key:
 15. [Season](#15-season)
 16. [Implementation Checklist](#16-implementation-checklist)
 17. [Required DB Migrations](#17-required-db-migrations)
+18. [VIP Boost System](#18-vip-boost-system)
 
 ---
 
@@ -373,34 +374,35 @@ function clampHeroMultiplier(rawMultiplier: number): number {
 
 ```
 Step 1:  ClanBonus = calculateClanBonus(PlayerPP, clan)
-Step 2:  ECP = (PlayerPP × HeroMultiplier) + ClanBonus
+Step 2:  ECP = (PlayerPP × HeroMultiplier × (1 + VIPBoost)) + ClanBonus
 ```
 
 **Why this order matters:**
-Hero multiplies **only** PlayerPP. If we computed `(PlayerPP + ClanBonus) × HeroMultiplier`, the
-hero would amplify clan contributions — a monetization lever amplifying a social mechanic, creating
-exploitable compounding.
+Hero and VIP boost both multiply **only** PlayerPP. Computing `(PlayerPP + ClanBonus) × multiplier`
+would allow a monetization lever to amplify a social mechanic, creating exploitable compounding.
+This is explicitly forbidden.
 
 ### Attacker vs. Defender
 
 ```
-AttackerECP = (AttackerPP × AttackerHeroMultiplier) + AttackerClanBonus
-DefenderECP = (DefenderPP × DefenderHeroMultiplier) + DefenderClanBonus
+AttackerECP = (AttackerPP × AttackerHeroMultiplier × (1 + AttackBoost)) + AttackerClanBonus
+DefenderECP = (DefenderPP × DefenderHeroMultiplier × (1 + DefenseBoost)) + DefenderClanBonus
 ```
 
-Both attacker and defender use the same clan efficiency rates. This can be split in a future
-balance pass by adding `attackEfficiency` and `defenseEfficiency` to the clan config.
+`AttackBoost` and `DefenseBoost` are pre-clamped values (0–0.50) from `getActiveBoostTotals()`.
+With no boost active they default to 0, making `(1 + 0) = 1` and leaving the formula unchanged.
 
 ### Pseudocode
 
 ```typescript
 function calculateECP(
   playerPP: number,
-  hero: HeroContext,
-  clan: ClanContext | null
+  hero:     HeroContext,
+  clan:     ClanContext | null,
+  boost:    number = 0,   // pre-clamped VIP boost, 0–0.50
 ): number {
   const clanBonus = calculateClanBonus(playerPP, clan)
-  return Math.floor((playerPP * hero.multiplier) + clanBonus)
+  return Math.floor((playerPP * hero.multiplier * (1 + boost)) + clanBonus)
 }
 ```
 
@@ -920,6 +922,30 @@ Boundary:    Executed at end of Day 90 tick
 - [x] `Bank.total_deposits` added (deprecates `deposits_today`)
 - [x] `AttackResult` updated with `ratio`, `attacker_ecp`, `defender_ecp`, `slaves_created`
 
+### `lib/game/boosts.ts` (VIP extension)
+- [x] `BoostType` — 7-value enum matching `boost_type` DB enum
+- [x] `PlayerBoost`, `ActiveBoostTotals` — TypeScript interfaces
+- [x] `clampBonus(total, max)` — enforces MAX_STACK_RATE (0.50)
+- [x] `calcActiveBoostTotals(boosts, now)` — stacks + clamps all categories
+- [x] `isShieldActive(boosts, type, now)` — active-window check for shields
+- [x] `applyTurnsPack(currentTurns, amount)` — turn purchase clamped to 200
+- [x] `getActiveBoostTotals(supabase, playerId)` — server-side DB query helper
+
+### `config/balance.config.ts` (VIP extension)
+- [x] `BALANCE.boosts.MAX_STACK_RATE` = 0.50 [FIXED]
+- [x] `BALANCE.boosts.SLAVE_OUTPUT_RATES` — per-product rates [FIXED]
+- [x] `BALANCE.boosts.ATTACK_POWER_10` = 0.10 [FIXED]
+- [x] `BALANCE.boosts.DEFENSE_POWER_10` = 0.10 [FIXED]
+- [x] `BALANCE.boosts.SHIELD_ACTIVE_HOURS` = 23 [FIXED]
+- [x] `BALANCE.boosts.SHIELD_COOLDOWN_HOURS` = 1 [FIXED]
+
+### `supabase/migrations/0002_player_boosts.sql`
+- [x] `boost_type` enum with 7 values
+- [x] `player_boosts` table with all spec fields
+- [x] RLS enabled; player read-own policy; write via service role only
+- [x] Index on `(player_id, ends_at DESC)` for active-boost query
+- [x] Index on `(player_id, type, cooldown_ends_at)` for vulnerability window check
+
 ---
 
 ## 17. Required DB Migrations
@@ -957,4 +983,123 @@ CREATE INDEX IF NOT EXISTS idx_attacks_pair_created
 
 ---
 
-*All systems aligned to agreed design.*
+## 18. VIP Boost System
+
+**Status:** Additive extension — does NOT modify PP, clan cap, loss cap, loot base rate, or turn regen.
+
+### Core Design Rules
+
+- Boosts are **temporary** modifiers with a start and end timestamp.
+- Boosts **never** modify Personal Power (PP).
+- Attack/Defense boosts multiply **PP only** — never ClanBonus.
+- All bonus categories are hard-capped at **50%** (`MAX_STACK_RATE`).
+- Clamp enforcement is **server-side mandatory**. Call `clampBonus()` before using any total in a formula.
+- Shields block effects **inside** combat resolution — never at the gate.
+
+### Boost Categories
+
+| Type | Effect | Stacks | Cap |
+|---|---|---|---|
+| `SLAVE_OUTPUT_10` | +10% slave production | Yes | 50% total |
+| `SLAVE_OUTPUT_20` | +20% slave production | Yes | 50% total |
+| `SLAVE_OUTPUT_30` | +30% slave production | Yes | 50% total |
+| `RESOURCE_SHIELD` | Loot = 0 when defending | N/A | One active |
+| `SOLDIER_SHIELD` | DefenderLosses = 0 when defending | N/A | One active |
+| `ATTACK_POWER_10` | +10% attacker PP | Yes | 50% total |
+| `DEFENSE_POWER_10` | +10% defender PP | Yes | 50% total |
+
+### Slave Output Formula (with boost)
+
+```
+SlaveOutput = BaseRate[r] × CITY_PRODUCTION_MULT[city] × VipMult × (1 + TotalSlaveBonus)
+
+TotalSlaveBonus = clampBonus(Σ active slave output boosts)   // 0.0 – 0.50
+```
+
+### ECP Formula (with boost)
+
+```
+AttackerECP = (AttackerPP × HeroMultiplier × (1 + TotalAttackBonus)) + AttackerClanBonus
+DefenderECP = (DefenderPP × HeroMultiplier × (1 + TotalDefenseBonus)) + DefenderClanBonus
+
+TotalAttackBonus  = clampBonus(Σ active ATTACK_POWER_* boosts)   // 0.0 – 0.50
+TotalDefenseBonus = clampBonus(Σ active DEFENSE_POWER_* boosts)  // 0.0 – 0.50
+```
+
+### Shield Model
+
+```
+Active window:       now < ends_at              (23 hours)
+Vulnerability window: ends_at ≤ now < cooldown_ends_at  (1 hour)
+```
+
+- Other players **must not** see the shield expiration time.
+- During the vulnerability window the boost is expired — no protection applies.
+
+### Combat Integration Order (with boosts)
+
+```
+1.  calculatePersonalPower(attacker), calculatePersonalPower(defender)
+2.  calculateECP(attackerPP, attackerHero, attackerClan, attackBonus)
+    calculateECP(defenderPP, defenderHero, defenderClan, defenseBonus)
+3.  calculateCombatRatio(attackerECP, defenderECP)
+4.  determineCombatOutcome(ratio)
+5.  calculateSoldierLosses(...)
+6.  if soldierShieldActive → defenderLosses = 0, slavesCreated = 0
+7.  convertKilledToSlaves(defenderLosses)
+8.  calculateLoot(...)
+9.  if resourceShieldActive → loot = {0, 0, 0, 0}
+```
+
+Kill cooldown logic and new player protection logic are **unchanged**.
+
+### Turn Pack Rule
+
+```
+new_turns = min(current_turns + purchased_amount, BALANCE.tick.maxTurns)
+```
+
+Turn packs are applied instantly. The existing 200-turn cap is never bypassed.
+
+### Helper Functions
+
+| Function | Location | Description |
+|---|---|---|
+| `clampBonus(total, max)` | `lib/game/boosts.ts` | Clamps a stacking bonus to max (default 0.50) |
+| `calcActiveBoostTotals(boosts, now)` | `lib/game/boosts.ts` | Computes totals from a boost list |
+| `isShieldActive(boosts, type, now)` | `lib/game/boosts.ts` | Checks if a specific shield is active |
+| `applyTurnsPack(currentTurns, amount)` | `lib/game/boosts.ts` | Applies turn purchase respecting cap |
+| `getActiveBoostTotals(supabase, playerId)` | `lib/game/boosts.ts` | DB query → computed totals |
+
+### Data Model
+
+Table: `player_boosts` (see `supabase/migrations/0002_player_boosts.sql`)
+
+```sql
+id               UUID        PRIMARY KEY
+player_id        UUID        REFERENCES players(id) ON DELETE CASCADE
+type             boost_type  NOT NULL   -- enum of 7 values
+starts_at        TIMESTAMPTZ NOT NULL
+ends_at          TIMESTAMPTZ NOT NULL
+cooldown_ends_at TIMESTAMPTZ            -- NULL for non-shield types
+metadata         JSONB                  -- imageKey, priceId, etc.
+```
+
+Active boost query: `WHERE player_id = $1 AND ends_at > now()`
+
+### What Boosts Do NOT Affect
+
+| System | Unchanged |
+|---|---|
+| Personal Power (PP) formula | ✅ Unchanged |
+| Clan bonus cap (20% of PP) | ✅ Unchanged |
+| Soldier loss cap (30%) | ✅ Unchanged |
+| Loot base rate (20%) | ✅ Unchanged |
+| Kill cooldown (6h) | ✅ Unchanged |
+| New player protection (24h) | ✅ Unchanged |
+| Turn regen (3 per 30 min) | ✅ Unchanged |
+| Turn cap (200) | ✅ Unchanged |
+
+---
+
+*VIP system integrated without modifying core balance rules.*

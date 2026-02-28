@@ -35,12 +35,16 @@ export function calcPopulationGrowth(
 }
 
 // Slave production per tick (per resource type)
+//
+// slaveBonus: pre-clamped TotalSlaveBonus from getActiveBoostTotals() (0 – 0.50).
+// Applied as (1 + slaveBonus) on the final rate. Default 0 = no boost.
 export function calcSlaveProduction(
   slavesAllocated: number,
   devLevel: number,
   city: number,
   vipUntil: string | null,
-  raceGoldBonus = 0
+  raceGoldBonus = 0,
+  slaveBonus = 0,
 ): { min: number; max: number; avg: number } {
   const { baseMin, baseMax } = BALANCE.production
   // City multipliers are [TUNE: unassigned] — default to 1 until values are set
@@ -49,8 +53,8 @@ export function calcSlaveProduction(
 
   // Development level adds 0.5 per level to production rate range
   const devOffset = (devLevel - 1) * 0.5
-  const rateMin   = (baseMin + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)
-  const rateMax   = (baseMax + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)
+  const rateMin   = (baseMin + devOffset) * cityMult * vipMult * (1 + raceGoldBonus) * (1 + slaveBonus)
+  const rateMax   = (baseMax + devOffset) * cityMult * vipMult * (1 + raceGoldBonus) * (1 + slaveBonus)
 
   return {
     min: Math.floor(slavesAllocated * rateMin),
