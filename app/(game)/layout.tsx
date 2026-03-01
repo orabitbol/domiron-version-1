@@ -47,6 +47,17 @@ export default async function GameRouteLayout({
     tribe = data
   }
 
+  // Fetch the season the player belongs to (used for countdown + freeze detection)
+  let season = null
+  if (player.season_id) {
+    const { data } = await supabase
+      .from('seasons')
+      .select('id,number,status,starts_at,ends_at,ended_at,created_at,created_by')
+      .eq('id', player.season_id)
+      .single()
+    season = data
+  }
+
   const initial: PlayerData = {
     player: player as PlayerData['player'],
     resources: resources ?? { id: '', player_id: playerId, gold: 0, iron: 0, wood: 0, food: 0, updated_at: '' },
@@ -57,6 +68,7 @@ export default async function GameRouteLayout({
     hero: hero ?? null,
     bank: bank ?? { id: '', player_id: playerId, balance: 0, interest_level: 0, deposits_today: 0, last_deposit_reset: '', updated_at: '' },
     tribe: tribe ?? null,
+    season: season ?? null,
   }
 
   return (

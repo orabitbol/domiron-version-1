@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 type DevField = 'gold_level' | 'food_level' | 'wood_level' | 'iron_level' | 'population_level' | 'fortification_level'
 
@@ -57,6 +58,8 @@ export async function POST(request: NextRequest) {
 
     const { field } = parsed.data
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const [{ data: development }, { data: resources }] = await Promise.all([
       supabase.from('development').select('*').eq('player_id', playerId).single(),

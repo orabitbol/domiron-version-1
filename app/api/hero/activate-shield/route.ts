@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   shield_type: z.enum(['soldier_shield', 'resource_shield']),
@@ -24,6 +25,8 @@ export async function POST(request: NextRequest) {
 
     const { shield_type } = parsed.data
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const isSoldier  = shield_type === 'soldier_shield'
     const effectType = isSoldier ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD'

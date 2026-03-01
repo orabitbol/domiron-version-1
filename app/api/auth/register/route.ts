@@ -49,17 +49,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
     }
 
-    // Get active season
-    const { data: season } = await supabase
+    // Get active season — required; missing active season is a server bug
+    const { data: season, error: seasonError } = await supabase
       .from('seasons')
-      .select('id, started_at')
-      .eq('is_active', true)
+      .select('id, starts_at')
+      .eq('status', 'active')
       .single()
 
-    const seasonId = season?.id ?? 1
-    const catchUpMult = season
-      ? getCatchUpMultiplier(new Date(season.started_at))
-      : 1
+    if (!season || seasonError) {
+      console.error('No active season found during registration:', seasonError)
+      return NextResponse.json({ error: 'No active season — contact admin' }, { status: 500 })
+    }
+
+    const seasonId    = season.id
+    const catchUpMult = getCatchUpMultiplier(new Date(season.starts_at))
 
     // Hash password
     const password_hash = await bcrypt.hash(password, 12)

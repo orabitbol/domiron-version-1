@@ -20,6 +20,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
 import { getActiveHeroEffects } from '@/lib/game/hero-effects'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 // ─── Spy / scout weapon multipliers (mirrors power.ts) ────────────────────
 const SPY_WEAPON_MULT = {
@@ -140,6 +141,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
+
     // ── Fetch attacker data ───────────────────────────────────────────────
     const [
       { data: attPlayer },
@@ -224,13 +228,7 @@ export async function POST(request: NextRequest) {
 
     const nowIso = new Date().toISOString()
 
-    // ── Fetch season ──────────────────────────────────────────────────────
-    const { data: season } = await supabase
-      .from('seasons')
-      .select('id')
-      .eq('is_active', true)
-      .single()
-    const seasonId = season?.id ?? 1
+    const seasonId = activeSeason.id
 
     // ── Build revealed data (only on success) ─────────────────────────────
     const revealed = success ? {

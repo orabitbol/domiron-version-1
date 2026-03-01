@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   unit: z.enum(['soldier', 'slave', 'spy', 'scout', 'cavalry', 'farmer']),
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest) {
 
     const { unit, amount } = parsed.data
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const [
       { data: player },

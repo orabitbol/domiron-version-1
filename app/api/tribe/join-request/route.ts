@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   tribe_id: z.string().uuid(),
@@ -25,6 +26,8 @@ export async function POST(request: NextRequest) {
 
     const { tribe_id } = parsed.data
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const { data: existingMembership } = await supabase
       .from('tribe_members')

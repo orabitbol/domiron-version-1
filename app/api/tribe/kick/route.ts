@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   player_id: z.string().uuid(),
@@ -29,6 +30,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const { data: leaderMembership } = await supabase
       .from('tribe_members')

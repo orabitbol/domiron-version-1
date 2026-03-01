@@ -11,6 +11,7 @@ import { GameTable } from '@/components/ui/game-table'
 import { EmptyState } from '@/components/ui/game-table'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
+import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Player, Resources, BattleReport, BattleReportReason } from '@/types/game'
 
 interface Target {
@@ -219,6 +220,7 @@ function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: b
 
 export function AttackClient({ player, targets, resources }: Props) {
   const { refresh } = usePlayer()
+  const isFrozen = useFreeze()
   const [search, setSearch] = useState('')
   const [turns, setTurns] = useState<Record<string, string>>({})
   const [confirmTarget, setConfirmTarget] = useState<Target | null>(null)
@@ -391,7 +393,7 @@ export function AttackClient({ player, targets, resources }: Props) {
                   key="attack"
                   variant="danger"
                   size="sm"
-                  disabled={!canAttack}
+                  disabled={isFrozen || !canAttack}
                   onClick={() => setConfirmTarget(target)}
                 >
                   Attack
@@ -444,6 +446,7 @@ export function AttackClient({ player, targets, resources }: Props) {
               <Button
                 variant="danger"
                 loading={loading}
+                disabled={isFrozen}
                 onClick={executeAttack}
               >
                 Attack!

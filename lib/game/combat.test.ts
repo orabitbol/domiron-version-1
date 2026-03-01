@@ -596,30 +596,64 @@ describe('isKillCooldownActive', () => {
 
 describe('isNewPlayerProtected', () => {
 
-  const PROTECTION_MS = BALANCE.combat.PROTECTION_HOURS * 60 * 60 * 1000
+  const PROTECTION_MS  = BALANCE.combat.PROTECTION_HOURS * 60 * 60 * 1000
+  const GATE_DAYS      = BALANCE.season.protectionStartDays
+  const GATE_MS        = GATE_DAYS * 24 * 60 * 60 * 1000
 
-  it('returns true for a player created 1 minute ago', () => {
+  // A season start far enough in the past that the gate is always open
+  const openGateSeasonStart = (now: Date) => new Date(now.getTime() - GATE_MS - 1000)
+
+  // ── Season gate tests ─────────────────────────────────────────────────────
+
+  it('gate closed (season day 1): returns false even for brand-new player', () => {
+    const now         = new Date()
+    const seasonStart = new Date(now.getTime() - 60_000)  // 1 minute into season
+    const createdAt   = new Date(now.getTime() - 60_000)  // just created
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(false)
+  })
+
+  it('gate closed (season day 9): returns false even for brand-new player', () => {
+    const now         = new Date()
+    const seasonStart = new Date(now.getTime() - (GATE_MS - 60_000))  // just under 10 days
+    const createdAt   = new Date(now.getTime() - 60_000)
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(false)
+  })
+
+  it('gate opens at exactly protectionStartDays (season day 10): new player IS protected', () => {
+    const now         = new Date()
+    const seasonStart = new Date(now.getTime() - GATE_MS)  // exactly 10 days ago
+    const createdAt   = new Date(now.getTime() - 60_000)   // 1 minute ago
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(true)
+  })
+
+  // ── Within-window tests (gate open) ──────────────────────────────────────
+
+  it('gate open + player created 1 minute ago → protected', () => {
     const now        = new Date()
+    const seasonStart = openGateSeasonStart(now)
     const createdAt  = new Date(now.getTime() - 60_000)
-    expect(isNewPlayerProtected(createdAt, now)).toBe(true)
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(true)
   })
 
-  it('returns true at 23h59m59s (inside window)', () => {
-    const now       = new Date()
-    const createdAt = new Date(now.getTime() - (PROTECTION_MS - 1000))
-    expect(isNewPlayerProtected(createdAt, now)).toBe(true)
+  it('gate open + player at 23h59m59s → protected', () => {
+    const now        = new Date()
+    const seasonStart = openGateSeasonStart(now)
+    const createdAt  = new Date(now.getTime() - (PROTECTION_MS - 1000))
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(true)
   })
 
-  it('returns false at exactly 24 hours', () => {
-    const now       = new Date()
-    const createdAt = new Date(now.getTime() - PROTECTION_MS)
-    expect(isNewPlayerProtected(createdAt, now)).toBe(false)
+  it('gate open + player at exactly 24 hours → NOT protected', () => {
+    const now        = new Date()
+    const seasonStart = openGateSeasonStart(now)
+    const createdAt  = new Date(now.getTime() - PROTECTION_MS)
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(false)
   })
 
-  it('returns false after 24 hours', () => {
-    const now       = new Date()
-    const createdAt = new Date(now.getTime() - PROTECTION_MS - 1000)
-    expect(isNewPlayerProtected(createdAt, now)).toBe(false)
+  it('gate open + player at 25 hours → NOT protected', () => {
+    const now        = new Date()
+    const seasonStart = openGateSeasonStart(now)
+    const createdAt  = new Date(now.getTime() - PROTECTION_MS - 3_600_000)
+    expect(isNewPlayerProtected(createdAt, seasonStart, now)).toBe(false)
   })
 
 })

@@ -516,6 +516,11 @@ export const BALANCE = {
     accountDeletionAfterInactiveSeasons: 3,
     vacationTurnsMultiplier:             0.33, // [TUNE]
     // Full reset at season end. Cosmetics only carry over.
+
+    // New-player protection is disabled for the first N days of a season
+    // so that early-season PVP is fully live without protection blocking loot.
+    // After protectionStartDays, the normal PROTECTION_HOURS window applies.
+    protectionStartDays: 10, // [FIXED]
   },
 
   // ═══════════════════════════════════════

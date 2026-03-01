@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
+import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Weapons, Resources } from '@/types/game'
 
 interface Props {
@@ -71,6 +72,7 @@ const SCOUT_PRICES: Record<string, number> = {
 
 export function ShopClient({ weapons, resources }: Props) {
   const { refresh } = usePlayer()
+  const isFrozen = useFreeze()
   const [activeTab, setActiveTab] = useState<TabKey>('attack')
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<string | null>(null)
@@ -225,7 +227,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="primary"
                     size="sm"
-                    disabled={!canBuy || !!loading}
+                    disabled={isFrozen || !canBuy || !!loading}
                     loading={loading === `buy-${key}`}
                     onClick={() => handleBuy(key, 'attack')}
                   >
@@ -234,7 +236,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={!canSell || !!loading}
+                    disabled={isFrozen || !canSell || !!loading}
                     loading={loading === `sell-${key}`}
                     onClick={() => handleSell(key, 'attack')}
                   >
@@ -294,7 +296,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="primary"
                     size="sm"
-                    disabled={!canBuy || !!loading}
+                    disabled={isFrozen || !canBuy || !!loading}
                     loading={loading === `buy-${key}`}
                     onClick={() => handleBuy(key, 'defense')}
                   >
@@ -303,7 +305,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={!canSell || !!loading}
+                    disabled={isFrozen || !canSell || !!loading}
                     loading={loading === `sell-${key}`}
                     onClick={() => handleSell(key, 'defense')}
                   >
@@ -354,7 +356,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="magic"
                     size="sm"
-                    disabled={!canBuy || !!loading}
+                    disabled={isFrozen || !canBuy || !!loading}
                     loading={loading === `buy-${key}`}
                     onClick={() => handleBuy(key, 'spy')}
                   >
@@ -363,7 +365,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={!canSell || !!loading}
+                    disabled={isFrozen || !canSell || !!loading}
                     loading={loading === `sell-${key}`}
                     onClick={() => handleSell(key, 'spy')}
                   >
@@ -414,7 +416,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="primary"
                     size="sm"
-                    disabled={!canBuy || !!loading}
+                    disabled={isFrozen || !canBuy || !!loading}
                     loading={loading === `buy-${key}`}
                     onClick={() => handleBuy(key, 'scout')}
                   >
@@ -423,7 +425,7 @@ export function ShopClient({ weapons, resources }: Props) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={!canSell || !!loading}
+                    disabled={isFrozen || !canSell || !!loading}
                     loading={loading === `sell-${key}`}
                     onClick={() => handleSell(key, 'scout')}
                   >

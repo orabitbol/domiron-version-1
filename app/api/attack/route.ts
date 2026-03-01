@@ -15,6 +15,7 @@ import type { ClanContext } from '@/lib/game/combat'
 import { getActiveHeroEffects, clampBonus } from '@/lib/game/hero-effects'
 import { recalculatePower } from '@/lib/game/power'
 import type { BattleReport, BattleReportReason } from '@/types/game'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const attackSchema = z.object({
   defender_id: z.string().uuid(),
@@ -41,6 +42,10 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient()
+
+    // Fetch active season — also acts as freeze guard (returns null if ended/expired)
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     // Fetch attacker data
     const [
@@ -149,8 +154,9 @@ export async function POST(request: NextRequest) {
     ])
 
     const killCooldown      = (killCount ?? 0) > 0
-    const attackerProtected = isNewPlayerProtected(new Date(attPlayer.created_at), now)
-    const defenderProtected = isNewPlayerProtected(new Date(defPlayer.created_at), now)
+    const seasonStartedAt   = new Date(activeSeason.starts_at)
+    const attackerProtected = isNewPlayerProtected(new Date(attPlayer.created_at), seasonStartedAt, now)
+    const defenderProtected = isNewPlayerProtected(new Date(defPlayer.created_at), seasonStartedAt, now)
 
     // ── DIAGNOSTIC LOGGING — remove after root cause is identified ────────────
     console.log('[ATK_DIAG] === ATTACK DIAGNOSTIC START ===')
@@ -250,9 +256,8 @@ export async function POST(request: NextRequest) {
     const newDefWood     = Math.max(0, defResources.wood - woodStolen)
     const newDefFood     = Math.max(0, defResources.food - foodStolen)
 
-    // Season ID
-    const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).single()
-    const seasonId = season?.id ?? 1
+    // Season ID — already fetched at top of handler
+    const seasonId = activeSeason.id
 
     const nowIso = now.toISOString()
 

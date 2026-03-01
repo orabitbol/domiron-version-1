@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   name:   z.string().min(3).max(40),
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
 
     const { name, anthem } = parsed.data
     const supabase = createAdminClient()
+
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     // Check player not already in a tribe
     const { data: existingMembership } = await supabase
@@ -47,17 +51,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tribe name already taken' }, { status: 409 })
     }
 
-    // Get player city and active season
-    const [{ data: player }, { data: season }] = await Promise.all([
-      supabase.from('players').select('city').eq('id', playerId).single(),
-      supabase.from('seasons').select('id').eq('is_active', true).single(),
-    ])
+    // Get player city
+    const { data: player } = await supabase
+      .from('players').select('city').eq('id', playerId).single()
 
     if (!player) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })
     }
 
-    const seasonId = season?.id ?? 1
+    const seasonId = activeSeason.id
 
     // Create tribe
     const { data: tribe, error: tribeError } = await supabase

@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/game-table'
 import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
+import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { SpyResult, SpyRevealedData } from '@/types/game'
 
 interface Target {
@@ -43,6 +44,7 @@ interface Props {
 
 export function SpyClient({ player, army, training, targets }: Props) {
   const { refresh } = usePlayer()
+  const isFrozen = useFreeze()
 
   const [search,       setSearch]       = useState('')
   const [spiesSent,    setSpiesSent]    = useState<Record<string, string>>({})
@@ -209,7 +211,7 @@ export function SpyClient({ player, army, training, targets }: Props) {
                 key="spy"
                 variant="primary"
                 size="sm"
-                disabled={!canSpy}
+                disabled={isFrozen || !canSpy}
                 onClick={() => setConfirmTarget(target)}
               >
                 Send Spies
@@ -251,7 +253,7 @@ export function SpyClient({ player, army, training, targets }: Props) {
               Failure may cost you some spies.
             </p>
             <div className="flex gap-3 pt-2">
-              <Button variant="primary" loading={loading} onClick={executeSpy}>
+              <Button variant="primary" loading={loading} disabled={isFrozen} onClick={executeSpy}>
                 Send
               </Button>
               <Button variant="ghost" disabled={loading} onClick={() => setConfirmTarget(null)}>

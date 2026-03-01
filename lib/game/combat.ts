@@ -463,16 +463,34 @@ export function isKillCooldownActive(lastKillAt: Date | null, now: Date = new Da
 // ─────────────────────────────────────────
 
 /**
- * Returns true if the player is within the 24-hour new-player protection window.
+ * Returns true if the player is within the new-player protection window,
+ * subject to the season protection gate.
+ *
+ * Season gate: protection is DISABLED for the first SEASON_PROTECTION_START_DAYS
+ * days of a season, so early-season PVP is fully live. After the gate opens,
+ * the normal PROTECTION_HOURS window applies per-player from their created_at.
  *
  * Protection does NOT block attacks.
  * When defenderIsProtected: loot = 0, defenderLosses = 0.
  * When attackerIsProtected: attackerLosses = 0.
  * Attacker always pays turns + food.
+ *
+ * @param playerCreatedAt  When the player account was created.
+ * @param seasonStartedAt  When the active season started (seasons.starts_at).
+ * @param now              Defaults to current time; injectable for testing.
  */
-export function isNewPlayerProtected(playerCreatedAt: Date, now: Date = new Date()): boolean {
-  const elapsedMs     = now.getTime() - playerCreatedAt.getTime()
-  const protectionMs  = BALANCE.combat.PROTECTION_HOURS * 60 * 60 * 1000
+export function isNewPlayerProtected(
+  playerCreatedAt:  Date,
+  seasonStartedAt:  Date,
+  now:              Date = new Date(),
+): boolean {
+  // Season gate: no protection during the first N days of a new season.
+  const gateMs = BALANCE.season.protectionStartDays * 24 * 60 * 60 * 1000
+  if (now.getTime() - seasonStartedAt.getTime() < gateMs) return false
+
+  // Gate is open — apply the per-player protection window.
+  const elapsedMs    = now.getTime() - playerCreatedAt.getTime()
+  const protectionMs = BALANCE.combat.PROTECTION_HOURS * 60 * 60 * 1000
   return elapsedMs < protectionMs
 }
 

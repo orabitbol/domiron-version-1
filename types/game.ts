@@ -304,9 +304,14 @@ export interface SpyHistory {
 export interface Season {
   id: number
   number: number
-  started_at: string
+  /** 'active' = in progress | 'ended' = archived */
+  status: 'active' | 'ended'
+  starts_at: string
+  /** Hard deadline: starts_at + 90 days */
+  ends_at: string
+  /** Set when status transitions to 'ended'. */
   ended_at: string | null
-  is_active: boolean
+  created_at: string
   created_by: string | null
 }
 
@@ -364,6 +369,7 @@ export interface PlayerData {
   hero: Hero
   bank: Bank
   tribe: Tribe | null
+  season: Season | null
 }
 
 // Attack list player entry

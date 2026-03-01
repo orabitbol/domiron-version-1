@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
+import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Bank, Resources } from '@/types/game'
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 export function BankClient({ bank: initialBank, resources: initialResources }: Props) {
   const { refresh } = usePlayer()
+  const isFrozen = useFreeze()
   const [bank, setBank] = useState(initialBank)
   const [resources, setResources] = useState(initialResources)
   const [depositAmt, setDepositAmt] = useState('')
@@ -213,6 +215,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
             <Button
               variant="primary"
               disabled={
+                isFrozen ||
                 !depositAmt ||
                 parseInt(depositAmt) <= 0 ||
                 parseInt(depositAmt) > maxDeposit ||
@@ -258,6 +261,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
             <Button
               variant="ghost"
               disabled={
+                isFrozen ||
                 !withdrawAmt ||
                 parseInt(withdrawAmt) <= 0 ||
                 parseInt(withdrawAmt) > bank.balance ||
@@ -293,7 +297,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
           </div>
           <Button
             variant="success"
-            disabled={!canUpgrade || !!loading}
+            disabled={isFrozen || !canUpgrade || !!loading}
             loading={loading === 'upgrade'}
             onClick={handleUpgrade}
           >

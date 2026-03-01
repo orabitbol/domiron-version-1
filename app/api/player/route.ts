@@ -41,6 +41,17 @@ export async function GET() {
     return NextResponse.json({ error: 'Player not found' }, { status: 404 })
   }
 
+  // Fetch the season the player belongs to (by player.season_id)
+  let season = null
+  if (player.season_id) {
+    const { data } = await supabase
+      .from('seasons')
+      .select('id,number,status,starts_at,ends_at,ended_at,created_at,created_by')
+      .eq('id', player.season_id)
+      .single()
+    season = data
+  }
+
   let tribe = null
   if (tribeMember?.tribe_id) {
     const { data } = await supabase
@@ -62,6 +73,7 @@ export async function GET() {
       hero,
       bank,
       tribe,
+      season,
     },
   })
 }

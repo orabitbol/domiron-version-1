@@ -25,9 +25,94 @@ function MobileTickCountdown() {
   return <span className="tabular-nums">{ms === null ? '--:--' : formatCountdown(ms)}</span>
 }
 
+// ─── Season countdown (desktop center, hydration-safe) ────────────────────────
+
+function formatSeasonMs(ms: number): string {
+  if (ms <= 0) return 'Season Ended'
+  const s   = Math.floor(ms / 1000)
+  const d   = Math.floor(s / 86400)
+  const h   = Math.floor((s % 86400) / 3600)
+  const m   = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const hh  = String(h).padStart(2, '0')
+  const mm  = String(m).padStart(2, '0')
+  const ss  = String(sec).padStart(2, '0')
+  return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`
+}
+
+function SeasonCountdown({ endsAt }: { endsAt: string }) {
+  const [display, setDisplay] = useState<string | null>(null)
+
+  useEffect(() => {
+    function update() {
+      setDisplay(formatSeasonMs(new Date(endsAt).getTime() - Date.now()))
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [endsAt])
+
+  // null on first render → avoid hydration mismatch
+  if (display === null) return <div className="hidden md:flex flex-1" />
+
+  const isEnded = display === 'Season Ended'
+  return (
+    <div className="hidden md:flex flex-1 flex-col items-center gap-0.5 pointer-events-none select-none">
+      <span className="font-heading text-[9px] uppercase tracking-widest text-game-text-muted">
+        ⚔ Season
+      </span>
+      <span
+        className={cn(
+          'font-body text-game-xs tabular-nums font-semibold',
+          isEnded
+            ? 'text-red-400'
+            : 'text-game-gold-bright drop-shadow-[0_0_6px_rgba(240,192,48,0.3)]',
+        )}
+      >
+        {display}
+      </span>
+    </div>
+  )
+}
+
+// ─── Mobile season badge ──────────────────────────────────────────────────────
+
+function MobileSeasonCountdown({ endsAt }: { endsAt: string }) {
+  const [display, setDisplay] = useState<string | null>(null)
+
+  useEffect(() => {
+    function update() {
+      setDisplay(formatSeasonMs(new Date(endsAt).getTime() - Date.now()))
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [endsAt])
+
+  if (display === null) return null
+
+  const isEnded = display === 'Season Ended'
+  return (
+    <div className={cn(
+      'flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full',
+      isEnded ? 'bg-red-900/20' : 'bg-game-gold/8',
+    )}>
+      <span className="text-xs leading-none">⌛</span>
+      <span className={cn(
+        'font-body text-game-xs font-semibold tabular-nums',
+        isEnded ? 'text-red-400' : 'text-game-gold-bright',
+      )}>
+        {display}
+      </span>
+    </div>
+  )
+}
+
+// ─── ResourceBar ──────────────────────────────────────────────────────────────
+
 export function ResourceBar() {
   const pathname = usePathname()
-  const { player, resources } = usePlayer()
+  const { player, resources, season } = usePlayer()
 
   return (
     <header
@@ -71,9 +156,14 @@ export function ResourceBar() {
             <MobileTickCountdown />
           </span>
         </div>
+        {season?.ends_at && <MobileSeasonCountdown endsAt={season.ends_at} />}
       </div>
 
-      <div className="hidden md:flex flex-1" />
+      {/* Desktop: centered season countdown (replaces empty flex-1 spacer) */}
+      {season?.ends_at
+        ? <SeasonCountdown endsAt={season.ends_at} />
+        : <div className="hidden md:flex flex-1" />
+      }
 
       {/* Top nav links */}
       <nav className="flex items-center gap-1 shrink-0">

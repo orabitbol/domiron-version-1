@@ -10,6 +10,7 @@ import { ResourceBadge } from '@/components/ui/resource-badge'
 import { Tabs } from '@/components/ui/tabs'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
+import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Player, Army, Training, Resources } from '@/types/game'
 
 interface Props {
@@ -59,6 +60,7 @@ export function TrainingClient({
   resources: initialResources,
 }: Props) {
   const { player: ctxPlayer, army: ctxArmy, training: ctxTraining, resources: ctxResources, refresh } = usePlayer()
+  const isFrozen = useFreeze()
 
   // Prefer context (kept fresh by refresh()) but fall back to SSR props on first render
   const player   = ctxPlayer   ?? initialPlayer
@@ -387,7 +389,7 @@ export function TrainingClient({
                       variant="primary"
                       size="sm"
                       loading={loadingUnit === unit}
-                      disabled={!canAffordTrain(unit) || !!loadingUnit}
+                      disabled={isFrozen || !canAffordTrain(unit) || !!loadingUnit}
                       onClick={() => trainUnit(unit)}
                     >
                       Train
@@ -448,7 +450,7 @@ export function TrainingClient({
                       variant="ghost"
                       size="sm"
                       loading={loadingUnit === `untrain_${unit}`}
-                      disabled={!canUntrain(unit) || !!loadingUnit}
+                      disabled={isFrozen || !canUntrain(unit) || !!loadingUnit}
                       onClick={() => untrainUnit(unit)}
                     >
                       Untrain
@@ -499,7 +501,7 @@ export function TrainingClient({
                       variant="success"
                       size="sm"
                       loading={loadingAdv === type}
-                      disabled={!canAffordAdv(type) || !!loadingAdv}
+                      disabled={isFrozen || !canAffordAdv(type) || !!loadingAdv}
                       onClick={() => upgradeAdvanced(type)}
                     >
                       Upgrade

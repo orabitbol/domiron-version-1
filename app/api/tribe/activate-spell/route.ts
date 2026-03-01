@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   spell_key: z.enum(['combat_boost', 'tribe_shield', 'production_blessing', 'mass_spy', 'war_cry']),
@@ -24,6 +25,8 @@ export async function POST(request: NextRequest) {
 
     const { spell_key } = parsed.data
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     // Get tribe membership
     const { data: membership } = await supabase

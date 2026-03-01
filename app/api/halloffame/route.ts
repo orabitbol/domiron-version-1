@@ -9,10 +9,11 @@ export async function GET() {
     const { data: season } = await supabase
       .from('seasons')
       .select('id')
-      .eq('is_active', true)
+      .eq('status', 'active')
       .single()
 
-    const seasonId = season?.id ?? 1
+    if (!season) throw new Error('No active season')
+    const seasonId = season.id
 
     const { data: entries, error } = await supabase
       .from('hall_of_fame')

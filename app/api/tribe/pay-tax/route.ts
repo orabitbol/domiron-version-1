@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 export async function POST() {
   const session = await getServerSession(authOptions)
@@ -11,6 +12,8 @@ export async function POST() {
 
   try {
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     // Get player's tribe membership
     const { data: membership } = await supabase

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
   amount: z.number().int().min(1),
@@ -23,6 +24,8 @@ export async function POST(request: NextRequest) {
 
     const { amount } = parsed.data
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const [{ data: bank }, { data: resources }] = await Promise.all([
       supabase.from('bank').select('*').eq('player_id', playerId).single(),

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 export async function POST() {
   const session = await getServerSession(authOptions)
@@ -12,6 +13,8 @@ export async function POST() {
 
   try {
     const supabase = createAdminClient()
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const [{ data: bank }, { data: resources }] = await Promise.all([
       supabase.from('bank').select('*').eq('player_id', playerId).single(),

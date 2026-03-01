@@ -17,7 +17,7 @@ export default async function HallOfFamePage() {
     supabase.from('hall_of_fame').select('*').order('rank', { ascending: true }),
   ])
 
-  const completedSeasons = (seasons ?? []).filter(s => !s.is_active)
+  const completedSeasons = (seasons ?? []).filter(s => s.status === 'ended')
 
   return (
     <div className="space-y-6">
