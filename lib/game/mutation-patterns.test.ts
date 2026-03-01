@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import { BALANCE } from '@/lib/game/balance'
 import { resolveCombat } from '@/lib/game/combat'
-import type { AttackBlocker } from '@/types/game'
+import type { AttackBlocker, BattleReport } from '@/types/game'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: inline deriveBattleBlockers — mirrors the logic in app/api/attack/route.ts
@@ -60,26 +60,49 @@ describe('Immediate update contract (no-refresh pattern)', () => {
     expect(newAttFood).toBeGreaterThanOrEqual(0)
   })
 
-  it('attack route resource snapshot is a full replacement, not a delta', () => {
-    // The route returns { resources: { gold, iron, wood, food } } — all four values.
-    // The client does setPlayerResources(data.resources), NOT partial update.
-    // This test verifies the snapshot shape matches what AttackClient expects.
-    const mockRouteResponse = {
-      result: {
-        outcome: 'win' as const,
+  it('attack route battleReport snapshot allows immediate UI update without re-fetch', () => {
+    // The route returns { battleReport, turns, resources }.
+    // Client does: setBattleReport(data.battleReport) — no re-fetch needed.
+    // This test verifies the battleReport shape matches what AttackClient expects.
+    const snapshot = { gold: 0, iron: 0, wood: 0, food: 0, soldiers: 0, cavalry: 0, slaves: 0 }
+    const mockRouteResponse: {
+      battleReport: BattleReport
+      turns: number
+      resources: { gold: number; iron: number; wood: number; food: number }
+    } = {
+      battleReport: {
+        outcome: 'WIN',
         ratio: 1.5,
-        attacker_ecp: 1000,
-        defender_ecp: 700,
-        attacker_losses: 10,
-        defender_losses: 50,
-        slaves_created: 15,
-        gold_stolen: 200,
-        iron_stolen: 50,
-        wood_stolen: 30,
-        food_stolen: 0,
-        turns_used: 3,
-        food_cost: 3,
-        blockers: [] as AttackBlocker[],
+        attacker: {
+          name: 'Iron Legion',
+          ecp_attack: 1000,
+          turns_spent: 3,
+          food_spent: 3,
+          losses: { soldiers: 10, cavalry: 0 },
+          before: { ...snapshot, gold: 1000, soldiers: 200 },
+          after:  { ...snapshot, gold: 1200, soldiers: 190 },
+        },
+        defender: {
+          name: 'Shadow Guard',
+          ecp_defense: 700,
+          losses: { soldiers: 50, cavalry: 0 },
+          before: { ...snapshot, gold: 500, soldiers: 100 },
+          after:  { ...snapshot, gold: 300, soldiers: 50 },
+        },
+        gained: {
+          loot: { gold: 200, iron: 50, wood: 30, food: 0 },
+          slaves_created: 15,
+        },
+        flags: {
+          defender_protected: false,
+          attacker_protected: false,
+          defender_resource_shield_active: false,
+          defender_soldier_shield_active: false,
+          kill_cooldown_active: false,
+          anti_farm_decay_mult: 1,
+          defender_unbanked_empty: false,
+        },
+        reasons: [],
       },
       turns: 17,
       resources: { gold: 1200, iron: 550, wood: 330, food: 97 },
@@ -91,12 +114,16 @@ describe('Immediate update contract (no-refresh pattern)', () => {
     expect(mockRouteResponse.resources).toHaveProperty('wood')
     expect(mockRouteResponse.resources).toHaveProperty('food')
 
-    // turns is also returned as a snapshot (remaining, not delta)
+    // turns is returned as a snapshot (remaining, not delta)
     expect(typeof mockRouteResponse.turns).toBe('number')
 
-    // result includes turns_used and food_cost for display — no extra fetch needed
-    expect(mockRouteResponse.result.turns_used).toBe(3)
-    expect(mockRouteResponse.result.food_cost).toBe(3)
+    // battleReport contains turns_spent and food_spent for display — no extra fetch needed
+    expect(mockRouteResponse.battleReport.attacker.turns_spent).toBe(3)
+    expect(mockRouteResponse.battleReport.attacker.food_spent).toBe(3)
+
+    // battleReport.gained always present (even if zeros) — client never guesses
+    expect(mockRouteResponse.battleReport.gained.loot.gold).toBe(200)
+    expect(mockRouteResponse.battleReport.gained.slaves_created).toBe(15)
   })
 
   it('training response army snapshot allows immediate UI update', () => {

@@ -11,7 +11,7 @@ import { GameTable } from '@/components/ui/game-table'
 import { EmptyState } from '@/components/ui/game-table'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
-import type { Player, Resources, AttackResult, AttackBlocker } from '@/types/game'
+import type { Player, Resources, BattleReport, BattleReportReason } from '@/types/game'
 
 interface Target {
   id: string
@@ -31,180 +31,154 @@ interface Props {
 }
 
 const OUTCOME_COLORS: Record<string, string> = {
-  win:     'text-game-green-bright',
-  partial: 'text-game-gold-bright',
-  loss:    'text-game-red-bright',
+  WIN:     'text-game-green-bright',
+  PARTIAL: 'text-game-gold-bright',
+  LOSS:    'text-game-red-bright',
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
-  win:     'Victory',
-  partial: 'Draw',
-  loss:    'Defeat',
+  WIN:     'Victory',
+  PARTIAL: 'Draw',
+  LOSS:    'Defeat',
 }
 
-/** Human-readable explanation for each blocker. i18n-ready: replace values with t() calls. */
-const BLOCKER_LABELS: Record<AttackBlocker, string> = {
-  resource_shield:    'Enemy Resource Shield was active — resources were protected',
-  soldier_shield:     'Enemy Soldier Shield was active — soldiers were protected',
-  defender_protected: 'Target is under New Player Protection (24h)',
-  kill_cooldown:      `Kill Cooldown active — you recently killed their troops (${BALANCE.combat.KILL_COOLDOWN_HOURS}h cooldown)`,
-  attacker_protected: 'You are under New Player Protection — your soldiers took no losses',
-  loot_decay:         'Loot Decay — repeated attacks on same target reduce plunder (anti-farm)',
+/** Human-readable labels for each reason code. i18n-ready: replace values with t() calls. */
+const REASON_LABELS: Record<BattleReportReason, string> = {
+  OUTCOME_LOSS_NO_LOOT:         'You lost the battle — no loot is gained on defeat',
+  DEFENDER_PROTECTED:           'Target has New Player Protection (24h) — no loot, no soldier losses',
+  RESOURCE_SHIELD_ACTIVE:       'Enemy Resource Shield was active — resources were protected',
+  NO_UNBANKED_RESOURCES:        'Enemy had no unbanked resources to steal',
+  KILL_COOLDOWN_NO_LOSSES:      `Kill Cooldown active (${BALANCE.combat.KILL_COOLDOWN_HOURS}h) — defender soldier losses blocked`,
+  ATTACKER_PROTECTED_NO_LOSSES: 'You are under New Player Protection — your soldiers took no losses',
+  SOLDIER_SHIELD_NO_LOSSES:     'Enemy Soldier Shield was active — their soldiers were protected',
+  LOOT_DECAY_REDUCED:           'Repeated attacks on same target reduce plunder (anti-farm)',
 }
 
 // ─────────────────────────────────────────
-// BATTLE REPORT — extracted component for clarity
+// BATTLE REPORT MODAL — renders from BattleReport type only, no guessing
 // ─────────────────────────────────────────
 
-function BattleReport({ result, onClose }: { result: AttackResult; onClose: () => void }) {
-  const hasLoot = result.gold_stolen > 0 || result.iron_stolen > 0 ||
-                  result.wood_stolen > 0 || result.food_stolen > 0
-  const hasGains = hasLoot || result.slaves_created > 0
-  const showGainedSection = result.outcome !== 'loss'
+function BattleReportModal({ report, onClose }: { report: BattleReport; onClose: () => void }) {
+  const allGainsZero =
+    report.gained.loot.gold   === 0 &&
+    report.gained.loot.iron   === 0 &&
+    report.gained.loot.wood   === 0 &&
+    report.gained.loot.food   === 0 &&
+    report.gained.slaves_created === 0
 
-  // Loot decay multiplier for display
-  const decayIndex = result.blockers.includes('loot_decay')
-    ? Math.min((BALANCE.antiFarm?.LOOT_DECAY_STEPS?.length ?? 1) - 1, 1)
-    : -1
-  const decayMult = decayIndex >= 0
-    ? (BALANCE.antiFarm?.LOOT_DECAY_STEPS?.[decayIndex] ?? 0.7)
-    : null
-
-  const outcomeColor = OUTCOME_COLORS[result.outcome] ?? 'text-game-text-white'
-  const outcomeLabel = OUTCOME_LABELS[result.outcome] ?? result.outcome
+  const outcomeColor = OUTCOME_COLORS[report.outcome] ?? 'text-game-text-white'
+  const outcomeLabel = OUTCOME_LABELS[report.outcome] ?? report.outcome
 
   return (
     <div className="space-y-4">
 
-      {/* ── Section 1: Outcome headline ──────────────────────────────── */}
+      {/* ── A: Outcome header ──────────────────────────────────────── */}
       <div className="text-center space-y-1">
-        <p className={`font-display text-game-3xl uppercase tracking-wide ${outcomeColor}`}>
+        <p className={`font-display text-game-4xl uppercase tracking-wide ${outcomeColor}`}>
           {outcomeLabel}
         </p>
         <p className="text-game-text-muted font-body text-game-xs">
-          Power ratio: <span className="font-semibold text-game-text-white">{result.ratio.toFixed(2)}×</span>
+          Power Ratio: <span className="font-semibold text-game-text-white">{report.ratio.toFixed(2)}×</span>
         </p>
-      </div>
-
-      {/* ── Section 2: Power comparison ──────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-game-elevated border border-game-border rounded p-3">
-          <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Your Attack Power</p>
-          <p className={`font-semibold text-game-lg ${outcomeColor}`}>{formatNumber(result.attacker_ecp)}</p>
-        </div>
-        <div className="bg-game-elevated border border-game-border rounded p-3">
-          <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Defender Power</p>
-          <p className="font-semibold text-game-lg text-game-text-white">{formatNumber(result.defender_ecp)}</p>
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="bg-game-elevated border border-game-border rounded p-3">
+            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Your Attack</p>
+            <p className={`font-semibold text-game-lg ${outcomeColor}`}>{formatNumber(report.attacker.ecp_attack)}</p>
+          </div>
+          <div className="bg-game-elevated border border-game-border rounded p-3">
+            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Enemy Defense</p>
+            <p className="font-semibold text-game-lg text-game-text-white">{formatNumber(report.defender.ecp_defense)}</p>
+          </div>
         </div>
       </div>
 
-      {/* ── Section 3: Contextual explanation ───────────────────────── */}
-      <div className={`rounded border px-3 py-2 font-body text-game-xs ${
-        result.outcome === 'win'
-          ? 'bg-game-green/10 border-green-900 text-game-green-bright'
-          : result.outcome === 'partial'
-          ? 'bg-game-gold/10 border-yellow-900 text-yellow-300'
-          : 'bg-game-red/10 border-red-900 text-game-red-bright'
-      }`}>
-        {result.outcome === 'win' && (
-          `Your attack power overwhelmed the defender's defense (${formatNumber(result.attacker_ecp)} vs ${formatNumber(result.defender_ecp)}).`
-        )}
-        {result.outcome === 'partial' && (
-          `Close battle. Your power (${formatNumber(result.attacker_ecp)}) nearly matched their defense (${formatNumber(result.defender_ecp)}). Train more troops for a full victory.`
-        )}
-        {result.outcome === 'loss' && (
-          `Your power (${formatNumber(result.attacker_ecp)}) was outmatched. You need at least ${formatNumber(Math.ceil(result.defender_ecp * BALANCE.combat.WIN_THRESHOLD))} attack power to win.`
-        )}
-      </div>
-
-      {/* ── Section 4: You Spent ─────────────────────────────────────── */}
+      {/* ── B: You Spent ───────────────────────────────────────────── */}
       <div className="bg-game-surface border border-game-border rounded p-3">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Spent</p>
         <div className="flex gap-4 font-body text-game-sm">
           <span className="flex items-center gap-1.5">
             <span className="text-game-text-muted">Turns:</span>
-            <span className="text-game-text-white font-semibold">{result.turns_used}</span>
+            <span className="text-game-text-white font-semibold">{report.attacker.turns_spent}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="text-game-text-muted">Food:</span>
-            <ResourceBadge type="food" amount={result.food_cost} />
+            <ResourceBadge type="food" amount={report.attacker.food_spent} />
           </span>
         </div>
       </div>
 
-      {/* ── Section 5: Combat results (losses) ──────────────────────── */}
-      <div className="bg-game-surface border border-game-border rounded p-3 space-y-2">
-        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Combat Results</p>
-        <div className="flex justify-between font-body text-game-sm">
-          <span className="text-game-text-secondary">Your Losses</span>
-          <span className={`font-semibold ${result.attacker_losses > 0 ? 'text-game-red-bright' : 'text-game-text-muted'}`}>
-            {formatNumber(result.attacker_losses)} soldiers
-          </span>
-        </div>
-        <div className="flex justify-between font-body text-game-sm">
-          <span className="text-game-text-secondary">Enemy Losses</span>
-          <span className={`font-semibold ${result.defender_losses > 0 ? 'text-game-green-bright' : 'text-game-text-muted'}`}>
-            {formatNumber(result.defender_losses)} soldiers
-          </span>
-        </div>
-        {result.slaves_created > 0 && (
-          <div className="flex justify-between font-body text-game-sm">
+      {/* ── C: Combat Results ──────────────────────────────────────── */}
+      <div className="bg-game-surface border border-game-border rounded p-3">
+        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Combat Results</p>
+        <div className="font-body text-game-sm">
+          <div className="grid grid-cols-3 gap-2 text-game-xs text-game-text-muted font-heading uppercase border-b border-game-border pb-1 mb-2">
+            <span>Unit</span>
+            <span>You Lost</span>
+            <span>Enemy Lost</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 py-1">
+            <span className="text-game-text-secondary">Soldiers</span>
+            <span className={report.attacker.losses.soldiers > 0 ? 'text-game-red-bright font-semibold' : 'text-game-text-muted'}>
+              {formatNumber(report.attacker.losses.soldiers)}
+            </span>
+            <span className={report.defender.losses.soldiers > 0 ? 'text-game-green-bright font-semibold' : 'text-game-text-muted'}>
+              {formatNumber(report.defender.losses.soldiers)}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 py-1 border-t border-game-border">
             <span className="text-game-text-secondary">Slaves Taken</span>
-            <span className="font-semibold text-game-gold-bright">{formatNumber(result.slaves_created)}</span>
+            <span className="text-game-text-muted">—</span>
+            <span className={report.gained.slaves_created > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
+              +{formatNumber(report.gained.slaves_created)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── D: You Gained — always shown, even when all zeros ─────── */}
+      <div className={`border rounded p-3 ${allGainsZero ? 'bg-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
+        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Gained</p>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
+          {(['gold', 'iron', 'wood', 'food'] as const).map((res) => (
+            <div key={res} className="flex justify-between">
+              <span className="text-game-text-secondary capitalize">{res}</span>
+              <span className={report.gained.loot[res] > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
+                {formatNumber(report.gained.loot[res])}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between mt-2 pt-2 border-t border-game-border font-body text-game-sm">
+          <span className="text-game-text-secondary">Slaves</span>
+          <span className={report.gained.slaves_created > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
+            {formatNumber(report.gained.slaves_created)}
+          </span>
+        </div>
+
+        {/* Decay notice when gains are non-zero but loot was reduced */}
+        {!allGainsZero && report.flags.anti_farm_decay_mult < 1 && (
+          <p className="mt-2 text-game-xs text-game-text-muted font-body italic">
+            Anti-farm decay applied (×{report.flags.anti_farm_decay_mult.toFixed(2)})
+          </p>
+        )}
+
+        {/* WHY box — only when all gains are zero */}
+        {allGainsZero && report.reasons.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-game-border">
+            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1.5">
+              Why Nothing Was Gained
+            </p>
+            <ul className="space-y-1.5">
+              {report.reasons.map((reason) => (
+                <li key={reason} className="font-body text-game-xs text-game-text-secondary flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0">•</span>
+                  <span>{REASON_LABELS[reason]}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
-
-      {/* ── Section 6: You Gained ────────────────────────────────────── */}
-      {showGainedSection && (
-        <div className={`border rounded p-3 ${
-          hasGains
-            ? 'bg-game-green/5 border-green-900'
-            : 'bg-game-surface border-game-border'
-        }`}>
-          <p className="text-game-xs font-heading uppercase tracking-wide mb-2 text-game-text-muted">
-            You Gained
-          </p>
-          {hasGains ? (
-            <div className="space-y-2">
-              {result.slaves_created > 0 && (
-                <div className="flex items-center gap-2 font-body text-game-sm">
-                  <span className="text-game-text-secondary">Slaves:</span>
-                  <span className="text-game-gold-bright font-semibold">{formatNumber(result.slaves_created)}</span>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-3">
-                {result.gold_stolen > 0 && <ResourceBadge type="gold" amount={result.gold_stolen} showLabel />}
-                {result.iron_stolen > 0 && <ResourceBadge type="iron" amount={result.iron_stolen} showLabel />}
-                {result.wood_stolen > 0 && <ResourceBadge type="wood" amount={result.wood_stolen} showLabel />}
-                {result.food_stolen > 0 && <ResourceBadge type="food" amount={result.food_stolen} showLabel />}
-              </div>
-            </div>
-          ) : (
-            <p className="text-game-sm text-game-text-muted font-body">Nothing gained this battle.</p>
-          )}
-        </div>
-      )}
-
-      {/* ── Section 7: Why box (blockers) ────────────────────────────── */}
-      {result.blockers.length > 0 && (
-        <div className="bg-game-surface border border-game-border rounded p-3">
-          <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Why</p>
-          <ul className="space-y-1.5">
-            {result.blockers.map((blocker) => {
-              const label = blocker === 'loot_decay' && decayMult !== null
-                ? `${BLOCKER_LABELS.loot_decay} (×${decayMult})`
-                : BLOCKER_LABELS[blocker]
-              return (
-                <li key={blocker} className="font-body text-game-xs text-game-text-secondary flex items-start gap-2">
-                  <span className="mt-0.5 shrink-0">•</span>
-                  <span>{label}</span>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
 
       <Button variant="ghost" onClick={onClose}>Close</Button>
     </div>
@@ -240,7 +214,7 @@ export function AttackClient({ player, targets, resources }: Props) {
   const [search, setSearch] = useState('')
   const [turns, setTurns] = useState<Record<string, string>>({})
   const [confirmTarget, setConfirmTarget] = useState<Target | null>(null)
-  const [attackResult, setAttackResult] = useState<AttackResult | null>(null)
+  const [battleReport, setBattleReport] = useState<BattleReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [playerTurns, setPlayerTurns] = useState(player.turns)
@@ -278,7 +252,7 @@ export function AttackClient({ player, targets, resources }: Props) {
         setMessage({ text: data.error ?? 'Attack failed', type: 'error' })
         setConfirmTarget(null)
       } else {
-        setAttackResult(data.result)
+        setBattleReport(data.battleReport)
         setConfirmTarget(null)
         if (data.turns !== undefined) setPlayerTurns(data.turns)
         if (data.resources) setPlayerResources(data.resources)
@@ -477,12 +451,12 @@ export function AttackClient({ player, targets, resources }: Props) {
 
       {/* Battle result modal */}
       <Modal
-        isOpen={!!attackResult}
-        onClose={() => setAttackResult(null)}
+        isOpen={!!battleReport}
+        onClose={() => setBattleReport(null)}
         title="Battle Report"
         size="md"
       >
-        {attackResult && <BattleReport result={attackResult} onClose={() => setAttackResult(null)} />}
+        {battleReport && <BattleReportModal report={battleReport} onClose={() => setBattleReport(null)} />}
       </Modal>
     </div>
   )

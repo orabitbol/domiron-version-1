@@ -9,11 +9,12 @@ import {
   resolveCombat,
   isKillCooldownActive,
   isNewPlayerProtected,
+  getLootDecayMultiplier,
 } from '@/lib/game/combat'
 import type { ClanContext } from '@/lib/game/combat'
 import { getActiveHeroEffects, clampBonus } from '@/lib/game/hero-effects'
 import { recalculatePower } from '@/lib/game/power'
-import type { AttackBlocker } from '@/types/game'
+import type { BattleReport, BattleReportReason } from '@/types/game'
 
 const attackSchema = z.object({
   defender_id: z.string().uuid(),
@@ -248,32 +249,78 @@ export async function POST(request: NextRequest) {
       recalculatePower(defender_id, supabase),
     ])
 
-    // Derive blockers: explains to the UI why gains/losses may be zeroed
-    const blockers: AttackBlocker[] = []
-    if (defHero.resourceShieldActive)  blockers.push('resource_shield')
-    if (defHero.soldierShieldActive)   blockers.push('soldier_shield')
-    if (defenderProtected)             blockers.push('defender_protected')
-    if (killCooldown)                  blockers.push('kill_cooldown')
-    if (attackerProtected)             blockers.push('attacker_protected')
-    if ((attacksInWindow ?? 0) > 1)    blockers.push('loot_decay')
+    // Build battleReport: structured result the client renders directly
+    const attackCount   = (attacksInWindow ?? 0) + 1
+    const decayMult     = getLootDecayMultiplier(attackCount)
+    const defUnbanked   = defResources.gold === 0 && defResources.iron === 0 &&
+                          defResources.wood === 0 && defResources.food === 0
+
+    const reasons: BattleReportReason[] = []
+    if (result.outcome === 'loss')        reasons.push('OUTCOME_LOSS_NO_LOOT')
+    if (defenderProtected)                reasons.push('DEFENDER_PROTECTED')
+    if (defHero.resourceShieldActive)     reasons.push('RESOURCE_SHIELD_ACTIVE')
+    if (defHero.soldierShieldActive)      reasons.push('SOLDIER_SHIELD_NO_LOSSES')
+    if (killCooldown)                     reasons.push('KILL_COOLDOWN_NO_LOSSES')
+    if (attackerProtected)                reasons.push('ATTACKER_PROTECTED_NO_LOSSES')
+    if (attackCount > 1)                  reasons.push('LOOT_DECAY_REDUCED')
+    if (defUnbanked && result.outcome !== 'loss' && !defenderProtected && !defHero.resourceShieldActive) {
+      reasons.push('NO_UNBANKED_RESOURCES')
+    }
+
+    const outcomeMap = { win: 'WIN', partial: 'PARTIAL', loss: 'LOSS' } as const
+    const battleReport: BattleReport = {
+      outcome: outcomeMap[result.outcome],
+      ratio:   result.ratio,
+      attacker: {
+        name:        attPlayer.army_name,
+        ecp_attack:  result.attackerECP,
+        turns_spent: turnsUsed,
+        food_spent:  foodCost,
+        losses:      { soldiers: result.attackerLosses, cavalry: 0 },
+        before: {
+          gold: attResources.gold, iron: attResources.iron,
+          wood: attResources.wood, food: attResources.food,
+          soldiers: attArmy.soldiers, cavalry: attArmy.cavalry, slaves: attArmy.slaves,
+        },
+        after: {
+          gold: newAttGold, iron: newAttIron,
+          wood: newAttWood, food: newAttFood,
+          soldiers: newAttSoldiers, cavalry: attArmy.cavalry, slaves: newAttSlaves,
+        },
+      },
+      defender: {
+        name:        defPlayer.army_name,
+        ecp_defense: result.defenderECP,
+        losses:      { soldiers: safeDefLosses, cavalry: 0 },
+        before: {
+          gold: defResources.gold, iron: defResources.iron,
+          wood: defResources.wood, food: defResources.food,
+          soldiers: defArmy.soldiers, cavalry: defArmy.cavalry, slaves: defArmy.slaves,
+        },
+        after: {
+          gold: newDefGold, iron: newDefIron,
+          wood: newDefWood, food: newDefFood,
+          soldiers: newDefSoldiers, cavalry: defArmy.cavalry, slaves: defArmy.slaves - safeSlaves,
+        },
+      },
+      gained: {
+        loot:           { gold: goldStolen, iron: ironStolen, wood: woodStolen, food: foodStolen },
+        slaves_created: safeSlaves,
+      },
+      flags: {
+        defender_protected:              defenderProtected,
+        attacker_protected:              attackerProtected,
+        defender_resource_shield_active: defHero.resourceShieldActive,
+        defender_soldier_shield_active:  defHero.soldierShieldActive,
+        kill_cooldown_active:            killCooldown,
+        anti_farm_decay_mult:            decayMult,
+        defender_unbanked_empty:         defUnbanked,
+      },
+      reasons,
+    }
 
     return NextResponse.json({
-      result: {
-        outcome:         result.outcome,
-        ratio:           result.ratio,
-        attacker_ecp:    result.attackerECP,
-        defender_ecp:    result.defenderECP,
-        attacker_losses: result.attackerLosses,
-        defender_losses: safeDefLosses,
-        slaves_created:  safeSlaves,
-        gold_stolen:     goldStolen,
-        iron_stolen:     ironStolen,
-        wood_stolen:     woodStolen,
-        food_stolen:     foodStolen,
-        turns_used:      turnsUsed,
-        food_cost:       foodCost,
-        blockers,
-      },
+      battleReport,
       turns: newAttTurns,
       resources: {
         gold: newAttGold,

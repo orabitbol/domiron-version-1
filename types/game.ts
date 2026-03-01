@@ -25,6 +25,64 @@ export type AttackBlocker =
   | 'attacker_protected' // attacker is within 24h new-player protection → attacker losses = 0
   | 'loot_decay'         // repeated attacks on same target reduce loot (anti-farm)
 
+/** Snapshot of one side's resources + army at a point in time */
+export interface BattleReportSnapshot {
+  gold:     number
+  iron:     number
+  wood:     number
+  food:     number
+  soldiers: number
+  cavalry:  number
+  slaves:   number
+}
+
+/** Machine-readable codes explaining why gains/losses were zeroed or reduced */
+export type BattleReportReason =
+  | 'DEFENDER_PROTECTED'           // defender has new-player protection → no loot, no losses
+  | 'RESOURCE_SHIELD_ACTIVE'       // defender's resource shield → loot = 0
+  | 'NO_UNBANKED_RESOURCES'        // defender had nothing to steal
+  | 'KILL_COOLDOWN_NO_LOSSES'      // recent kill → defender losses blocked (6h cooldown)
+  | 'ATTACKER_PROTECTED_NO_LOSSES' // attacker has new-player protection → attacker losses = 0
+  | 'SOLDIER_SHIELD_NO_LOSSES'     // defender's soldier shield → defender losses = 0
+  | 'LOOT_DECAY_REDUCED'           // repeated attacks → loot multiplied down (anti-farm)
+  | 'OUTCOME_LOSS_NO_LOOT'         // attacker lost → no loot on defeat
+
+/** Full structured battle report returned by POST /api/attack */
+export interface BattleReport {
+  outcome: 'WIN' | 'PARTIAL' | 'LOSS'
+  ratio:   number
+  attacker: {
+    name:        string
+    ecp_attack:  number
+    turns_spent: number
+    food_spent:  number
+    losses:      { soldiers: number; cavalry: number }
+    before:      BattleReportSnapshot
+    after:       BattleReportSnapshot
+  }
+  defender: {
+    name:        string
+    ecp_defense: number
+    losses:      { soldiers: number; cavalry: number }
+    before:      BattleReportSnapshot
+    after:       BattleReportSnapshot
+  }
+  gained: {
+    loot:           { gold: number; iron: number; wood: number; food: number }
+    slaves_created: number
+  }
+  flags: {
+    defender_protected:              boolean
+    attacker_protected:              boolean
+    defender_resource_shield_active: boolean
+    defender_soldier_shield_active:  boolean
+    kill_cooldown_active:            boolean
+    anti_farm_decay_mult:            number
+    defender_unbanked_empty:         boolean
+  }
+  reasons: BattleReportReason[]
+}
+
 export type HallOfFameType = 'player' | 'tribe'
 export type ToastType = 'attack' | 'victory' | 'defeat' | 'tick' | 'tribe' | 'info' | 'error' | 'success' | 'magic' | 'warning'
 
