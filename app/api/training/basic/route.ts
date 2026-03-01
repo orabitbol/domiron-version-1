@@ -7,7 +7,7 @@ import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
 
 const schema = z.object({
-  unit: z.enum(['soldier', 'spy', 'scout', 'cavalry', 'farmer']),
+  unit: z.enum(['soldier', 'slave', 'spy', 'scout', 'cavalry', 'farmer']),
   amount: z.number().int().min(1),
 })
 
@@ -48,17 +48,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
     }
 
-    // Capacity check for combat units (soldiers, spies, scouts)
+    // ── Capacity check for combat units (soldiers, spies, scouts) ──────────
     const combatUnits = army.soldiers + army.spies + army.scouts
     if (unit === 'soldier' || unit === 'spy' || unit === 'scout') {
       if (combatUnits + amount > player.capacity) {
         return NextResponse.json({
-          error: `Not enough capacity (${combatUnits + amount} > ${player.capacity})`,
+          error: `Not enough capacity (need ${combatUnits + amount}, have ${player.capacity})`,
         }, { status: 400 })
       }
     }
 
-    // Cavalry requires soldiers (1 cavalry per soldierRatio soldiers)
+    // ── Free population check (all units except cavalry consume pop) ───────
+    // Cavalry requires existing soldiers — no population consumed.
+    if (unit !== 'cavalry') {
+      if (army.free_population < amount) {
+        return NextResponse.json({
+          error: `Not enough free population (need ${amount}, have ${army.free_population})`,
+        }, { status: 400 })
+      }
+    }
+
+    // ── Cavalry requires a minimum number of soldiers ──────────────────────
     if (unit === 'cavalry') {
       const cavCfg = cfg as { gold: number; capacityCost: number; soldierRatio: number }
       const requiredSoldiers = amount * cavCfg.soldierRatio
@@ -69,12 +79,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Build army update ──────────────────────────────────────────────────
     const armyUpdate: Record<string, number> = {}
-    if (unit === 'soldier')  armyUpdate.soldiers = army.soldiers + amount
-    if (unit === 'spy')      armyUpdate.spies    = army.spies    + amount
-    if (unit === 'scout')    armyUpdate.scouts   = army.scouts   + amount
-    if (unit === 'cavalry')  armyUpdate.cavalry  = army.cavalry  + amount
-    if (unit === 'farmer')   armyUpdate.farmers  = army.farmers  + amount
+    if (unit === 'soldier')  armyUpdate.soldiers        = army.soldiers        + amount
+    if (unit === 'slave')    armyUpdate.slaves           = army.slaves           + amount
+    if (unit === 'spy')      armyUpdate.spies            = army.spies            + amount
+    if (unit === 'scout')    armyUpdate.scouts           = army.scouts           + amount
+    if (unit === 'cavalry')  armyUpdate.cavalry          = army.cavalry          + amount
+    if (unit === 'farmer')   armyUpdate.farmers          = army.farmers          + amount
+
+    // Deduct free population for all non-cavalry units
+    if (unit !== 'cavalry') {
+      armyUpdate.free_population = army.free_population - amount
+    }
 
     const now = new Date().toISOString()
 
@@ -86,7 +103,7 @@ export async function POST(request: NextRequest) {
     // Recalculate power (army changed)
     await recalculatePower(playerId, supabase)
 
-    // Fetch updated data to return
+    // Fetch updated data to return for immediate client-side update
     const [{ data: updatedArmy }, { data: updatedResources }] = await Promise.all([
       supabase.from('army').select('*').eq('player_id', playerId).single(),
       supabase.from('resources').select('*').eq('player_id', playerId).single(),

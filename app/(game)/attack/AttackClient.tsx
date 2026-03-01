@@ -321,6 +321,7 @@ export function AttackClient({ player, targets, resources }: Props) {
       >
         {attackResult && (
           <div className="space-y-4">
+            {/* Outcome headline */}
             <div className="text-center">
               <p
                 className={`font-display text-game-2xl uppercase tracking-wide ${
@@ -331,21 +332,48 @@ export function AttackClient({ player, targets, resources }: Props) {
               </p>
             </div>
 
+            {/* Power comparison — ECP vs ECP */}
             <div className="grid grid-cols-2 gap-3 text-game-sm font-body">
               <div className="bg-game-elevated border border-game-border rounded p-3">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">
-                  Your ECP
+                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">
+                  Your Attack Power
                 </p>
-                <p className="text-game-text-white font-semibold">{formatNumber(attackResult.attacker_ecp)}</p>
+                <p className="text-game-text-white font-semibold text-game-lg">
+                  {formatNumber(attackResult.attacker_ecp)}
+                </p>
               </div>
               <div className="bg-game-elevated border border-game-border rounded p-3">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">
-                  Enemy ECP
+                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">
+                  Defender Power
                 </p>
-                <p className="text-game-text-white font-semibold">{formatNumber(attackResult.defender_ecp)}</p>
+                <p className="text-game-text-white font-semibold text-game-lg">
+                  {formatNumber(attackResult.defender_ecp)}
+                </p>
               </div>
             </div>
 
+            {/* Contextual outcome explanation */}
+            <div
+              className={`rounded border px-3 py-2 font-body text-game-xs ${
+                attackResult.outcome === 'win'
+                  ? 'bg-game-green/10 border-green-900 text-game-green-bright'
+                  : attackResult.outcome === 'partial'
+                  ? 'bg-game-gold/10 border-yellow-900 text-yellow-300'
+                  : 'bg-game-red/10 border-red-900 text-game-red-bright'
+              }`}
+            >
+              {attackResult.outcome === 'win' && (
+                <>Your attack power ({formatNumber(attackResult.attacker_ecp)}) overwhelmed the defender&apos;s defense ({formatNumber(attackResult.defender_ecp)}) by a ratio of {attackResult.ratio.toFixed(2)}×.</>
+              )}
+              {attackResult.outcome === 'partial' && (
+                <>The battle was evenly matched. Your attack power ({formatNumber(attackResult.attacker_ecp)}) was close to the defender&apos;s defense ({formatNumber(attackResult.defender_ecp)}). Increase your training and troop count to achieve full victory.</>
+              )}
+              {attackResult.outcome === 'loss' && (
+                <>Your attack power ({formatNumber(attackResult.attacker_ecp)}) was lower than the defender&apos;s defense power ({formatNumber(attackResult.defender_ecp)}). You need at least {formatNumber(Math.ceil(attackResult.defender_ecp * 1.3))} attack power to break through.</>
+              )}
+            </div>
+
+            {/* Soldier losses */}
             <div className="space-y-2 text-game-sm font-body">
               <div className="flex justify-between">
                 <span className="text-game-text-secondary">Your Losses</span>
@@ -363,6 +391,7 @@ export function AttackClient({ player, targets, resources }: Props) {
               )}
             </div>
 
+            {/* Plunder */}
             {(attackResult.gold_stolen > 0 || attackResult.iron_stolen > 0 ||
               attackResult.wood_stolen > 0 || attackResult.food_stolen > 0) && (
               <div className="border-t border-game-border pt-3">
@@ -376,6 +405,15 @@ export function AttackClient({ player, targets, resources }: Props) {
                   {attackResult.food_stolen > 0 && <ResourceBadge type="food" amount={attackResult.food_stolen} showLabel />}
                 </div>
               </div>
+            )}
+
+            {/* No plunder note */}
+            {attackResult.outcome !== 'loss' &&
+              attackResult.gold_stolen === 0 && attackResult.iron_stolen === 0 &&
+              attackResult.wood_stolen === 0 && attackResult.food_stolen === 0 && (
+              <p className="text-game-xs text-game-text-muted font-body border-t border-game-border pt-3">
+                No resources plundered — the defender&apos;s resource shield was active or their treasury was empty.
+              </p>
             )}
 
             <Button variant="ghost" onClick={() => setAttackResult(null)}>

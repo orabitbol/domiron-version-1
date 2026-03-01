@@ -529,6 +529,30 @@ export const BALANCE = {
   },
 
   // ═══════════════════════════════════════
+  // SPY SYSTEM
+  //
+  // Spy missions compare Spy Power vs Scout Defense.
+  // Spy Power  = spies × SPY_UNIT_VALUE × spyTrainMult × raceBonus
+  // Scout Defense = scouts × SCOUT_UNIT_VALUE × scoutTrainMult × raceBonus
+  //
+  // Success:  spyPower > scoutDefense → full data revealed
+  // Failure:  spyPower ≤ scoutDefense → nothing revealed,
+  //           some spies caught (proportional to power gap).
+  //
+  // Attacker always pays turnCost turns regardless of outcome.
+  // ═══════════════════════════════════════
+  spy: {
+    turnCost: 1,       // [TUNE] turns spent per spy mission (paid regardless of outcome)
+    minSpies: 1,       // [FIXED] minimum spies required to send a mission
+
+    // Fraction of sent spies that are lost on failure.
+    // Scales with the power gap: catchRate × (scoutDefense / spyPower).
+    // Clamped to [0, MAX_CATCH_RATE].
+    catchRate:    0.30, // [TUNE]
+    MAX_CATCH_RATE: 0.80, // [FIXED] never lose more than 80% of sent spies per mission
+  },
+
+  // ═══════════════════════════════════════
   // CRYSTALS (premium currency)
   // ═══════════════════════════════════════
   crystals: {

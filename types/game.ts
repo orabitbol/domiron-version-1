@@ -322,6 +322,38 @@ export interface AttackResult {
   food_stolen:     number
 }
 
+// Spy mission result
+export interface SpyResult {
+  success:         boolean
+  spy_power:       number
+  scout_defense:   number
+  spies_sent:      number
+  spies_caught:    number
+  /** Only present when success = true */
+  revealed?:       SpyRevealedData
+}
+
+export interface SpyRevealedData {
+  army_name:       string
+  soldiers:        number
+  spies:           number
+  scouts:          number
+  cavalry:         number
+  slaves:          number
+  farmers:         number
+  gold:            number
+  iron:            number
+  wood:            number
+  food:            number
+  power_attack:    number
+  power_defense:   number
+  power_spy:       number
+  power_scout:     number
+  power_total:     number
+  soldier_shield:  boolean
+  resource_shield: boolean
+}
+
 // Ranked player (rankings page)
 export interface RankedPlayer {
   id: string
