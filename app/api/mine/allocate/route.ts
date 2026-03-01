@@ -1,14 +1,27 @@
+/**
+ * POST /api/mine/allocate
+ *
+ * Assigns slaves to resource jobs. Each slave is in exactly one state:
+ *   idle (unassigned), gold, iron, wood, or food.
+ *
+ * Invariant: gold + iron + wood + food <= army.slaves
+ *   Idle slaves = army.slaves - (gold + iron + wood + food)
+ *
+ * This is a real DB write — assignments persist and drive tick production.
+ * The freeze guard is enforced because this affects game economy.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
-  gold_mine:   z.number().int().min(0),
-  iron_mine:   z.number().int().min(0),
-  woodcutters: z.number().int().min(0),
-  farmers:     z.number().int().min(0),
+  gold: z.number().int().min(0),
+  iron: z.number().int().min(0),
+  wood: z.number().int().min(0),
+  food: z.number().int().min(0),
 })
 
 export async function POST(request: NextRequest) {
@@ -24,12 +37,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
     }
 
-    const { gold_mine, iron_mine, woodcutters, farmers } = parsed.data
+    const { gold, iron, wood, food } = parsed.data
     const supabase = createAdminClient()
+
+    const activeSeason = await getActiveSeason(supabase)
+    if (!activeSeason) return seasonFreezeResponse()
 
     const { data: army } = await supabase
       .from('army')
-      .select('slaves, farmers')
+      .select('slaves')
       .eq('player_id', playerId)
       .single()
 
@@ -37,30 +53,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })
     }
 
-    const slaveTotal = gold_mine + iron_mine + woodcutters
-    if (slaveTotal > army.slaves) {
+    const totalAssigned = gold + iron + wood + food
+    if (totalAssigned > army.slaves) {
       return NextResponse.json({
-        error: `Slave allocation (${slaveTotal}) exceeds total slaves (${army.slaves})`,
+        error: `Assignment (${totalAssigned}) exceeds total slaves (${army.slaves})`,
       }, { status: 400 })
     }
 
-    if (farmers > army.farmers) {
-      return NextResponse.json({
-        error: `Farmer allocation (${farmers}) exceeds total farmers (${army.farmers})`,
-      }, { status: 400 })
+    const now = new Date().toISOString()
+
+    const { error: updateError } = await supabase
+      .from('army')
+      .update({
+        slaves_gold: gold,
+        slaves_iron: iron,
+        slaves_wood: wood,
+        slaves_food: food,
+        updated_at:  now,
+      })
+      .eq('player_id', playerId)
+
+    if (updateError) {
+      return NextResponse.json({ error: 'Failed to save allocation' }, { status: 500 })
     }
 
-    // Allocation is informational — production tick uses army.slaves and army.farmers totals.
-    // Return success to acknowledge the planning intent.
-    return NextResponse.json({
-      data: {
-        message: 'Allocation saved',
-        gold_mine,
-        iron_mine,
-        woodcutters,
-        farmers,
-      },
-    })
+    const { data: updatedArmy } = await supabase
+      .from('army')
+      .select('*')
+      .eq('player_id', playerId)
+      .single()
+
+    return NextResponse.json({ data: { army: updatedArmy } })
   } catch (err) {
     console.error('Mine/allocate error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

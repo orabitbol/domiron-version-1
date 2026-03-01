@@ -91,7 +91,6 @@ describe('Immediate update contract (no-refresh pattern)', () => {
         },
         gained: {
           loot: { gold: 200, iron: 50, wood: 30, food: 0 },
-          slaves_created: 15,
         },
         flags: {
           defender_protected: false,
@@ -123,7 +122,6 @@ describe('Immediate update contract (no-refresh pattern)', () => {
 
     // battleReport.gained always present (even if zeros) — client never guesses
     expect(mockRouteResponse.battleReport.gained.loot.gold).toBe(200)
-    expect(mockRouteResponse.battleReport.gained.slaves_created).toBe(15)
   })
 
   it('training response army snapshot allows immediate UI update', () => {
@@ -327,9 +325,8 @@ describe('deriveBattleBlockers: identifies why gains/losses are zeroed', () => {
       soldierShieldActive: true,    // ← soldier shield active
       resourceShieldActive: false,
     })
-    // Soldier shield zeros defender losses and slaves
+    // Soldier shield zeros defender losses
     expect(result.defenderLosses).toBe(0)
-    expect(result.slavesCreated).toBe(0)
     // Loot is still calculated normally
     expect(result.loot.gold).toBeGreaterThan(0)
     // Route would add 'soldier_shield' to blockers → UI shows "Why" explanation

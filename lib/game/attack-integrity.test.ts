@@ -46,8 +46,7 @@ function applyRouteSafetyClamps(
   const woodStolen    = Math.min(result.loot.wood, defResources.wood)
   const foodStolen    = Math.min(result.loot.food, defResources.food)
   const safeDefLosses = Math.min(result.defenderLosses, defenderSoldiers)
-  const safeSlaves    = Math.min(result.slavesCreated, Math.max(0, defenderSoldiers - safeDefLosses))
-  return { goldStolen, ironStolen, woodStolen, foodStolen, safeDefLosses, safeSlaves }
+  return { goldStolen, ironStolen, woodStolen, foodStolen, safeDefLosses }
 }
 
 /** Mirrors the route's "new attacker values" block */
@@ -63,7 +62,7 @@ function computeAttAfter(
     wood:     attBefore.wood + clamps.woodStolen,
     food:     Math.max(0, attBefore.food - foodCost + clamps.foodStolen),
     soldiers: Math.max(0, attBefore.soldiers - attackerLosses),
-    slaves:   attBefore.slaves + clamps.safeSlaves,
+    slaves:   attBefore.slaves,  // attack does not change attacker slaves
   }
 }
 
@@ -77,9 +76,8 @@ function computeDefAfter(
     iron:     Math.max(0, defBefore.iron - clamps.ironStolen),
     wood:     Math.max(0, defBefore.wood - clamps.woodStolen),
     food:     Math.max(0, defBefore.food - clamps.foodStolen),
-    soldiers: Math.max(0, defBefore.soldiers - clamps.safeDefLosses - clamps.safeSlaves),
-    // slaves unchanged — captured slaves come from SOLDIER pool, not existing slave workers
-    slaves:   defBefore.slaves,
+    soldiers: Math.max(0, defBefore.soldiers - clamps.safeDefLosses),
+    slaves:   defBefore.slaves,  // attack does not change defender slaves
   }
 }
 
@@ -172,8 +170,8 @@ describe('Attack integrity: base WIN scenario', () => {
   })
 
   // ── Soldier losses ────────────────────────────────────────────────────────
-  it('defender loses soldiers = safeDefLosses + safeSlaves', () => {
-    expect(DEF_BEFORE.soldiers - defAfter.soldiers).toBe(clamps.safeDefLosses + clamps.safeSlaves)
+  it('defender loses soldiers = safeDefLosses', () => {
+    expect(DEF_BEFORE.soldiers - defAfter.soldiers).toBe(clamps.safeDefLosses)
   })
 
   it('attacker loses soldiers = attackerLosses (clamped by army size)', () => {
@@ -181,18 +179,12 @@ describe('Attack integrity: base WIN scenario', () => {
     expect(ATT_BEFORE.soldiers - attAfter.soldiers).toBe(expectedLoss)
   })
 
-  // ── Slave capture ─────────────────────────────────────────────────────────
-  it('attacker slaves increase by exactly safeSlaves', () => {
-    expect(attAfter.slaves - ATT_BEFORE.slaves).toBe(clamps.safeSlaves)
+  // ── Slave count unchanged (combat never affects slaves) ───────────────────
+  it('attacker slaves unchanged by combat', () => {
+    expect(attAfter.slaves).toBe(ATT_BEFORE.slaves)
   })
 
-  it('safeSlaves never exceeds remaining defender soldiers after losses', () => {
-    expect(clamps.safeSlaves).toBeLessThanOrEqual(DEF_BEFORE.soldiers - clamps.safeDefLosses)
-  })
-
-  it('slaves come from SOLDIER pool: defender existing slaves UNCHANGED', () => {
-    // DB does not write to defender army.slaves — it only writes soldiers
-    // battleReport defender.after.slaves must equal defArmy.slaves (NOT minus safeSlaves)
+  it('defender slaves unchanged by combat', () => {
     expect(defAfter.slaves).toBe(DEF_BEFORE.slaves)
   })
 
@@ -218,9 +210,6 @@ describe('Attack integrity: base WIN scenario', () => {
     expect(defAfter.gold).toBe(DEF_BEFORE.gold - clamps.goldStolen)
   })
 
-  it('attacker.after.slaves = attacker.before.slaves + gained.slaves_created', () => {
-    expect(attAfter.slaves).toBe(ATT_BEFORE.slaves + clamps.safeSlaves)
-  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -302,7 +291,6 @@ describe('Edge case B: defender under New Player Protection', () => {
 
   it('defender_losses = 0 when defender is protected', () => {
     expect(clamps.safeDefLosses).toBe(0)
-    expect(clamps.safeSlaves).toBe(0)
   })
 
   it('defender resources and soldiers remain UNCHANGED', () => {
@@ -337,10 +325,6 @@ describe('Edge case C: kill cooldown active', () => {
     expect(clamps.safeDefLosses).toBe(0)
   })
 
-  it('slaves = 0 during kill cooldown (no soldiers to convert)', () => {
-    expect(clamps.safeSlaves).toBe(0)
-  })
-
   it('loot still resolves normally during kill cooldown', () => {
     // Kill cooldown only blocks soldier losses — loot is unaffected
     const expectedGold = Math.floor(DEF_RESOURCES.gold * BALANCE.combat.BASE_LOOT_RATE)
@@ -371,10 +355,6 @@ describe('Edge case D: defender Soldier Shield active', () => {
 
   it('defender_losses = 0 when soldier shield is active', () => {
     expect(clamps.safeDefLosses).toBe(0)
-  })
-
-  it('slaves = 0 (no kills → no conversions)', () => {
-    expect(clamps.safeSlaves).toBe(0)
   })
 
   it('loot still resolves normally (soldier shield does not protect resources)', () => {
@@ -474,34 +454,11 @@ describe('Route arithmetic invariants (no silent desync possible)', () => {
     expect(Math.max(0, defGold - goldStolen)).toBe(0)  // defender has 0 left, not negative
   })
 
-  it('safeSlaves never exceeds remaining defender soldiers after losses', () => {
-    // Use data where slavesCreated EXCEEDS remaining soldiers to actually trigger clamp
-    const defSoldiers    = 20
-    const defenderLosses = 5
-    const slavesCreated  = 20   // 20 > remaining = 15 → clamp fires
-    const safeDefLosses  = Math.min(defenderLosses, defSoldiers)    // 5
-    const remaining      = defSoldiers - safeDefLosses               // 15
-    const safeSlaves     = Math.min(slavesCreated, Math.max(0, remaining))  // min(20,15)=15
-    expect(safeSlaves).toBe(remaining)                               // clamped to 15
-    expect(defSoldiers - safeDefLosses - safeSlaves).toBe(0)         // no soldiers left
-  })
-
-  it('defender.slaves unchanged (slaves come from soldier pool, not slave pool)', () => {
-    // The DB update for defender army only writes soldiers — NOT slaves.
-    // battleReport.defender.after.slaves = defArmy.slaves (original value, unchanged).
-    const defArmySlaves = 20  // existing defender slave workers
-    const safeSlaves    = 5   // captured from defender soldiers
-    // Correct: defAfter.slaves = defArmySlaves (no change)
-    const defAfterSlaves = defArmySlaves  // NOT defArmySlaves - safeSlaves
-    expect(defAfterSlaves).toBe(defArmySlaves)
-  })
-
-  it('newDefSoldiers = defender.soldiers - safeDefLosses - safeSlaves (never negative)', () => {
-    const soldiers     = 50
+  it('newDefSoldiers = defender.soldiers - safeDefLosses (never negative)', () => {
+    const soldiers      = 50
     const safeDefLosses = 15
-    const safeSlaves    = 5
-    const newSoldiers   = Math.max(0, soldiers - safeDefLosses - safeSlaves)
-    expect(newSoldiers).toBe(30)
+    const newSoldiers   = Math.max(0, soldiers - safeDefLosses)
+    expect(newSoldiers).toBe(35)
     expect(newSoldiers).toBeGreaterThanOrEqual(0)
   })
 

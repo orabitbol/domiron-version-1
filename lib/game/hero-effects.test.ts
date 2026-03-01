@@ -293,15 +293,6 @@ describe('resolveCombat — Resource Shield', () => {
     expect(result.defenderLosses).toBeGreaterThan(0)
   })
 
-  it('slaves are created normally when resource shield is active', () => {
-    const result = resolveCombat(makeBaseInputs({
-      attackerPP:           100_000,
-      defenderPP:           1_000,
-      resourceShieldActive: true,
-    }))
-    expect(result.slavesCreated).toBeGreaterThan(0)
-  })
-
   it('loot is NOT zero without resource shield (control check)', () => {
     const result = resolveCombat(makeBaseInputs({
       attackerPP:           100_000,
@@ -329,15 +320,6 @@ describe('resolveCombat — Soldier Shield', () => {
     expect(result.defenderLosses).toBe(0)
   })
 
-  it('slavesCreated = 0 when soldier shield is active', () => {
-    const result = resolveCombat(makeBaseInputs({
-      attackerPP:          100_000,
-      defenderPP:          1_000,
-      soldierShieldActive: true,
-    }))
-    expect(result.slavesCreated).toBe(0)
-  })
-
   it('attackerLosses still apply when soldier shield is active', () => {
     const result = resolveCombat(makeBaseInputs({
       attackerPP:          100_000,
@@ -357,7 +339,7 @@ describe('resolveCombat — Soldier Shield', () => {
     expect(result.loot.gold).toBeGreaterThan(0)
   })
 
-  it('both shields active: defenderLosses = 0, slavesCreated = 0, loot = 0', () => {
+  it('both shields active: defenderLosses = 0, loot = 0', () => {
     const result = resolveCombat(makeBaseInputs({
       attackerPP:           100_000,
       defenderPP:           1_000,
@@ -365,7 +347,6 @@ describe('resolveCombat — Soldier Shield', () => {
       resourceShieldActive: true,
     }))
     expect(result.defenderLosses).toBe(0)
-    expect(result.slavesCreated).toBe(0)
     expect(result.loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 

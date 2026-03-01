@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, city, turns, max_turns, is_vacation, vip_until,
         power_attack, power_defense, power_spy, power_scout,
-        army:army!inner(slaves, farmers, free_population),
+        army:army!inner(slaves, slaves_gold, slaves_iron, slaves_wood, slaves_food, farmers, free_population),
         development:development!inner(
           gold_level, iron_level, wood_level, food_level, population_level
         ),
@@ -50,7 +50,10 @@ export async function GET(request: NextRequest) {
     const now = new Date().toISOString()
 
     for (const player of players) {
-      const army = player.army as unknown as { slaves: number; farmers: number; free_population: number }
+      const army = player.army as unknown as {
+        slaves: number; farmers: number; free_population: number
+        slaves_gold: number; slaves_iron: number; slaves_wood: number; slaves_food: number
+      }
       const dev = player.development as unknown as {
         gold_level: number; iron_level: number; wood_level: number;
         food_level: number; population_level: number
@@ -68,11 +71,13 @@ export async function GET(request: NextRequest) {
       // 2. Population growth
       const popGrowth = calcPopulationGrowth(dev.population_level, player.vip_until)
 
-      // 3. Slave production (random within range — use average for consistency)
-      const goldProd = calcSlaveProduction(army.slaves, dev.gold_level, player.city, player.vip_until)
-      const ironProd = calcSlaveProduction(army.slaves, dev.iron_level, player.city, player.vip_until)
-      const woodProd = calcSlaveProduction(army.slaves, dev.wood_level, player.city, player.vip_until)
-      const foodProd = calcSlaveProduction(army.farmers, dev.food_level, player.city, player.vip_until)
+      // 3. Slave production — per-resource assignment (each slave produces one resource)
+      // slaves_gold/iron/wood/food are the assigned counts; idle slaves produce nothing.
+      // Farmers (separate unit type) always contribute to food production.
+      const goldProd = calcSlaveProduction(army.slaves_gold, dev.gold_level, player.city, player.vip_until)
+      const ironProd = calcSlaveProduction(army.slaves_iron, dev.iron_level, player.city, player.vip_until)
+      const woodProd = calcSlaveProduction(army.slaves_wood, dev.wood_level, player.city, player.vip_until)
+      const foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, player.city, player.vip_until)
 
       // Random production within range
       const goldGained = Math.floor(goldProd.min + Math.random() * (goldProd.max - goldProd.min))

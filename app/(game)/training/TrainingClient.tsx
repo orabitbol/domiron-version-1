@@ -133,7 +133,7 @@ export function TrainingClient({
         setMessage({ text: data.error ?? 'Untrain failed', type: 'error' })
       } else {
         setMessage({
-          text: `${formatNumber(amt)} ${UNTRAIN_LABELS[unit]} returned to slaves`,
+          text: `${formatNumber(amt)} ${UNTRAIN_LABELS[unit]} returned to free population`,
           type: 'success',
         })
         setUntrainAmts((prev) => ({ ...prev, [unit]: '' }))
@@ -346,13 +346,19 @@ export function TrainingClient({
                       {UNIT_LABELS[unit]}
                     </p>
                     <div className="flex flex-wrap gap-3 mt-1 text-game-xs font-body text-game-text-muted">
-                      <span>
-                        Cost:{' '}
-                        <span className="text-res-gold font-semibold">
-                          {formatNumber(cfg.gold)} Gold
-                        </span>{' '}
-                        each
-                      </span>
+                      {unit === 'slave' ? (
+                        <span className="text-game-gold-bright font-semibold">
+                          Free — converts 1 Untrained Population → 1 Idle Slave
+                        </span>
+                      ) : (
+                        <span>
+                          Cost:{' '}
+                          <span className="text-res-gold font-semibold">
+                            {formatNumber(cfg.gold)} Gold
+                          </span>{' '}
+                          each
+                        </span>
+                      )}
                       {isCavalry && 'soldierRatio' in cfg && (
                         <Badge variant="default">
                           1 per {(cfg as { gold: number; capacityCost: number; soldierRatio: number }).soldierRatio} soldiers
@@ -412,9 +418,9 @@ export function TrainingClient({
           </div>
           <div className="divider-gold mb-4" />
           <div className="mb-4 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1 shadow-emboss">
-            <p className="font-semibold">Important: Untrained units become slaves, not free population.</p>
-            <p>Once a soldier, spy, scout, or farmer is untrained they join your slave workforce.
-              They will produce resources per tick but cannot be reassigned to combat roles for free.
+            <p className="font-semibold">Important: Untrained units return to free population.</p>
+            <p>Once a soldier, spy, scout, or farmer is untrained they return to your untrained population pool.
+              From there they can be retrained into any unit type, including slaves.
               Cavalry cannot be untrained.</p>
           </div>
           <div className="space-y-3">

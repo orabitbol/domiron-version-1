@@ -13,14 +13,14 @@ export default async function MinePage() {
   const [
     { data: player },
     { data: army },
-    { data: resources },
+    { data: development },
   ] = await Promise.all([
     supabase.from('players').select('*').eq('id', playerId).single(),
     supabase.from('army').select('*').eq('player_id', playerId).single(),
-    supabase.from('resources').select('*').eq('player_id', playerId).single(),
+    supabase.from('development').select('*').eq('player_id', playerId).single(),
   ])
 
-  if (!player || !army || !resources) return null
+  if (!player || !army || !development) return null
 
-  return <MineClient player={player} army={army} resources={resources} />
+  return <MineClient player={player} army={army} development={development} />
 }

@@ -68,8 +68,7 @@ export interface BattleReport {
     after:       BattleReportSnapshot
   }
   gained: {
-    loot:           { gold: number; iron: number; wood: number; food: number }
-    slaves_created: number
+    loot: { gold: number; iron: number; wood: number; food: number }
   }
   flags: {
     defender_protected:              boolean
@@ -135,7 +134,16 @@ export interface Army {
   cavalry: number
   spies: number
   scouts: number
+  /** Total slave count (sum of all assigned + idle). */
   slaves: number
+  /** Slaves assigned to gold production. */
+  slaves_gold: number
+  /** Slaves assigned to iron production. */
+  slaves_iron: number
+  /** Slaves assigned to wood production. */
+  slaves_wood: number
+  /** Slaves assigned to food production. */
+  slaves_food: number
   farmers: number
   free_population: number
   updated_at: string
@@ -391,7 +399,6 @@ export interface AttackResult {
   defender_ecp:    number
   attacker_losses: number
   defender_losses: number
-  slaves_created:  number
   gold_stolen:     number
   iron_stolen:     number
   wood_stolen:     number

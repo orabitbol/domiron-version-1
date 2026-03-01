@@ -22,7 +22,6 @@ import {
   calculateCombatRatio,
   determineCombatOutcome,
   calculateSoldierLosses,
-  convertKilledToSlaves,
   isKillCooldownActive,
   isNewPlayerProtected,
   getLootDecayMultiplier,
@@ -418,40 +417,7 @@ describe('calculateSoldierLosses', () => {
 })
 
 // ─────────────────────────────────────────
-// 6. SLAVE CONVERSION
-// ─────────────────────────────────────────
-
-describe('convertKilledToSlaves', () => {
-
-  it('returns 0 when no soldiers were killed', () => {
-    expect(convertKilledToSlaves(0)).toBe(0)
-  })
-
-  it('returns CAPTURE_RATE fraction of killed soldiers', () => {
-    const killed   = 3_000
-    const expected = Math.floor(killed * BALANCE.combat.CAPTURE_RATE)
-    expect(convertKilledToSlaves(killed)).toBe(expected)
-  })
-
-  it('matches spec example: 3000 killed × 35% = 1050', () => {
-    // This test assumes CAPTURE_RATE = 0.35 (the configured midpoint value).
-    const result = convertKilledToSlaves(3_000)
-    expect(result).toBe(Math.floor(3_000 * BALANCE.combat.CAPTURE_RATE))
-    // When CAPTURE_RATE = 0.35, result should be 1050
-    if (BALANCE.combat.CAPTURE_RATE === 0.35) {
-      expect(result).toBe(1_050)
-    }
-  })
-
-  it('result is always a non-negative integer', () => {
-    expect(convertKilledToSlaves(100)).toBeGreaterThanOrEqual(0)
-    expect(Number.isInteger(convertKilledToSlaves(100))).toBe(true)
-  })
-
-})
-
-// ─────────────────────────────────────────
-// 7. LOOT DECAY SEQUENCE
+// 6. LOOT DECAY SEQUENCE
 // ─────────────────────────────────────────
 
 describe('getLootDecayMultiplier', () => {
@@ -750,17 +716,10 @@ describe('resolveCombat', () => {
       attackerPP: 100_000, // Force a win for loot
     }))
     expect(result.defenderLosses).toBe(0)
-    expect(result.slavesCreated).toBe(0)
     // Loot can still be non-zero on a win (outcome-dependent)
     if (result.outcome !== 'loss') {
       expect(result.loot.gold).toBeGreaterThanOrEqual(0)
     }
-  })
-
-  it('slavesCreated = 0 when defenderLosses = 0', () => {
-    const result = resolveCombat(makeBaseInputs({ killCooldownActive: true }))
-    expect(result.defenderLosses).toBe(0)
-    expect(result.slavesCreated).toBe(0)
   })
 
   it('attackerECP > defenderECP when attacker has max hero attack bonus', () => {

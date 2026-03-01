@@ -17,7 +17,6 @@ interface AttackRow {
   outcome: AttackOutcome
   attacker_losses: number
   defender_losses: number
-  slaves_taken: number
   gold_stolen: number
   iron_stolen: number
   wood_stolen: number
@@ -51,6 +50,13 @@ const OUTCOME_BADGE: Record<AttackOutcome, { label: string; variant: 'green' | '
   win:     { label: 'Victory', variant: 'green' },
   partial: { label: 'Draw',    variant: 'gold' },
   loss:    { label: 'Defeat',  variant: 'red' },
+}
+
+const DEFAULT_OUTCOME_BADGE = OUTCOME_BADGE.partial
+
+function getOutcomeBadge(outcome: AttackOutcome | null | undefined): { label: string; variant: 'green' | 'gold' | 'red' } {
+  if (outcome && outcome in OUTCOME_BADGE) return OUTCOME_BADGE[outcome as AttackOutcome]
+  return DEFAULT_OUTCOME_BADGE
 }
 
 function formatDate(iso: string) {
@@ -138,7 +144,7 @@ export function HistoryClient({
             headers={['Date', 'Target', 'Outcome', 'Turns', 'Your Losses', 'Enemy Losses', 'Plunder']}
             striped
             rows={outgoingAttacks.map((row) => {
-              const outcome = OUTCOME_BADGE[row.outcome]
+              const outcome = getOutcomeBadge(row.outcome)
               const stolen = totalStolen(row)
               return [
                 <span key="date" className="text-game-xs text-game-text-muted font-body whitespace-nowrap">
@@ -193,7 +199,7 @@ export function HistoryClient({
                 row.outcome === 'win'  ? 'loss'
                 : row.outcome === 'loss' ? 'win'
                 : 'partial'
-              const defOutcomeBadge = OUTCOME_BADGE[defOutcome]
+              const defOutcomeBadge = getOutcomeBadge(defOutcome)
 
               return [
                 <span key="date" className="text-game-xs text-game-text-muted font-body whitespace-nowrap">

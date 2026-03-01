@@ -261,9 +261,6 @@ export const BALANCE = {
     DEFENDER_BLEED_FLOOR: 0.05, // [TUNE] Minimum defender loss even from weak attacker
     ATTACKER_FLOOR:       0.03, // [TUNE] Attacker always loses at least this fraction
 
-    // Slave conversion
-    CAPTURE_RATE: 0.35, // [TUNE] 30–40% of killed defender soldiers → slaves (permanent)
-
     // Loot
     BASE_LOOT_RATE: 0.20, // [FIXED] 20% of each unbanked resource
 
@@ -333,7 +330,7 @@ export const BALANCE = {
   training: {
     unitCost: {
       soldier:  { gold: 60,  capacityCost: 1              }, // [TUNE]
-      slave:    { gold: 10,  capacityCost: 0              }, // [TUNE]
+      slave:    { gold: 0,   capacityCost: 0              }, // [FIXED] Free: converts pop → idle slave, no gold cost
       spy:      { gold: 80,  capacityCost: 1              }, // [TUNE]
       scout:    { gold: 80,  capacityCost: 1              }, // [TUNE]
       cavalry:  { gold: 200, capacityCost: 2, soldierRatio: 5 }, // [TUNE]

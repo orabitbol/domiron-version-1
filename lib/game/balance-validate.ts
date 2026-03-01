@@ -73,7 +73,6 @@ const balanceSchema = z.object({
     MAX_LOSS_RATE:          z.number(),
     DEFENDER_BLEED_FLOOR:   z.number(),
     ATTACKER_FLOOR:         z.number(),
-    CAPTURE_RATE:           z.number(),
     BASE_LOOT_RATE:         z.number(),
     LOOT_OUTCOME_MULTIPLIER: z.object({ win: z.number(), partial: z.number(), loss: z.number() }),
     cavalryMultiplier:      z.number(),

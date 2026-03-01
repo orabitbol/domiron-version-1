@@ -33,8 +33,7 @@
  *   5. determineCombatOutcome(ratio)
  *   6. calculateSoldierLosses(...)
  *      → if soldierShieldActive: defenderLosses = 0
- *   7. convertKilledToSlaves(defenderLosses)
- *   8. calculateLoot(...)
+ *   7. calculateLoot(...)
  *      → if resourceShieldActive: loot = 0
  */
 
@@ -98,7 +97,7 @@ export interface CombatResolutionInputs {
   attackCountInWindow: number
   /**
    * True if the last time this attacker killed defender soldiers was within
-   * KILL_COOLDOWN_HOURS. When true: defenderLosses = 0, slavesCreated = 0.
+   * KILL_COOLDOWN_HOURS. When true: defenderLosses = 0.
    * Loot still resolves normally based on outcome.
    */
   killCooldownActive: boolean
@@ -130,7 +129,7 @@ export interface CombatResolutionInputs {
   defenseBonus: number
   /**
    * True if defender has an active Soldier Shield.
-   * When true: defenderLosses = 0, slavesCreated = 0.
+   * When true: defenderLosses = 0.
    * Loot still applies unless resourceShieldActive is also true.
    */
   soldierShieldActive: boolean
@@ -149,7 +148,6 @@ export interface CombatResolutionResult {
   defenderECP:    number
   attackerLosses: number
   defenderLosses: number
-  slavesCreated:  number
   loot:           UnbankedResources
 }
 
@@ -426,24 +424,7 @@ export function calculateSoldierLosses(
 }
 
 // ─────────────────────────────────────────
-// G. SLAVE CONVERSION
-// ─────────────────────────────────────────
-
-/**
- * slaves_gained = floor(killed_soldiers_defender × CAPTURE_RATE)
- *
- * Slave rules (enforced by game logic, not this formula):
- *   - Slaves are permanent. No auto-expiry.
- *   - Slaves produce resources via tick production.
- *   - Slaves cannot be converted back to soldiers.
- *   - Slaves do not contribute to ECP or combat in any way.
- */
-export function convertKilledToSlaves(defenderSoldiersKilled: number): number {
-  return Math.floor(defenderSoldiersKilled * BALANCE.combat.CAPTURE_RATE)
-}
-
-// ─────────────────────────────────────────
-// H. KILL COOLDOWN CHECK
+// G. KILL COOLDOWN CHECK
 // ─────────────────────────────────────────
 
 /**
@@ -614,10 +595,7 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
     ? 0
     : losses.defenderLosses
 
-  // Step 5: Slave conversion (zero when no kills landed)
-  const slavesCreated = convertKilledToSlaves(defenderLosses)
-
-  // Step 6: Loot calculation
+  // Step 5: Loot calculation
   const rawLoot = calculateLoot(
     inputs.defenderUnbanked,
     outcome,
@@ -625,7 +603,7 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
     inputs.defenderIsProtected,
   )
 
-  // Step 7: Resource Shield — zeroes all loot (applied after loot calculation)
+  // Step 6: Resource Shield — zeroes all loot (applied after loot calculation)
   const ZERO_LOOT = { gold: 0, iron: 0, wood: 0, food: 0 }
   const loot = inputs.resourceShieldActive ? ZERO_LOOT : rawLoot
 
@@ -636,7 +614,6 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
     defenderECP,
     attackerLosses: losses.attackerLosses,
     defenderLosses,
-    slavesCreated,
     loot,
   }
 }

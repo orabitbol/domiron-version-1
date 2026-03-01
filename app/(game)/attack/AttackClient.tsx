@@ -61,11 +61,10 @@ const REASON_LABELS: Record<BattleReportReason, string> = {
 
 function BattleReportModal({ report, onClose }: { report: BattleReport; onClose: () => void }) {
   const allGainsZero =
-    report.gained.loot.gold   === 0 &&
-    report.gained.loot.iron   === 0 &&
-    report.gained.loot.wood   === 0 &&
-    report.gained.loot.food   === 0 &&
-    report.gained.slaves_created === 0
+    report.gained.loot.gold === 0 &&
+    report.gained.loot.iron === 0 &&
+    report.gained.loot.wood === 0 &&
+    report.gained.loot.food === 0
 
   const outcomeColor = OUTCOME_COLORS[report.outcome] ?? 'text-game-text-white'
   const outcomeLabel = OUTCOME_LABELS[report.outcome] ?? report.outcome
@@ -127,14 +126,6 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
               {formatNumber(report.defender.losses.soldiers)}
             </span>
           </div>
-          <div className="divider-ornate my-1" />
-          <div className="grid grid-cols-3 gap-2 py-1">
-            <span className="text-game-text-secondary">Slaves Taken</span>
-            <span className="text-game-text-muted">—</span>
-            <span className={report.gained.slaves_created > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
-              +{formatNumber(report.gained.slaves_created)}
-            </span>
-          </div>
         </div>
       </div>
 
@@ -151,14 +142,6 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
             </div>
           ))}
         </div>
-        <div className="divider-ornate my-2" />
-        <div className="flex justify-between font-body text-game-sm">
-          <span className="text-game-text-secondary">Slaves</span>
-          <span className={report.gained.slaves_created > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
-            {formatNumber(report.gained.slaves_created)}
-          </span>
-        </div>
-
         {!allGainsZero && report.flags.anti_farm_decay_mult < 1 && (
           <p className="mt-2 text-game-xs text-game-text-muted font-body italic">
             Anti-farm decay applied (×{report.flags.anti_farm_decay_mult.toFixed(2)})

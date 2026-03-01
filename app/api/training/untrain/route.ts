@@ -1,14 +1,13 @@
 /**
  * POST /api/training/untrain
  *
- * Returns trained units back to slaves (NEVER to free population).
- * Enslaved soldiers are demoted workers — they don't return to civilian life.
+ * Returns trained units back to free_population.
  *
  * Rules:
  *   - Only soldiers, spies, scouts, farmers can be untrained.
  *   - Cavalry cannot be untrained (they are a permanent tier upgrade).
  *   - Untraining costs nothing (no gold refund).
- *   - Amount deducted from the unit column, added to army.slaves.
+ *   - Amount deducted from the unit column, added to army.free_population.
  *   - Power recalculated after change.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     const armyUpdate: Record<string, number | string> = {
-      slaves: army.slaves + amount,
+      free_population: army.free_population + amount,
       updated_at: now,
       [unitColumn]: currentCount - amount,
     }
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
       data: {
         army: updatedArmy,
         untrainedCount: amount,
-        slavesGained: amount,
+        freePopulationGained: amount,
       },
     })
   } catch (err) {
