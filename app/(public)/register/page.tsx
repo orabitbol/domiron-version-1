@@ -4,15 +4,16 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import type { Race } from '@/types/game'
 
-const RACES: { value: Race; label: string; bonus: string }[] = [
-  { value: 'orc',   label: 'Orc',   bonus: '+10% Attack, +3% Defense' },
-  { value: 'human', label: 'Human', bonus: '+15% Gold Production, +3% Attack' },
-  { value: 'elf',   label: 'Elf',   bonus: '+20% Spy & Scout Power' },
-  { value: 'dwarf', label: 'Dwarf', bonus: '+15% Defense, +3% Gold Production' },
+const RACES: { value: Race; label: string; bonus: string; image: string }[] = [
+  { value: 'orc',   label: 'Orc',   bonus: '+10% Attack, +3% Defense',             image: '/character/orc.png' },
+  { value: 'human', label: 'Human', bonus: '+15% Gold Production, +3% Attack',     image: '/character/human.png' },
+  { value: 'elf',   label: 'Elf',   bonus: '+20% Spy & Scout Power',               image: '/character/fairy.png' },
+  { value: 'dwarf', label: 'Dwarf', bonus: '+15% Defense, +3% Gold Production',    image: '/character/dwarf.png' },
 ]
 
 export default function RegisterPage() {
@@ -61,17 +62,27 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-game-bg flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen relative flex items-center justify-center px-4 py-8">
+      <Image
+        src="/background-game.png"
+        alt=""
+        fill
+        priority
+        className="object-cover -z-10"
+        quality={85}
+      />
+      <div className="absolute inset-0 bg-black/60 -z-10" />
+
+      <div className="w-full max-w-md animate-fade-up">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="font-display text-game-4xl text-game-gold-bright uppercase tracking-widest">
+          <h1 className="font-display text-game-4xl text-game-gold-bright uppercase tracking-widest drop-shadow-lg">
             Domiron
           </h1>
           <p className="text-game-text-secondary font-body mt-2">Join the Battle</p>
         </div>
 
-        <div className="bg-game-surface border border-game-border-gold rounded-lg p-6 shadow-gold-glow">
+        <div className="bg-game-surface/80 backdrop-blur-game border border-game-border-gold/40 rounded-game-xl p-6 shadow-panel">
           <h2 className="font-heading text-game-xl text-game-text-white uppercase tracking-wide mb-6 text-center">
             Create Account
           </h2>
@@ -116,20 +127,29 @@ export default function RegisterPage() {
               <label className="text-game-sm font-body text-game-text-secondary font-medium block">
                 Choose Race
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {RACES.map((race) => (
                   <button
                     key={race.value}
                     type="button"
                     onClick={() => update('race', race.value)}
                     className={`
-                      text-start p-3 rounded-lg border transition-colors duration-150 cursor-pointer
+                      relative text-center p-3 rounded-game-lg border-2 transition-all duration-200 cursor-pointer overflow-hidden
                       ${form.race === race.value
-                        ? 'border-game-border-active bg-game-gold/10 text-game-text-white'
-                        : 'border-game-border bg-game-elevated text-game-text-secondary hover:border-game-border-gold'
+                        ? 'border-game-gold-bright bg-game-gold/15 text-game-text-white shadow-gold-glow scale-[1.02]'
+                        : 'border-game-border bg-game-elevated/80 text-game-text-secondary hover:border-game-border-gold hover:bg-game-elevated'
                       }
                     `}
                   >
+                    <div className="relative w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden border border-game-border-gold/50">
+                      <Image
+                        src={race.image}
+                        alt={race.label}
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
+                    </div>
                     <div className="font-heading text-game-sm uppercase tracking-wide">
                       {race.label}
                     </div>
@@ -142,7 +162,7 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <p className="text-game-xs text-game-red-bright font-body text-center">{error}</p>
+              <p className="text-game-xs text-game-red-bright font-body text-center bg-game-red/10 border border-game-red/20 rounded-game px-3 py-2">{error}</p>
             )}
 
             <Button
@@ -158,7 +178,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-game-sm text-game-text-secondary font-body mt-4">
             Already have an account?{' '}
-            <Link href="/login" className="text-game-gold hover:text-game-gold-bright transition-colors">
+            <Link href="/login" className="text-game-gold-bright hover:text-game-gold transition-colors font-semibold">
               Login
             </Link>
           </p>
