@@ -99,7 +99,10 @@ export async function POST(request: NextRequest) {
         wood:  startRes.wood  * catchUpMult,
         food:  startRes.food  * catchUpMult,
       }),
-      supabase.from('army').insert({ player_id: playerId }),
+      supabase.from('army').insert({
+        player_id:        playerId,
+        free_population:  BALANCE.startingResources.startingPopulation,
+      }),
       supabase.from('weapons').insert({ player_id: playerId }),
       supabase.from('training').insert({ player_id: playerId }),
       supabase.from('development').insert({ player_id: playerId }),

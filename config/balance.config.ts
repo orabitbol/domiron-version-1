@@ -42,11 +42,12 @@ export const BALANCE = {
   // STARTING RESOURCES (new player)
   // ═══════════════════════════════════════
   startingResources: {
-    gold:  5000,  // [TUNE]
-    iron:  5000,  // [TUNE]
-    wood:  5000,  // [TUNE]
-    food:  5000,  // [TUNE]
-    turns: 50,    // [TUNE] Start below cap so regen is immediately visible
+    gold:             5000,  // [TUNE]
+    iron:             5000,  // [TUNE]
+    wood:             5000,  // [TUNE]
+    food:             5000,  // [TUNE]
+    turns:            50,    // [TUNE] Start below cap so regen is immediately visible
+    startingPopulation: 50,  // [TUNE] Free population every new player begins with
   },
 
   // ═══════════════════════════════════════

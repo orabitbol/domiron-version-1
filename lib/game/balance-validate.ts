@@ -18,11 +18,12 @@ const balanceSchema = z.object({
     turnsPerDay:     z.number(),
   }),
   startingResources: z.object({
-    gold:  z.number(),
-    iron:  z.number(),
-    wood:  z.number(),
-    food:  z.number(),
-    turns: z.number(),
+    gold:               z.number(),
+    iron:               z.number(),
+    wood:               z.number(),
+    food:               z.number(),
+    turns:              z.number(),
+    startingPopulation: z.number(),
   }),
   pp: z.object({
     W_SOLDIERS:    z.number(),

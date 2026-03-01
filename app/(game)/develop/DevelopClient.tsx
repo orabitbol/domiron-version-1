@@ -68,15 +68,6 @@ const DEV_CARDS: DevConfig[] = [
     productionLabel: 'Iron/tick per slave',
   },
   {
-    field: 'population_level',
-    title: 'Population Growth',
-    description: 'Increases free population gained per tick.',
-    maxLevel: 10,
-    resourceType: 'food',
-    costKey: 'level10',
-    productionLabel: 'Pop/tick',
-  },
-  {
     field: 'fortification_level',
     title: 'Fortifications',
     description: 'Strengthens your city defenses. Increases capacity.',
@@ -114,6 +105,18 @@ function getUpgradeCost(field: DevField, currentLevel: number): { gold: number; 
     resource: costConfig.resource * multiplier,
     resourceType: resourceMap[field],
   }
+}
+
+// ─── Population stat box ──────────────────────────────────────────────────────
+
+function PopStat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <div className="flex-1 min-w-[120px] bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 shadow-engrave text-center">
+      <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">{label}</p>
+      <p className="font-heading text-game-2xl text-game-gold-bright">{value}</p>
+      {sub && <p className="text-game-xs text-game-text-muted font-body mt-0.5">{sub}</p>}
+    </div>
+  )
 }
 
 export function DevelopClient({ player, development, resources, army }: Props) {
@@ -180,6 +183,17 @@ export function DevelopClient({ player, development, resources, army }: Props) {
   const meetsSoldiers  = nextCityReqs ? army.soldiers   >= (nextCityReqs.requiredSoldiers  ?? Infinity) : false
   const canMoveCity    = meetsResources && meetsSoldiers && hasNextCity
 
+  // Population data
+  const popLevel    = devState.population_level
+  const popPerTick  = BALANCE.training.populationPerTick[popLevel] ?? 1
+  const maxPopLevel = 10
+  const popIsMaxed  = popLevel >= maxPopLevel
+  const popCost     = getUpgradeCost('population_level', popLevel)
+  const popCanAfford =
+    !popIsMaxed &&
+    localResources.gold >= popCost.gold &&
+    localResources.food >= popCost.resource
+
   // Population per tick table
   const popPerTickEntries = Object.entries(BALANCE.training.populationPerTick) as [string, number][]
 
@@ -216,7 +230,70 @@ export function DevelopClient({ player, development, resources, army }: Props) {
         <ResourceBadge type="food" amount={localResources.food} showLabel />
       </div>
 
-      {/* Upgrade Cards */}
+      {/* ── Population Overview ─────────────────────────────────────────────────── */}
+      <div className="panel-ornate p-4 space-y-4">
+        <h2 className="panel-header text-game-gold">Population Overview</h2>
+
+        {/* Three summary stats */}
+        <div className="flex flex-wrap gap-3">
+          <PopStat
+            label="Untrained Population"
+            value={formatNumber(army.free_population)}
+            sub="available to train"
+          />
+          <PopStat
+            label="Population / Tick"
+            value={`+${popPerTick}`}
+            sub="every 30 minutes"
+          />
+          <PopStat
+            label="Growth Level"
+            value={popLevel}
+            sub={popIsMaxed ? 'MAX LEVEL' : `next: +${BALANCE.training.populationPerTick[popLevel + 1] ?? '—'}/tick`}
+          />
+        </div>
+
+        <div className="divider-gold" />
+
+        {/* Upgrade row */}
+        {popIsMaxed ? (
+          <div className="flex items-center gap-3">
+            <Badge variant="gold">MAX</Badge>
+            <span className="font-body text-game-sm text-game-text-secondary">
+              Population Growth is fully upgraded.
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
+                Upgrade Population Growth
+              </p>
+              <p className="font-body text-game-xs text-game-text-muted">
+                Level {popLevel} → {popLevel + 1} · Gain{' '}
+                <span className="text-game-gold-bright font-semibold">
+                  +{BALANCE.training.populationPerTick[popLevel + 1] ?? '?'} pop/tick
+                </span>{' '}
+                after upgrade
+              </p>
+              <div className="flex items-center gap-3 mt-1">
+                <ResourceBadge type="gold" amount={popCost.gold} />
+                <ResourceBadge type="food" amount={popCost.resource} />
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              disabled={!popCanAfford}
+              loading={loading === 'population_level'}
+              onClick={() => handleUpgrade('population_level')}
+            >
+              Upgrade Population Rate
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Infrastructure Upgrades ─────────────────────────────────────────────── */}
       <div>
         <h2 className="panel-header text-game-gold mb-3">
           Infrastructure Upgrades
@@ -236,10 +313,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
             const prodMin = BALANCE.production.baseMin
             const prodMax = BALANCE.production.baseMax
             const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city] ?? 1
-            const description =
-              card.field === 'population_level'
-                ? `${card.description} Level ${currentLevel}: ${BALANCE.training.populationPerTick[currentLevel] ?? '?'} pop/tick`
-                : `${card.description} Base: ${prodMin}–${prodMax} × City ×${cityMult}`
+            const description = `${card.description} Base: ${prodMin}–${prodMax} × City ×${cityMult}`
 
             return (
               <UpgradeCard
@@ -266,24 +340,30 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       <div className="divider-ornate" />
 
-      {/* Population Per Tick Table */}
+      {/* ── Population Growth Rate Table ─────────────────────────────────────────── */}
       <div className="panel-ornate p-4">
         <h2 className="panel-header text-game-gold mb-3">
-          Population Per Tick (by Level)
+          Population Growth Rate (by Level)
         </h2>
         <GameTable
           headers={['Level', 'Population / Tick']}
           striped
-          rows={popPerTickEntries.map(([lvl, pop]) => [
-            <span key="lvl" className={`font-heading text-game-sm ${Number(lvl) === devState.population_level ? 'text-game-gold-bright' : 'text-game-text'}`}>
-              {lvl} {Number(lvl) === devState.population_level && <Badge variant="gold">Current</Badge>}
-            </span>,
-            <span key="pop" className="text-game-text-white font-semibold">{pop}</span>,
-          ])}
+          rows={popPerTickEntries.map(([lvl, pop]) => {
+            const isCurrent = Number(lvl) === popLevel
+            return [
+              <span key="lvl" className={`font-heading text-game-sm flex items-center gap-2 ${isCurrent ? 'text-game-gold-bright' : 'text-game-text'}`}>
+                {lvl}
+                {isCurrent && <Badge variant="gold">Current</Badge>}
+              </span>,
+              <span key="pop" className={`font-semibold ${isCurrent ? 'text-game-gold-bright' : 'text-game-text-white'}`}>
+                +{pop}
+              </span>,
+            ]
+          })}
         />
       </div>
 
-      {/* City Progression */}
+      {/* ── City Progression ─────────────────────────────────────────────────────── */}
       <div className="panel-ornate p-4">
         <h2 className="panel-header text-game-gold mb-3">
           City Progression
