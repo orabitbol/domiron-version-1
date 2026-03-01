@@ -13,7 +13,7 @@ const FEATURES = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-game-bg" dir="rtl">
+    <div className="min-h-screen" dir="rtl">
 
       {/* ── Navigation ── */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-game-border bg-game-surface/80 backdrop-blur-game">

@@ -54,7 +54,6 @@
 html { scroll-behavior: smooth; }
 
 body {
-  background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'Source Sans 3', sans-serif;
   font-size: 0.95rem;
@@ -62,13 +61,10 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Subtle star-field background */
-  background-image:
-    radial-gradient(1px 1px at 15% 25%, rgba(240,192,48,0.08) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 75%, rgba(240,192,48,0.05) 0%, transparent 100%),
-    radial-gradient(1px 1px at 80% 10%, rgba(240,192,48,0.06) 0%, transparent 100%),
-    radial-gradient(2px 2px at 40% 60%, rgba(201,144,26,0.04) 0%, transparent 100%),
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(201,144,26,0.04) 0%, transparent 60%);
+  background-color: #050403;
+  background:
+    linear-gradient(rgba(10, 8, 6, 0.72), rgba(10, 8, 6, 0.72)),
+    url('/background-game.png') center / cover no-repeat fixed;
 }
 
 /* ─────────────────────────────────────────────────

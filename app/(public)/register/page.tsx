@@ -62,17 +62,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center px-4 py-8">
-      <Image
-        src="/background-game.png"
-        alt=""
-        fill
-        priority
-        className="object-cover -z-10"
-        quality={85}
-      />
-      <div className="absolute inset-0 bg-black/60 -z-10" />
-
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md animate-fade-up">
         {/* Logo */}
         <div className="text-center mb-8">

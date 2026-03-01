@@ -26,7 +26,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-game-bg flex items-center justify-center px-4 py-8" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8" dir="rtl">
 
       {/* Stars / glow background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
