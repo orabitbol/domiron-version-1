@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       .from('players')
       .select('id')
       .eq('email', email)
-      .single()
+      .maybeSingle()
 
     if (existingByEmail) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       .from('players')
       .select('id')
       .eq('username', username)
-      .single()
+      .maybeSingle()
 
     if (existingByUsername) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 409 })

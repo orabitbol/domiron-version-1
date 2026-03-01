@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       .eq('player_id', playerId)
 
     if (updateError) {
+      console.error('Mine/allocate DB error:', updateError)
       return NextResponse.json({ error: 'Failed to save allocation' }, { status: 500 })
     }
 

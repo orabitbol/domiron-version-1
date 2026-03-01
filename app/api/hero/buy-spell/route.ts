@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('player_id', playerId)
       .eq('spell_key', spell_key)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return NextResponse.json({ error: 'Spell already purchased' }, { status: 409 })

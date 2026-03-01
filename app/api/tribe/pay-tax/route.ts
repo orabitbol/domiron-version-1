@@ -74,9 +74,9 @@ export async function POST() {
       }).eq('player_id', playerId),
 
       // Add gold to tribe mana pool (converted at 1:1 ratio; tribe uses mana for spells)
-      // Tribe receives the gold as mana (game design: gold → tribe mana)
+      // Tribe receives the full tax_amount as mana (game design: gold → tribe mana)
       supabase.from('tribes').update({
-        mana: tribe.mana + 1,  // 1 mana per tax payment
+        mana: tribe.mana + tribe.tax_amount,
       }).eq('id', membership.tribe_id),
 
       // Mark tax as paid for today

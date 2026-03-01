@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       .from('tribe_members')
       .select('tribe_id')
       .eq('player_id', playerId)
-      .single()
+      .maybeSingle()
 
     if (existingMembership) {
       return NextResponse.json({ error: 'Already in a tribe' }, { status: 409 })
