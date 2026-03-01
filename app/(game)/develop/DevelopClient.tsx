@@ -122,6 +122,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
   const [loadingCity, setLoadingCity] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [devState, setDevState] = useState(development)
+  const [localResources, setLocalResources] = useState(resources)
 
   async function handleUpgrade(field: DevField) {
     setLoading(field)
@@ -138,6 +139,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
       } else {
         setMessage({ text: 'Upgrade successful!', type: 'success' })
         setDevState((prev) => ({ ...prev, [field]: (prev[field] as number) + 1 }))
+        if (data.data?.resources) setLocalResources(data.data.resources)
         refresh()
       }
     } catch {
@@ -173,7 +175,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
   const nextCityReqs = hasNextCity ? BALANCE.cities.promotionRequirements[nextCityNum] : null
   const nextCityName = hasNextCity ? (BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`) : null
 
-  const totalResources = resources.gold + resources.iron + resources.wood + resources.food
+  const totalResources = localResources.gold + localResources.iron + localResources.wood + localResources.food
   const meetsResources = nextCityReqs ? totalResources >= (nextCityReqs.requiredResources ?? Infinity) : false
   const meetsSoldiers  = nextCityReqs ? army.soldiers   >= (nextCityReqs.requiredSoldiers  ?? Infinity) : false
   const canMoveCity    = meetsResources && meetsSoldiers && hasNextCity
@@ -208,10 +210,10 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       {/* Resources */}
       <div className="flex flex-wrap gap-4 bg-game-surface border border-game-border rounded-lg p-4">
-        <ResourceBadge type="gold" amount={resources.gold} showLabel />
-        <ResourceBadge type="iron" amount={resources.iron} showLabel />
-        <ResourceBadge type="wood" amount={resources.wood} showLabel />
-        <ResourceBadge type="food" amount={resources.food} showLabel />
+        <ResourceBadge type="gold" amount={localResources.gold} showLabel />
+        <ResourceBadge type="iron" amount={localResources.iron} showLabel />
+        <ResourceBadge type="wood" amount={localResources.wood} showLabel />
+        <ResourceBadge type="food" amount={localResources.food} showLabel />
       </div>
 
       {/* Upgrade Cards */}
@@ -227,8 +229,8 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
             let canAfford = false
             if (!isMaxed) {
-              const resAmt = resources[cost.resourceType as keyof Resources] as number
-              canAfford = resources.gold >= cost.gold && (cost.resourceType === 'gold' || resAmt >= cost.resource)
+              const resAmt = localResources[cost.resourceType as keyof Resources] as number
+              canAfford = localResources.gold >= cost.gold && (cost.resourceType === 'gold' || resAmt >= cost.resource)
             }
 
             const prodMin = BALANCE.production.baseMin

@@ -13,6 +13,18 @@ export type PlayerRole = 'player' | 'admin'
  */
 export type AttackOutcome = 'win' | 'partial' | 'loss'
 
+/**
+ * Reasons why gains (loot/slaves) or defender losses may be zeroed in a battle.
+ * Returned by the attack route so the UI can explain the result to the player.
+ */
+export type AttackBlocker =
+  | 'resource_shield'    // defender's resource shield was active → loot = 0
+  | 'soldier_shield'     // defender's soldier shield was active → defender losses = 0
+  | 'defender_protected' // defender is within 24h new-player protection → loot = 0, def losses = 0
+  | 'kill_cooldown'      // attacker killed defender's troops recently (6h cooldown) → def losses = 0
+  | 'attacker_protected' // attacker is within 24h new-player protection → attacker losses = 0
+  | 'loot_decay'         // repeated attacks on same target reduce loot (anti-farm)
+
 export type HallOfFameType = 'player' | 'tribe'
 export type ToastType = 'attack' | 'victory' | 'defeat' | 'tick' | 'tribe' | 'info' | 'error' | 'success' | 'magic' | 'warning'
 
@@ -320,6 +332,10 @@ export interface AttackResult {
   iron_stolen:     number
   wood_stolen:     number
   food_stolen:     number
+  // Display fields — always present in response
+  turns_used:      number
+  food_cost:       number
+  blockers:        AttackBlocker[]
 }
 
 // Spy mission result

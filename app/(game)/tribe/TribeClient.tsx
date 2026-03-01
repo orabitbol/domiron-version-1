@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,11 +58,13 @@ const SPELL_LABELS: Record<SpellKey, string> = {
 
 export function TribeClient({ player, membership, tribe, members, tribeSpells, joinableTribes }: Props) {
   const { refresh } = usePlayer()
+  const router = useRouter()
   const [tribeName, setTribeName] = useState('')
   const [tribeAnthem, setTribeAnthem] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [taxAmount, setTaxAmount] = useState('')
+  const [localMembers, setLocalMembers] = useState(members)
 
   const isLeader = tribe && tribe.leader_id === player.id
   const isDeputy = tribe && tribe.deputy_id === player.id
@@ -83,7 +86,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
         setMessage({ text: data.error ?? 'Failed to create tribe', type: 'error' })
       } else {
         setMessage({ text: `Tribe "${tribeName}" created!`, type: 'success' })
-        window.location.reload()
+        router.refresh()
       }
     } catch {
       setMessage({ text: 'Network error', type: 'error' })
@@ -106,7 +109,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
         setMessage({ text: data.error ?? 'Failed to join tribe', type: 'error' })
       } else {
         setMessage({ text: 'Joined tribe!', type: 'success' })
-        window.location.reload()
+        router.refresh()
       }
     } catch {
       setMessage({ text: 'Network error', type: 'error' })
@@ -171,7 +174,8 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
         setMessage({ text: data.error ?? 'Failed to kick member', type: 'error' })
       } else {
         setMessage({ text: 'Member kicked', type: 'success' })
-        window.location.reload()
+        setLocalMembers((prev) => prev.filter((m) => m.member.player_id !== memberId))
+        refresh()
       }
     } catch {
       setMessage({ text: 'Network error', type: 'error' })
@@ -312,7 +316,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
               { label: 'Level',      value: String(tribe.level) },
               { label: 'Reputation', value: formatNumber(tribe.reputation) },
               { label: 'Mana',       value: String(tribe.mana) },
-              { label: 'Members',    value: `${members.length} / ${tribe.max_members}` },
+              { label: 'Members',    value: `${localMembers.length} / ${tribe.max_members}` },
             ].map(({ label, value }) => (
               <div key={label} className="bg-game-surface border border-game-border rounded-lg p-3 text-center">
                 <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">{label}</p>
@@ -388,7 +392,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
               headers={['Army', 'Player', 'Reputation', 'Rep %', 'Tax Paid', ...(canManage ? ['Action'] : [])]}
               striped
               hoverable
-              rows={members.map(({ member, player: mp }) => [
+              rows={localMembers.map(({ member, player: mp }) => [
                 <span key="army" className="font-heading text-game-sm uppercase text-game-text-white">
                   {mp?.army_name ?? 'Unknown'}
                 </span>,

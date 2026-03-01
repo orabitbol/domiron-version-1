@@ -97,6 +97,7 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
   const [purchasedSpells, setPurchasedSpells] = useState<Set<string>>(
     new Set<string>(initialSpells.map((s) => s.spell_key))
   )
+  const [localEffects, setLocalEffects] = useState<PlayerHeroEffect[]>(activeEffects)
   const [loading, setLoading]           = useState<string | null>(null)
   const [shieldLoading, setShieldLoading] = useState<string | null>(null)
   const [message, setMessage]           = useState<{ text: string; type: 'success' | 'error' } | null>(null)
@@ -110,9 +111,9 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
     (hero.level >= 10 ? (BALANCE.hero.manaPerTick?.level10bonus ?? 0) : 0) +
     (hero.level >= 50 ? (BALANCE.hero.manaPerTick?.level50bonus ?? 0) : 0)
 
-  // Current shield statuses from server-provided effects (owner view)
-  const soldierStatus   = getShieldStatus(activeEffects, 'SOLDIER_SHIELD')
-  const resourceStatus  = getShieldStatus(activeEffects, 'RESOURCE_SHIELD')
+  // Current shield statuses from local effects (updated optimistically on activation)
+  const soldierStatus   = getShieldStatus(localEffects, 'SOLDIER_SHIELD')
+  const resourceStatus  = getShieldStatus(localEffects, 'RESOURCE_SHIELD')
 
   // ── Spell purchase ─────────────────────────────────────────────────────────
   async function handlePurchaseSpell(spellKey: string) {
@@ -162,6 +163,20 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
         const label = shieldType === 'soldier_shield' ? 'Soldier Shield' : 'Resource Shield'
         setMessage({ text: `${label} activated for ${CFG.SHIELD_HOURS}h!`, type: 'success' })
         setHero((prev) => ({ ...prev, mana: prev.mana - manaCost }))
+        // Immediately reflect new shield in local effects so status badge updates without waiting for refresh
+        const effectType = shieldType === 'soldier_shield' ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD' as const
+        setLocalEffects((prev) => [
+          ...prev,
+          {
+            id:               `local-${Date.now()}`,
+            player_id:        '',
+            type:             effectType,
+            starts_at:        new Date().toISOString(),
+            ends_at:          data.data.ends_at,
+            cooldown_ends_at: data.data.cooldown_ends_at,
+            metadata:         null,
+          },
+        ])
         refresh()
       }
     } catch {

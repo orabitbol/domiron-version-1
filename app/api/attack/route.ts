@@ -13,6 +13,7 @@ import {
 import type { ClanContext } from '@/lib/game/combat'
 import { getActiveHeroEffects, clampBonus } from '@/lib/game/hero-effects'
 import { recalculatePower } from '@/lib/game/power'
+import type { AttackBlocker } from '@/types/game'
 
 const attackSchema = z.object({
   defender_id: z.string().uuid(),
@@ -247,6 +248,15 @@ export async function POST(request: NextRequest) {
       recalculatePower(defender_id, supabase),
     ])
 
+    // Derive blockers: explains to the UI why gains/losses may be zeroed
+    const blockers: AttackBlocker[] = []
+    if (defHero.resourceShieldActive)  blockers.push('resource_shield')
+    if (defHero.soldierShieldActive)   blockers.push('soldier_shield')
+    if (defenderProtected)             blockers.push('defender_protected')
+    if (killCooldown)                  blockers.push('kill_cooldown')
+    if (attackerProtected)             blockers.push('attacker_protected')
+    if ((attacksInWindow ?? 0) > 1)    blockers.push('loot_decay')
+
     return NextResponse.json({
       result: {
         outcome:         result.outcome,
@@ -260,6 +270,9 @@ export async function POST(request: NextRequest) {
         iron_stolen:     ironStolen,
         wood_stolen:     woodStolen,
         food_stolen:     foodStolen,
+        turns_used:      turnsUsed,
+        food_cost:       foodCost,
+        blockers,
       },
       turns: newAttTurns,
       resources: {

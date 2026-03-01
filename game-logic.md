@@ -11,10 +11,10 @@
 | Field | Value |
 |-------|-------|
 | Date | 2026-03-01 |
-| Commit | e697427 |
+| Commit | e697427 (last git commit); doc reflects all session changes |
 | TypeScript | `npx tsc --noEmit` → 0 errors |
-| Tests | `npx vitest run` → 153 tests, 153 passing |
-| Auditor | Full codebase scan — every value and formula verified against source |
+| Tests | `npx vitest run` → 173 tests, 173 passing |
+| Auditor | Full codebase scan — values, formulas, mutation/refresh patterns, battle report fields all verified |
 
 ---
 
@@ -99,23 +99,33 @@ Client calls refresh() to sync full PlayerContext (/api/player)
 Sidebar + ResourceBar update live (they read from PlayerContext)
 ```
 
-### Per-Page State Sync Pattern
+### Per-Page State Sync Pattern (✅ fully audited)
 
-| Page       | Immediate local state update       | Full context refresh |
-|------------|------------------------------------|----------------------|
-| Training   | army + resources from response     | refresh() |
-| Attack     | turns + resources from response    | refresh() |
-| Hero       | mana + spell_points from response  | refresh() |
-| Develop    | devState level from response       | refresh() |
-| Spy        | turns + spies from response        | refresh() |
-| Shop       | weapons + resources from response  | refresh() |
-| Bank       | bank balance from response         | refresh() |
+| Page     | Immediate local state update                                          | Full context refresh       | Status |
+|----------|-----------------------------------------------------------------------|----------------------------|--------|
+| Attack   | `turns` + `resources` + full `AttackResult` (incl. `blockers`) from response | `refresh()` | ✅ |
+| Bank     | `bank` + `resources` from response                                    | `refresh()` | ✅ |
+| Develop  | `devState` level + `resources` from response                          | `refresh()` | ✅ |
+| Hero     | `mana` + `spell_points` from response; `localEffects` on shield activation | `refresh()` | ✅ |
+| Mine     | no local state (informational route — no DB write)                    | `refresh()` | ✅ |
+| Shop     | `weapons` + `resources` from response                                 | `refresh()` | ✅ |
+| Spy      | `turns` + `spies` from response                                       | `refresh()` | ✅ |
+| Training | `army` + `resources` from response                                    | `refresh()` | ✅ |
+| Tribe    | `localMembers` filtered on kick; create/join: `router.refresh()`     | `refresh()` on kick        | ✅ |
+
+### Notes on Tribe page
+- **Kick**: removes member from `localMembers` state immediately, then calls `refresh()`.
+- **Create / Join**: calls `router.refresh()` from `next/navigation` — re-fetches server components without a full page reload (no flicker).
 
 ### Rules
+- `window.location.reload()` is **banned** — 0 occurrences (verified by grep).
 - Never rely on SSR props after first mutation — always use live state.
-- All API mutations return updated DB snapshot in `data` field.
+- All API mutations re-read relevant rows from DB before validating (race-condition protection).
+- All API mutations return a complete snapshot (not a delta) in the response body.
 - `refresh()` calls `GET /api/player` to sync the full player bundle.
+- `router.refresh()` (`next/navigation`) re-fetches server components; used only when SSR-prop state (non-PlayerContext) must be updated.
 - Supabase Realtime handles cross-player events (attacks, tick, tribe spells).
+- Tests: `lib/game/mutation-patterns.test.ts` — 20 tests covering immediate-update contract, race conditions, and blocker derivation.
 
 ---
 
@@ -333,6 +343,46 @@ When defenderIsProtected: defender_losses = 0, loot = 0.
 When attackerIsProtected: attacker_losses = 0.
 Attacker always pays turns + food.
 ```
+
+### 3.11 Battle Report API Response
+
+`POST /api/attack` returns:
+
+```typescript
+{
+  result: {
+    outcome:         'win' | 'partial' | 'loss'
+    ratio:           number        // attackerECP / defenderECP
+    attacker_ecp:    number
+    defender_ecp:    number
+    attacker_losses: number        // soldiers lost
+    defender_losses: number        // soldiers lost
+    slaves_created:  number        // floor(defender_losses × CAPTURE_RATE)
+    gold_stolen:     number
+    iron_stolen:     number
+    wood_stolen:     number
+    food_stolen:     number
+    turns_used:      number        // turns the player chose to spend
+    food_cost:       number        // turns_used × foodCostPerTurn
+    blockers:        AttackBlocker[] // why gains/losses may be zeroed (see below)
+  },
+  turns:     number    // attacker's remaining turns (snapshot, not delta)
+  resources: { gold, iron, wood, food }  // attacker's new resource totals
+}
+```
+
+**Blocker types** (`AttackBlocker`):
+
+| Value | Condition | Effect |
+|-------|-----------|--------|
+| `resource_shield` | `defHero.resourceShieldActive` | loot = 0 |
+| `soldier_shield` | `defHero.soldierShieldActive` | defender losses = 0, slaves = 0 |
+| `defender_protected` | defender within 24h of creation | loot = 0, defender losses = 0 |
+| `kill_cooldown` | recent kill on this target (6h window) | defender losses = 0, slaves = 0 |
+| `attacker_protected` | attacker within 24h of creation | attacker losses = 0 |
+| `loot_decay` | 2nd+ attack on same target in decay window | loot reduced by anti-farm multiplier |
+
+Blockers are evaluated in the order listed. Multiple blockers may be present. The UI (`BattleReport` component) renders a "Why" section listing each blocker with a human-readable explanation.
 
 ---
 
