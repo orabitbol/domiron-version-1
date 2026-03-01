@@ -161,24 +161,31 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
             Anti-farm decay applied (×{report.flags.anti_farm_decay_mult.toFixed(2)})
           </p>
         )}
+      </div>
 
-        {/* WHY box — only when all gains are zero */}
-        {allGainsZero && report.reasons.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-game-border">
-            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1.5">
-              Why Nothing Was Gained
-            </p>
-            <ul className="space-y-1.5">
+      {/* ── WHY box — shown prominently BELOW the gains section whenever nothing was gained ── */}
+      {allGainsZero && (
+        <div className="border border-amber-900/60 bg-amber-950/20 rounded p-3">
+          <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-bright mb-2">
+            Why Nothing Was Gained
+          </p>
+          {report.reasons.length > 0 ? (
+            <ul className="space-y-2">
               {report.reasons.map((reason) => (
-                <li key={reason} className="font-body text-game-xs text-game-text-secondary flex items-start gap-2">
-                  <span className="mt-0.5 shrink-0">•</span>
+                <li key={reason} className="font-body text-game-sm text-game-text-secondary flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 text-game-gold-primary">›</span>
                   <span>{REASON_LABELS[reason]}</span>
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-      </div>
+          ) : (
+            /* Fallback: should not normally appear — means the server sent no reasons */
+            <p className="font-body text-game-sm text-game-text-secondary">
+              The enemy had no resources available to plunder.
+            </p>
+          )}
+        </div>
+      )}
 
       <Button variant="ghost" onClick={onClose}>Close</Button>
     </div>
