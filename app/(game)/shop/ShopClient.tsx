@@ -135,14 +135,14 @@ export function ShopClient({ weapons, resources }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+          <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
             Weapons Shop
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
             Equip your army with powerful weapons and gear
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 card-game p-2.5">
           <ResourceBadge type="gold" amount={resourceState.gold} showLabel />
           <ResourceBadge type="iron" amount={resourceState.iron} showLabel />
         </div>
@@ -151,7 +151,7 @@ export function ShopClient({ weapons, resources }: Props) {
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -162,7 +162,7 @@ export function ShopClient({ weapons, resources }: Props) {
       )}
 
       {/* Refund notice */}
-      <div className="text-game-xs text-game-text-muted font-body bg-game-elevated border border-game-border rounded px-3 py-2">
+      <div className="text-game-xs text-game-text-muted font-body card-game px-3 py-2">
         Sell refund: {(BALANCE.weapons.sellRefundPercent * 100).toFixed(0)}% of original cost
       </div>
 
@@ -175,8 +175,9 @@ export function ShopClient({ weapons, resources }: Props) {
 
       {/* Attack Weapons */}
       {activeTab === 'attack' && (
-        <div className="space-y-3">
+        <div className="panel-ornate p-5 space-y-3">
           <p className="text-game-xs text-game-text-muted font-body">Cost paid in Iron.</p>
+          <div className="divider-gold" />
           {ATTACK_WEAPONS.map(({ key, label }) => {
             const cfg = BALANCE.weapons.attack[key]
             const owned = weaponState[key] as number
@@ -189,7 +190,7 @@ export function ShopClient({ weapons, resources }: Props) {
             return (
               <div
                 key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg bg-game-surface border border-game-border"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -207,7 +208,7 @@ export function ShopClient({ weapons, resources }: Props) {
                       Sell: <span className="text-res-iron font-semibold">{formatNumber(refund)} Iron</span>
                     </span>
                     <span>
-                      Owned: <span className="text-game-text-white font-semibold">{owned}</span>
+                      Owned: <span className="text-game-gold font-semibold">{owned}</span>
                     </span>
                   </div>
                 </div>
@@ -248,8 +249,9 @@ export function ShopClient({ weapons, resources }: Props) {
 
       {/* Defense Weapons */}
       {activeTab === 'defense' && (
-        <div className="space-y-3">
+        <div className="panel-ornate p-5 space-y-3">
           <p className="text-game-xs text-game-text-muted font-body">Defense armor — max 1 each. Cost paid in Gold.</p>
+          <div className="divider-gold" />
           {DEFENSE_WEAPONS.map(({ key, label }) => {
             const cfg = BALANCE.weapons.defense[key]
             const owned = weaponState[key] as number
@@ -263,7 +265,7 @@ export function ShopClient({ weapons, resources }: Props) {
             return (
               <div
                 key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg bg-game-surface border border-game-border"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -316,8 +318,9 @@ export function ShopClient({ weapons, resources }: Props) {
 
       {/* Spy Gear */}
       {activeTab === 'spy' && (
-        <div className="space-y-3">
+        <div className="panel-ornate p-5 space-y-3">
           <p className="text-game-xs text-game-text-muted font-body">Spy gear — max 1 each. Enhances spy power.</p>
+          <div className="divider-gold" />
           {SPY_WEAPONS.map(({ key, label }) => {
             const owned = weaponState[key] as number
             const costGold = SPY_PRICES[key] ?? 0
@@ -328,7 +331,7 @@ export function ShopClient({ weapons, resources }: Props) {
             return (
               <div
                 key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg bg-game-surface border border-game-border"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -375,8 +378,9 @@ export function ShopClient({ weapons, resources }: Props) {
 
       {/* Scout Gear */}
       {activeTab === 'scout' && (
-        <div className="space-y-3">
+        <div className="panel-ornate p-5 space-y-3">
           <p className="text-game-xs text-game-text-muted font-body">Scout gear — max 1 each. Enhances scout power.</p>
+          <div className="divider-gold" />
           {SCOUT_WEAPONS.map(({ key, label }) => {
             const owned = weaponState[key] as number
             const costGold = SCOUT_PRICES[key] ?? 0
@@ -387,7 +391,7 @@ export function ShopClient({ weapons, resources }: Props) {
             return (
               <div
                 key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg bg-game-surface border border-game-border"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

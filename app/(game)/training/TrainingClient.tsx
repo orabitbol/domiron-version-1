@@ -216,7 +216,7 @@ export function TrainingClient({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
           Training Grounds
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -227,7 +227,7 @@ export function TrainingClient({
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -254,8 +254,8 @@ export function TrainingClient({
         />
         <div className="space-y-4">
           {/* Capacity */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-3">
-            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold-bright">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 space-y-3 shadow-emboss">
+            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
               Capacity
             </h3>
             <div className="flex justify-between text-game-sm font-body text-game-text-secondary">
@@ -264,10 +264,10 @@ export function TrainingClient({
                 {formatNumber(combatUnits)} / {formatNumber(player.capacity)}
               </span>
             </div>
-            <div className="w-full bg-game-elevated rounded-full h-3 overflow-hidden">
+            <div className="progress-bar">
               <div
-                className={`h-3 rounded-full transition-all ${
-                  capacityPct >= 90 ? 'bg-game-red' : capacityPct >= 70 ? 'bg-game-gold' : 'bg-game-green'
+                className={`progress-fill ${
+                  capacityPct >= 90 ? 'progress-fill-red' : capacityPct >= 70 ? 'progress-fill-gold' : 'progress-fill-green'
                 }`}
                 style={{ width: `${capacityPct}%` }}
               />
@@ -276,8 +276,8 @@ export function TrainingClient({
           </div>
 
           {/* Available Population + Slaves panel */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-2">
-            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold-bright">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 space-y-2 shadow-emboss">
+            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
               Workforce
             </h3>
             <div className="space-y-1 text-game-sm font-body">
@@ -288,7 +288,8 @@ export function TrainingClient({
               <p className="text-game-xs text-game-text-muted">
                 Each unit trained costs 1 free population (except cavalry).
               </p>
-              <div className="flex justify-between pt-1 border-t border-game-border">
+              <div className="divider-ornate my-1" />
+              <div className="flex justify-between pt-1">
                 <span className="text-game-text-secondary">Slaves</span>
                 <span className="text-game-text-white font-semibold">{formatNumber(army.slaves)}</span>
               </div>
@@ -300,13 +301,14 @@ export function TrainingClient({
           </div>
 
           {/* Resources */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-3 space-y-1">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 space-y-2 shadow-engrave">
             <div className="flex justify-between text-game-sm font-body">
-              <span className="text-game-text-secondary">Gold</span>
+              <span className="text-game-text-secondary font-heading">Gold</span>
               <ResourceBadge type="gold" amount={resources.gold} />
             </div>
+            <div className="divider-ornate" />
             <div className="flex justify-between text-game-sm font-body">
-              <span className="text-game-text-secondary">Food</span>
+              <span className="text-game-text-secondary font-heading">Food</span>
               <ResourceBadge type="food" amount={resources.food} />
             </div>
           </div>
@@ -318,10 +320,13 @@ export function TrainingClient({
 
       {/* ── TRAIN TAB ─────────────────────────────────────────────────────── */}
       {activeTab === 'train' && (
-        <div className="bg-game-surface border border-game-border rounded-lg p-4">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-4">
-            Basic Training
-          </h2>
+        <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
+          <div className="panel-header">
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">
+              Basic Training
+            </h2>
+          </div>
+          <div className="divider-gold mb-4" />
           <div className="space-y-3">
             {(['soldier', 'slave', 'spy', 'scout', 'cavalry', 'farmer'] as BasicUnit[]).map((unit) => {
               const cfg = unitCost(unit)
@@ -332,7 +337,7 @@ export function TrainingClient({
               return (
                 <div
                   key={unit}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-game-elevated border border-game-border"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
@@ -397,11 +402,14 @@ export function TrainingClient({
 
       {/* ── UNTRAIN TAB ───────────────────────────────────────────────────── */}
       {activeTab === 'untrain' && (
-        <div className="bg-game-surface border border-game-border rounded-lg p-4">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-2">
-            Untrain Units
-          </h2>
-          <div className="mb-4 p-3 rounded-lg bg-game-elevated border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1">
+        <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
+          <div className="panel-header">
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-2">
+              Untrain Units
+            </h2>
+          </div>
+          <div className="divider-gold mb-4" />
+          <div className="mb-4 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1 shadow-emboss">
             <p className="font-semibold">Important: Untrained units become slaves, not free population.</p>
             <p>Once a soldier, spy, scout, or farmer is untrained they join your slave workforce.
               They will produce resources per tick but cannot be reassigned to combat roles for free.
@@ -415,7 +423,7 @@ export function TrainingClient({
               return (
                 <div
                   key={unit}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-game-elevated border border-game-border"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
@@ -423,7 +431,7 @@ export function TrainingClient({
                     </p>
                     <p className="text-game-xs text-game-text-muted font-body mt-1">
                       Available: <span className="text-game-text-white font-semibold">{formatNumber(current)}</span>
-                      {' · '}Will gain: <span className="text-game-gold-bright font-semibold">{formatNumber(amt)} Slaves</span>
+                      {' · '}Will gain: <span className="text-game-gold font-semibold">{formatNumber(amt)} Slaves</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2 sm:w-52">
@@ -455,14 +463,17 @@ export function TrainingClient({
 
       {/* ── ADVANCED TAB ──────────────────────────────────────────────────── */}
       {activeTab === 'advanced' && (
-        <div className="bg-game-surface border border-game-border rounded-lg p-4">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-1">
-            Advanced Training
-          </h2>
-          <p className="text-game-sm text-game-text-muted font-body mb-4">
+        <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
+          <div className="panel-header">
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">
+              Advanced Training
+            </h2>
+          </div>
+          <p className="text-game-sm text-game-text-muted font-body mb-2">
             Each level costs {formatNumber(advCost.gold)} Gold + {formatNumber(advCost.food)} Food × (current level + 1).
             Adds {(BALANCE.training.advancedMultiplierPerLevel * 100).toFixed(0)}% power per level.
           </p>
+          <div className="divider-gold mb-4" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(['attack', 'defense', 'spy', 'scout'] as AdvancedType[]).map((type) => {
               const level = training[`${type}_level` as keyof Training] as number
@@ -470,14 +481,14 @@ export function TrainingClient({
               const nextFood = advCost.food * (level + 1)
               const multiplier = (1 + level * BALANCE.training.advancedMultiplierPerLevel).toFixed(2)
               return (
-                <div key={type} className="p-3 rounded-lg bg-game-elevated border border-game-border">
+                <div key={type} className="p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
                         {ADVANCED_LABELS[type]}
                       </p>
                       <p className="text-game-xs text-game-text-secondary font-body mt-0.5">
-                        Level {level} · ×{multiplier} power
+                        Level <span className="text-game-gold font-semibold">{level}</span> · ×{multiplier} power
                       </p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         <ResourceBadge type="gold" amount={nextGold} />

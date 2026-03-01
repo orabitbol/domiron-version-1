@@ -117,7 +117,7 @@ export function MineClient({ player, army, resources }: Props) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
           Resource Allocation
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -128,7 +128,7 @@ export function MineClient({ player, army, resources }: Props) {
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -140,29 +140,30 @@ export function MineClient({ player, army, resources }: Props) {
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-game-surface border border-game-border rounded-lg p-3 text-center">
+        <div className="card-game p-3 text-center">
           <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Slaves</p>
-          <p className="text-game-lg text-game-text-white font-body font-semibold mt-0.5">{formatNumber(totalSlaves)}</p>
+          <p className="text-game-lg text-game-gold font-body font-semibold mt-0.5">{formatNumber(totalSlaves)}</p>
         </div>
-        <div className="bg-game-surface border border-game-border rounded-lg p-3 text-center">
+        <div className="card-game p-3 text-center">
           <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Farmers</p>
-          <p className="text-game-lg text-game-text-white font-body font-semibold mt-0.5">{formatNumber(totalFarmers)}</p>
+          <p className="text-game-lg text-game-gold font-body font-semibold mt-0.5">{formatNumber(totalFarmers)}</p>
         </div>
-        <div className="bg-game-surface border border-game-border rounded-lg p-3 text-center">
+        <div className="card-game p-3 text-center">
           <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">City</p>
-          <p className="text-game-lg text-game-text-white font-body font-semibold mt-0.5">×{cityMult}</p>
+          <p className="text-game-lg text-game-gold font-body font-semibold mt-0.5">×{cityMult}</p>
         </div>
-        <div className="bg-game-surface border border-game-border rounded-lg p-3 text-center">
+        <div className="card-game p-3 text-center">
           <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Base Prod</p>
-          <p className="text-game-lg text-game-text-white font-body font-semibold mt-0.5">{baseMin}–{baseMax}/unit</p>
+          <p className="text-game-lg text-game-gold font-body font-semibold mt-0.5">{baseMin}–{baseMax}/unit</p>
         </div>
       </div>
 
       {/* Allocation form */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-4">
-        <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+      <div className="panel-ornate p-5 space-y-4">
+        <h2 className="panel-header text-game-gold">
           Assign Workers
         </h2>
+        <div className="divider-gold" />
 
         <div className="space-y-4">
           {MINES.map(({ key, label, resourceType, description, available }) => {
@@ -172,7 +173,7 @@ export function MineClient({ player, army, resources }: Props) {
             return (
               <div
                 key={key}
-                className="p-3 rounded-lg bg-game-elevated border border-game-border space-y-2"
+                className="p-3 rounded-game-lg card-game space-y-2"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -196,7 +197,7 @@ export function MineClient({ player, army, resources }: Props) {
                   />
                   <div className="text-game-sm font-body">
                     <span className="text-game-text-muted">Estimated: </span>
-                    <span className="text-game-text-white font-semibold">{prod}/tick</span>
+                    <span className="text-game-gold font-semibold">{prod}/tick</span>
                   </div>
                 </div>
               </div>
@@ -204,12 +205,14 @@ export function MineClient({ player, army, resources }: Props) {
           })}
         </div>
 
+        <div className="divider-gold" />
+
         {/* Slave balance indicator */}
         <div
-          className={`flex items-center justify-between rounded px-3 py-2 text-game-sm font-body ${
+          className={`flex items-center justify-between rounded-game-lg px-3 py-2 text-game-sm font-body ${
             isOverAllocated
               ? 'bg-game-red/10 border border-red-900 text-game-red-bright'
-              : 'bg-game-elevated border border-game-border text-game-text-secondary'
+              : 'card-game text-game-text-secondary'
           }`}
         >
           <span>Slaves: {formatNumber(slaveAssigned)} assigned</span>
@@ -231,22 +234,23 @@ export function MineClient({ player, army, resources }: Props) {
       </div>
 
       {/* Production rates info */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4">
-        <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
+      <div className="panel-ornate p-4">
+        <h2 className="panel-header text-game-gold mb-3">
           Production Formula
         </h2>
         <div className="space-y-2 text-game-sm font-body text-game-text-secondary">
           <p>
             Production per tick = Units × random({baseMin}–{baseMax}) × City Multiplier (×{cityMult})
           </p>
+          <div className="divider-gold" />
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
             {Object.entries(BALANCE.cities.CITY_PRODUCTION_MULT).map(([city, mult]) => (
               <div
                 key={city}
-                className={`text-center rounded px-2 py-1 border ${
+                className={`text-center rounded-game-lg px-2 py-1 shadow ${
                   Number(city) === player.city
-                    ? 'border-game-border-gold bg-game-gold/10 text-game-gold-bright'
-                    : 'border-game-border bg-game-elevated text-game-text-muted'
+                    ? 'border border-game-border-gold bg-game-gold/10 text-game-gold-bright'
+                    : 'card-game text-game-text-muted'
                 }`}
               >
                 <p className="text-game-xs font-heading uppercase">City {city}</p>

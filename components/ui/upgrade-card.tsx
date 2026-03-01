@@ -2,8 +2,7 @@
 
 import * as React from 'react'
 import { Button } from './button'
-import { cn } from '@/lib/utils'
-import { formatNumber } from '@/lib/utils'
+import { cn, formatNumber } from '@/lib/utils'
 
 interface CostItem {
   gold?: number
@@ -36,12 +35,14 @@ export function UpgradeCard({
   className,
 }: UpgradeCardProps) {
   const isMaxed = maxLevel !== undefined && currentLevel >= maxLevel
+  const progress = maxLevel ? (currentLevel / maxLevel) * 100 : 0
 
   return (
     <div
       className={cn(
-        'rounded-lg border border-game-border bg-game-surface p-4',
-        'hover:border-game-border-gold transition-colors duration-150',
+        'panel-ornate p-4 transition-all duration-200',
+        canAfford && !isMaxed && 'hover:shadow-[0_6px_40px_rgba(0,0,0,0.7),0_0_12px_rgba(201,144,26,0.15),inset_0_1px_0_rgba(240,192,48,0.1)]',
+        isMaxed && 'opacity-60',
         className
       )}
     >
@@ -51,21 +52,34 @@ export function UpgradeCard({
             <h3 className="font-heading text-game-base text-game-text-white uppercase tracking-wide truncate">
               {title}
             </h3>
-            <span className="shrink-0 text-game-xs font-body text-game-text-secondary">
+            <span className="shrink-0 text-game-xs font-heading text-game-gold uppercase">
               Lvl {currentLevel}{maxLevel && ` / ${maxLevel}`}
             </span>
           </div>
+
+          {maxLevel && (
+            <div className="progress-bar h-1.5 mb-2">
+              <div
+                className="progress-fill progress-fill-gold"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+
           {description && (
-            <p className="text-game-sm text-game-text-secondary font-body leading-snug">
+            <p className="text-game-sm text-game-text-secondary font-body leading-snug mb-2">
               {description}
             </p>
           )}
-          <div className="flex flex-wrap gap-2 mt-3">
-            {cost.gold  !== undefined && cost.gold  > 0 && <CostPill label="Gold"  amount={cost.gold}  color="text-res-gold" />}
-            {cost.iron  !== undefined && cost.iron  > 0 && <CostPill label="Iron"  amount={cost.iron}  color="text-res-iron" />}
-            {cost.wood  !== undefined && cost.wood  > 0 && <CostPill label="Wood"  amount={cost.wood}  color="text-res-wood" />}
-            {cost.food  !== undefined && cost.food  > 0 && <CostPill label="Food"  amount={cost.food}  color="text-res-food" />}
-          </div>
+
+          {!isMaxed && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {cost.gold  !== undefined && cost.gold  > 0 && <CostPill label="Gold"  amount={cost.gold}  color="text-res-gold"  affordable={canAfford} />}
+              {cost.iron  !== undefined && cost.iron  > 0 && <CostPill label="Iron"  amount={cost.iron}  color="text-res-iron"  affordable={canAfford} />}
+              {cost.wood  !== undefined && cost.wood  > 0 && <CostPill label="Wood"  amount={cost.wood}  color="text-res-wood"  affordable={canAfford} />}
+              {cost.food  !== undefined && cost.food  > 0 && <CostPill label="Food"  amount={cost.food}  color="text-res-food"  affordable={canAfford} />}
+            </div>
+          )}
         </div>
         <Button
           variant="success"
@@ -82,9 +96,13 @@ export function UpgradeCard({
   )
 }
 
-function CostPill({ label, amount, color }: { label: string; amount: number; color: string }) {
+function CostPill({ label, amount, color, affordable }: { label: string; amount: number; color: string; affordable: boolean }) {
   return (
-    <span className="flex items-center gap-1 text-game-xs font-body bg-game-elevated rounded px-2 py-0.5">
+    <span className={cn(
+      'flex items-center gap-1 text-game-xs font-body rounded-full px-2.5 py-0.5',
+      'bg-game-bg/60 border border-game-border/60',
+      !affordable && 'opacity-60'
+    )}>
       <span className={cn('font-semibold', color)}>{formatNumber(amount)}</span>
       <span className="text-game-text-muted">{label}</span>
     </span>

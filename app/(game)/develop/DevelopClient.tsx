@@ -187,7 +187,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
           Development
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -198,7 +198,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -209,7 +209,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
       )}
 
       {/* Resources */}
-      <div className="flex flex-wrap gap-4 bg-game-surface border border-game-border rounded-lg p-4">
+      <div className="flex flex-wrap gap-4 card-game p-4">
         <ResourceBadge type="gold" amount={localResources.gold} showLabel />
         <ResourceBadge type="iron" amount={localResources.iron} showLabel />
         <ResourceBadge type="wood" amount={localResources.wood} showLabel />
@@ -218,7 +218,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       {/* Upgrade Cards */}
       <div>
-        <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
+        <h2 className="panel-header text-game-gold mb-3">
           Infrastructure Upgrades
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -264,9 +264,11 @@ export function DevelopClient({ player, development, resources, army }: Props) {
         </div>
       </div>
 
+      <div className="divider-ornate" />
+
       {/* Population Per Tick Table */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4">
-        <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
+      <div className="panel-ornate p-4">
+        <h2 className="panel-header text-game-gold mb-3">
           Population Per Tick (by Level)
         </h2>
         <GameTable
@@ -282,8 +284,8 @@ export function DevelopClient({ player, development, resources, army }: Props) {
       </div>
 
       {/* City Progression */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4">
-        <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
+      <div className="panel-ornate p-4">
+        <h2 className="panel-header text-game-gold mb-3">
           City Progression
         </h2>
         <div className="space-y-4">
@@ -297,9 +299,11 @@ export function DevelopClient({ player, development, resources, army }: Props) {
             </span>
           </div>
 
+          <div className="divider-gold" />
+
           {hasNextCity ? (
-            <div className="border border-game-border rounded-lg p-4 space-y-3">
-              <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-secondary">
+            <div className="card-game p-4 space-y-3">
+              <p className="font-heading text-game-sm uppercase tracking-wide text-game-gold">
                 Next: City {nextCityNum} — {nextCityName}
               </p>
               <div className="space-y-2 text-game-sm font-body">

@@ -27,7 +27,7 @@ export default function VipPage() {
               <Gem className="size-8 text-pink-400" />
             </div>
             <div>
-              <h1 className="font-display text-game-3xl text-pink-300 uppercase tracking-wide">💎 חנות יהלומים</h1>
+              <h1 className="font-display text-game-3xl text-pink-300 text-title-glow uppercase tracking-wide">💎 חנות יהלומים</h1>
               <p className="text-game-sm text-game-text-secondary font-body mt-1">
                 שדרג את האימפריה שלך עם יהלומים פרימיום
               </p>
@@ -57,7 +57,7 @@ export default function VipPage() {
 
       {/* Packages */}
       <div>
-        <h2 className="font-display text-game-xl text-game-text-white uppercase tracking-wide text-center mb-4">
+        <h2 className="font-display text-game-xl gold-gradient-text-static uppercase tracking-wide text-center mb-4">
           חבילות יהלומים
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -112,7 +112,7 @@ export default function VipPage() {
 
       {/* What you can do */}
       <div>
-        <h2 className="font-heading text-game-base text-game-text-secondary uppercase tracking-wider mb-3">מה ניתן לרכוש</h2>
+        <h2 className="font-heading text-game-base gold-gradient-text-static uppercase tracking-wider mb-3">מה ניתן לרכוש</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: 'לחשי גיבור',      range: '50-200 💎', icon: '🧙' },
@@ -130,15 +130,15 @@ export default function VipPage() {
       </div>
 
       {/* Security */}
-      <div className="card-game p-4 flex flex-wrap items-center gap-4">
+      <div className="panel-ornate p-4 flex flex-wrap items-center gap-4">
         <Lock className="size-5 text-game-green-bright shrink-0" />
         <div className="flex-1">
-          <p className="font-heading text-game-sm text-game-text-white">תשלום מאובטח</p>
+          <p className="font-heading text-game-sm text-game-gold">תשלום מאובטח</p>
           <p className="text-game-xs text-game-text-muted font-body">כל העסקאות מוצפנות ומאובטחות</p>
         </div>
         <div className="flex gap-3 text-game-text-muted text-game-sm">
           {['Visa', 'Mastercard', 'PayPal', 'Apple Pay'].map(m => (
-            <span key={m} className="px-2 py-0.5 rounded bg-game-elevated border border-game-border text-game-xs font-body">
+            <span key={m} className="px-2 py-0.5 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border text-game-xs font-body">
               {m}
             </span>
           ))}

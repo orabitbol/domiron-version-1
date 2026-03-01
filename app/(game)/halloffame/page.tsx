@@ -28,7 +28,7 @@ export default async function HallOfFamePage() {
             <Trophy className="size-5 text-game-gold-bright" />
           </div>
           <div>
-            <h1 className="font-display text-game-2xl gold-gradient-text-static uppercase tracking-wide">
+            <h1 className="font-display text-game-2xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
               היכל התהילה
             </h1>
             <p className="text-game-sm text-game-text-secondary font-body">גיבורי העונות הקודמות</p>
@@ -41,7 +41,7 @@ export default async function HallOfFamePage() {
       </div>
 
       {completedSeasons.length === 0 ? (
-        <div className="card-game p-12 text-center">
+        <div className="panel-ornate p-12 text-center">
           <Trophy className="size-12 text-game-text-muted mx-auto mb-3" />
           <p className="font-heading text-game-base text-game-text-secondary">עדיין אין עונות שהסתיימו</p>
           <p className="text-game-sm text-game-text-muted font-body mt-1">
@@ -55,10 +55,10 @@ export default async function HallOfFamePage() {
           const tribeEntries  = seasonEntries.filter(e => e.type === 'tribe').slice(0, 3)
 
           return (
-            <div key={season.id} className="card-game overflow-hidden">
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-game-border bg-game-elevated/40">
+            <div key={season.id} className="panel-ornate overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 panel-header">
                 <Trophy className="size-4 text-game-gold" />
-                <h2 className="font-display text-game-base text-game-gold-bright">עונה {season.number}</h2>
+                <h2 className="font-display text-game-base gold-gradient-text-static">עונה {season.number}</h2>
                 {season.ended_at && (
                   <span className="text-game-xs text-game-text-muted font-body ms-auto">
                     הסתיימה {new Date(season.ended_at).toLocaleDateString('he-IL')}
@@ -66,7 +66,7 @@ export default async function HallOfFamePage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x-reverse md:divide-x divide-game-border">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x-reverse md:divide-x divide-game-gold/20">
                 {/* Top Players */}
                 <div className="p-4">
                   <h3 className="font-heading text-game-xs uppercase tracking-wider text-game-text-secondary mb-3">

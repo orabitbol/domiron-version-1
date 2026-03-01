@@ -190,7 +190,7 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide text-title-glow">
           Hero
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -201,7 +201,7 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -212,7 +212,7 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       )}
 
       {/* Hero Stats */}
-      <div className="bg-game-surface border-2 border-game-purple rounded-lg p-5 space-y-4">
+      <div className="panel-ornate rounded-game-lg p-5 space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="font-heading text-game-xl text-game-purple-bright uppercase tracking-wide">
@@ -232,12 +232,12 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
         {/* XP Bar */}
         <div>
           <div className="flex justify-between text-game-xs font-body text-game-text-muted mb-1">
-            <span>XP</span>
+            <span className="font-heading">XP</span>
             <span>{formatNumber(hero.xp)} / {formatNumber(xpForNextLevel)}</span>
           </div>
-          <div className="w-full bg-game-elevated rounded-full h-3 overflow-hidden">
+          <div className="progress-bar">
             <div
-              className="h-3 rounded-full bg-gradient-to-r from-game-purple to-game-purple-bright transition-all"
+              className="progress-fill progress-fill-purple"
               style={{ width: `${xpPct}%` }}
             />
           </div>
@@ -247,19 +247,20 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
         {/* Mana Bar */}
         <div>
           <div className="flex justify-between text-game-xs font-body text-game-text-muted mb-1">
-            <span>Mana</span>
+            <span className="font-heading">Mana</span>
             <span>{hero.mana} / 100</span>
           </div>
-          <div className="w-full bg-game-elevated rounded-full h-3 overflow-hidden">
+          <div className="progress-bar">
             <div
-              className="h-3 rounded-full bg-gradient-to-r from-blue-700 to-blue-400 transition-all"
+              className="progress-fill progress-fill-blue"
               style={{ width: `${manaPct}%` }}
             />
           </div>
         </div>
 
         {/* Mana regen info */}
-        <div className="grid grid-cols-3 gap-3 text-game-xs font-body text-game-text-muted pt-2 border-t border-game-border">
+        <div className="divider-ornate" />
+        <div className="grid grid-cols-3 gap-3 text-game-xs font-body text-game-text-muted">
           <div>
             <span className="font-semibold text-game-text">Base: </span>
             +{BALANCE.hero.manaPerTick?.base ?? 1}/tick
@@ -280,10 +281,12 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       </div>
 
       {/* Shields */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4">
-        <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
-          Active Shields
-        </h2>
+      <div className="card-game rounded-game-lg p-4">
+        <div className="panel-header mb-3">
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+            Active Shields
+          </h2>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
           {/* Soldier Shield */}
@@ -320,9 +323,9 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       </div>
 
       {/* Spell Tree */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4">
+      <div className="card-game rounded-game-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">
             Spell Tree
           </h2>
           <Badge variant={hero.spell_points > 0 ? 'gold' : 'default'}>
@@ -350,11 +353,11 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
                           key={row}
                           disabled={isPurchased || !isUnlocked || hero.spell_points <= 0 || loading === spellKey}
                           onClick={() => handlePurchaseSpell(spellKey)}
-                          className={`w-full rounded border p-2 text-center transition-colors duration-150 font-body text-game-xs cursor-pointer disabled:cursor-not-allowed ${
+                          className={`w-full rounded-game-lg border p-2 text-center transition-colors duration-150 font-body text-game-xs cursor-pointer disabled:cursor-not-allowed ${
                             isPurchased
                               ? 'bg-game-purple/30 border-game-purple text-game-purple-bright'
                               : isUnlocked && hero.spell_points > 0
-                              ? 'bg-game-elevated border-game-border text-game-text hover:border-game-border-gold hover:text-game-text-white'
+                              ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border text-game-text hover:border-game-border-gold hover:text-game-text-white'
                               : 'bg-game-bg border-game-border/50 text-game-text-muted opacity-50'
                           }`}
                         >
@@ -404,7 +407,7 @@ function ShieldCard({
   const canActivate = status.state === 'available' && currentMana >= manaCost && !loading
 
   return (
-    <div className="p-3 rounded-lg bg-game-elevated border border-game-border">
+    <div className="p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

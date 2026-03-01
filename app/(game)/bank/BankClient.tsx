@@ -114,7 +114,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide text-title-glow">
           The Treasury
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -125,7 +125,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -136,13 +136,13 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       )}
 
       {/* Bank Overview */}
-      <div className="bg-game-surface border-2 border-game-border-gold rounded-lg p-6 space-y-4">
+      <div className="panel-ornate rounded-game-lg p-6 space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <p className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">
               Bank Balance
             </p>
-            <p className="font-display text-game-3xl text-game-gold-bright mt-1">
+            <p className="font-display text-game-3xl text-game-gold mt-1">
               {formatNumber(bank.balance)}
             </p>
             <ResourceBadge type="gold" amount={bank.balance} />
@@ -152,10 +152,11 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
           </Badge>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-game-border">
+        <div className="divider-gold" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div>
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Interest Rate</p>
-            <p className="text-game-base text-game-green-bright font-body font-semibold">
+            <p className="text-game-base text-game-gold font-body font-semibold">
               {interestRate.toFixed(3)}%/tick
             </p>
             <p className="text-game-xs text-game-text-muted font-body">Level {bank.interest_level}</p>
@@ -169,7 +170,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
           </div>
           <div>
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Gold on Hand</p>
-            <p className="text-game-base text-res-gold font-body font-semibold">
+            <p className="text-game-base text-game-gold font-body font-semibold">
               {formatNumber(resources.gold)}
             </p>
           </div>
@@ -179,10 +180,12 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       {/* Deposit & Withdraw */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Deposit */}
-        <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-3">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-            Deposit Gold
-          </h2>
+        <div className="card-game rounded-game-lg p-4 space-y-3">
+          <div className="panel-header">
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+              Deposit Gold
+            </h2>
+          </div>
           <p className="text-game-xs text-game-text-muted font-body">
             Max deposit: {formatNumber(maxDeposit)} ({(BALANCE.bank.maxDepositPercent * 100).toFixed(0)}% of gold on hand).
             {depositsRemaining <= 0 && (
@@ -225,10 +228,12 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
         </div>
 
         {/* Withdraw */}
-        <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-3">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-            Withdraw Gold
-          </h2>
+        <div className="card-game rounded-game-lg p-4 space-y-3">
+          <div className="panel-header">
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+              Withdraw Gold
+            </h2>
+          </div>
           <p className="text-game-xs text-game-text-muted font-body">
             Available to withdraw: {formatNumber(bank.balance)} Gold
           </p>
@@ -268,10 +273,10 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       </div>
 
       {/* Upgrade Interest */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4">
+      <div className="card-game rounded-game-lg p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">
               Upgrade Interest Rate
             </h2>
             <p className="text-game-sm text-game-text-secondary font-body mt-1">

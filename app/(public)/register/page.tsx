@@ -7,13 +7,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { Race } from '@/types/game'
 
 const RACES: { value: Race; label: string; bonus: string; image: string }[] = [
-  { value: 'orc',   label: 'Orc',   bonus: '+10% Attack, +3% Defense',             image: '/character/orc.png' },
-  { value: 'human', label: 'Human', bonus: '+15% Gold Production, +3% Attack',     image: '/character/human.png' },
-  { value: 'elf',   label: 'Elf',   bonus: '+20% Spy & Scout Power',               image: '/character/fairy.png' },
-  { value: 'dwarf', label: 'Dwarf', bonus: '+15% Defense, +3% Gold Production',    image: '/character/dwarf.png' },
+  { value: 'orc',   label: 'Orc',   bonus: '+10% Attack, +3% Defense',          image: '/character/orc.png' },
+  { value: 'human', label: 'Human', bonus: '+15% Gold Production, +3% Attack',  image: '/character/human.png' },
+  { value: 'elf',   label: 'Elf',   bonus: '+20% Spy & Scout Power',            image: '/character/fairy.png' },
+  { value: 'dwarf', label: 'Dwarf', bonus: '+15% Defense, +3% Gold Production', image: '/character/dwarf.png' },
 ]
 
 export default function RegisterPage() {
@@ -51,7 +52,6 @@ export default function RegisterPage() {
       return
     }
 
-    // Auto-login after register
     await signIn('credentials', {
       email:    form.email,
       password: form.password,
@@ -66,16 +66,17 @@ export default function RegisterPage() {
       <div className="w-full max-w-md animate-fade-up">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="font-display text-game-4xl text-game-gold-bright uppercase tracking-widest drop-shadow-lg">
+          <h1 className="font-display text-game-4xl gold-gradient-text uppercase tracking-widest text-title-glow">
             Domiron
           </h1>
           <p className="text-game-text-secondary font-body mt-2">Join the Battle</p>
         </div>
 
-        <div className="bg-game-surface/80 backdrop-blur-game border border-game-border-gold/40 rounded-game-xl p-6 shadow-panel">
-          <h2 className="font-heading text-game-xl text-game-text-white uppercase tracking-wide mb-6 text-center">
+        <div className="panel-ornate p-6">
+          <h2 className="font-heading text-game-xl text-game-gold-bright uppercase tracking-wide mb-2 text-center text-title-glow">
             Create Account
           </h2>
+          <div className="divider-gold mb-6" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -114,7 +115,7 @@ export default function RegisterPage() {
 
             {/* Race selection */}
             <div className="space-y-2">
-              <label className="text-game-sm font-body text-game-text-secondary font-medium block">
+              <label className="text-game-sm font-heading text-game-text-secondary font-semibold uppercase tracking-wider block">
                 Choose Race
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -123,15 +124,19 @@ export default function RegisterPage() {
                     key={race.value}
                     type="button"
                     onClick={() => update('race', race.value)}
-                    className={`
-                      relative text-center p-3 rounded-game-lg border-2 transition-all duration-200 cursor-pointer overflow-hidden
-                      ${form.race === race.value
-                        ? 'border-game-gold-bright bg-game-gold/15 text-game-text-white shadow-gold-glow scale-[1.02]'
-                        : 'border-game-border bg-game-elevated/80 text-game-text-secondary hover:border-game-border-gold hover:bg-game-elevated'
-                      }
-                    `}
+                    className={cn(
+                      'relative text-center p-3 rounded-game-lg border transition-all duration-200 cursor-pointer overflow-hidden',
+                      form.race === race.value
+                        ? 'border-game-gold-bright bg-gradient-to-b from-game-gold/15 to-game-gold/5 text-game-text-white shadow-gold-glow scale-[1.02]'
+                        : 'border-game-border bg-game-elevated/50 text-game-text-secondary hover:border-game-border-gold hover:bg-game-elevated'
+                    )}
                   >
-                    <div className="relative w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden border border-game-border-gold/50">
+                    <div className={cn(
+                      'relative w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden border-2 transition-all',
+                      form.race === race.value
+                        ? 'border-game-gold shadow-gold-glow-sm'
+                        : 'border-game-border/50'
+                    )}>
                       <Image
                         src={race.image}
                         alt={race.label}

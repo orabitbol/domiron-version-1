@@ -16,10 +16,12 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      'z-50 max-w-xs rounded border border-game-border',
-      'bg-game-overlay px-3 py-2',
+      'z-50 max-w-xs rounded-game',
+      'bg-game-elevated/95 backdrop-blur-sm px-3 py-2',
+      'border border-game-border-gold/40',
       'text-game-xs text-game-text font-body',
-      'shadow-lg animate-fade-in',
+      'shadow-[0_4px_16px_rgba(0,0,0,0.5),0_0_0_1px_rgba(201,144,26,0.06)]',
+      'animate-fade-in',
       className
     )}
     {...props}

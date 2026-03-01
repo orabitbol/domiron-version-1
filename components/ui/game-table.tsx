@@ -16,14 +16,18 @@ export function GameTable({ headers, rows, striped, hoverable, loading, classNam
   }
 
   return (
-    <div className={cn('w-full overflow-x-auto rounded-lg border border-game-border', className)}>
+    <div className={cn(
+      'w-full overflow-x-auto rounded-game-lg border border-game-border',
+      'shadow-[0_2px_12px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(240,192,48,0.04)]',
+      className
+    )}>
       <table className="w-full text-game-sm font-body">
         <thead>
-          <tr className="border-b border-game-border bg-game-elevated">
+          <tr className="border-b border-game-border-gold/50 bg-gradient-to-b from-game-elevated to-game-surface">
             {headers.map((header, i) => (
               <th
                 key={i}
-                className="px-4 py-3 text-start font-heading text-game-xs uppercase tracking-wider text-game-text-secondary"
+                className="px-4 py-3 text-start font-heading text-game-xs uppercase tracking-widest text-game-gold"
               >
                 {header}
               </th>
@@ -35,7 +39,7 @@ export function GameTable({ headers, rows, striped, hoverable, loading, classNam
             <tr>
               <td
                 colSpan={headers.length}
-                className="px-4 py-8 text-center text-game-text-muted"
+                className="px-4 py-10 text-center text-game-text-muted font-heading uppercase tracking-wide"
               >
                 No data available
               </td>
@@ -45,9 +49,9 @@ export function GameTable({ headers, rows, striped, hoverable, loading, classNam
               <tr
                 key={rowIdx}
                 className={cn(
-                  'border-b border-game-border last:border-0',
-                  striped && rowIdx % 2 === 1 && 'bg-game-elevated/40',
-                  hoverable && 'hover:bg-game-elevated transition-colors duration-100'
+                  'border-b border-game-border/60 last:border-0 transition-all duration-150',
+                  striped && rowIdx % 2 === 1 && 'bg-game-elevated/30',
+                  hoverable && 'hover:bg-game-gold/5 hover:shadow-[inset_2px_0_0_rgba(201,144,26,0.4)]'
                 )}
               >
                 {row.map((cell, colIdx) => (
@@ -64,11 +68,10 @@ export function GameTable({ headers, rows, striped, hoverable, loading, classNam
   )
 }
 
-// Skeleton loading state for tables
 export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="w-full rounded-lg border border-game-border overflow-hidden">
-      <div className="bg-game-elevated px-4 py-3 border-b border-game-border">
+    <div className="w-full rounded-game-lg border border-game-border overflow-hidden">
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface px-4 py-3 border-b border-game-border-gold/50">
         <div className="flex gap-8">
           {Array.from({ length: cols }).map((_, i) => (
             <div key={i} className="h-3 w-16 rounded shimmer" />
@@ -79,8 +82,8 @@ export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
         <div
           key={i}
           className={cn(
-            'flex gap-8 px-4 py-3 border-b border-game-border last:border-0',
-            i % 2 === 1 && 'bg-game-elevated/40'
+            'flex gap-8 px-4 py-3 border-b border-game-border/60 last:border-0',
+            i % 2 === 1 && 'bg-game-elevated/30'
           )}
         >
           {Array.from({ length: cols }).map((_, j) => (
@@ -92,7 +95,6 @@ export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
   )
 }
 
-// Empty state component (from design-system.md)
 interface EmptyStateProps {
   icon?: React.ReactNode
   title: string
@@ -102,21 +104,21 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+    <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
       {icon && (
-        <div className="text-game-text-muted size-12 flex items-center justify-center">
+        <div className="text-game-text-muted size-14 flex items-center justify-center opacity-60">
           {icon}
         </div>
       )}
-      <h3 className="font-heading text-game-lg text-game-text uppercase tracking-wide">
+      <h3 className="font-heading text-game-lg text-game-text uppercase tracking-wide text-title-glow">
         {title}
       </h3>
       {description && (
-        <p className="text-game-sm text-game-text-secondary font-body max-w-xs">
+        <p className="text-game-sm text-game-text-secondary font-body max-w-sm leading-relaxed">
           {description}
         </p>
       )}
-      {action && <div className="mt-2">{action}</div>}
+      {action && <div className="mt-3">{action}</div>}
     </div>
   )
 }

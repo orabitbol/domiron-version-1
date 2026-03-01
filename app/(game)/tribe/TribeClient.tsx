@@ -213,7 +213,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide text-title-glow">
           {tribe ? tribe.name : 'Tribe'}
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -224,7 +224,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -238,10 +238,12 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       {!tribe && (
         <>
           {/* Create tribe form */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-4">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-              Found a Tribe
-            </h2>
+          <div className="card-game rounded-game-lg p-4 space-y-4">
+            <div className="panel-header">
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+                Found a Tribe
+              </h2>
+            </div>
             <p className="text-game-sm text-game-text-muted font-body">
               Establish your own tribe in City {player.city}.
             </p>
@@ -272,10 +274,12 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
           </div>
 
           {/* Joinable tribes */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-4">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
-              Tribes in City {player.city}
-            </h2>
+          <div className="card-game rounded-game-lg p-4">
+            <div className="panel-header mb-3">
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+                Tribes in City {player.city}
+              </h2>
+            </div>
             {joinableTribes.length === 0 ? (
               <EmptyState
                 title="No Tribes Available"
@@ -318,29 +322,31 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
               { label: 'Mana',       value: String(tribe.mana) },
               { label: 'Members',    value: `${localMembers.length} / ${tribe.max_members}` },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-game-surface border border-game-border rounded-lg p-3 text-center">
+              <div key={label} className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 text-center">
                 <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">{label}</p>
-                <p className="text-game-base text-game-text-white font-body font-semibold mt-0.5">{value}</p>
+                <p className="text-game-base text-game-gold font-body font-semibold mt-0.5">{value}</p>
               </div>
             ))}
           </div>
 
           {/* Anthem */}
           {tribe.anthem && (
-            <div className="bg-game-surface border border-game-border rounded-lg p-3">
+            <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
               <p className="text-game-sm text-game-text-secondary font-body italic">&quot;{tribe.anthem}&quot;</p>
             </div>
           )}
 
           {/* Tax section */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-4 space-y-3">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-              Tribute
-            </h2>
+          <div className="card-game rounded-game-lg p-4 space-y-3">
+            <div className="panel-header">
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+                Tribute
+              </h2>
+            </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-game-sm text-game-text-secondary font-body">
-                  Daily Tax: <span className="text-res-gold font-semibold">{formatNumber(tribe.tax_amount)} Gold</span>
+                  Daily Tax: <span className="text-game-gold font-semibold">{formatNumber(tribe.tax_amount)} Gold</span>
                 </p>
                 <p className="text-game-xs text-game-text-muted font-body mt-0.5">
                   Status: {memberPaid
@@ -366,10 +372,12 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
 
           {/* Active Spells */}
           {tribeSpells.length > 0 && (
-            <div className="bg-game-surface border border-game-border rounded-lg p-4">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
-                Active Spells
-              </h2>
+            <div className="card-game rounded-game-lg p-4">
+              <div className="panel-header mb-3">
+                <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+                  Active Spells
+                </h2>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {tribeSpells.map((spell) => (
                   <Badge key={spell.spell_key} variant="purple">
@@ -384,10 +392,12 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
           )}
 
           {/* Members Table */}
-          <div className="bg-game-surface border border-game-border rounded-lg p-4">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white mb-3">
-              Members
-            </h2>
+          <div className="panel-ornate rounded-game-lg p-4">
+            <div className="panel-header mb-3">
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
+                Members
+              </h2>
+            </div>
             <GameTable
               headers={['Army', 'Player', 'Reputation', 'Rep %', 'Tax Paid', ...(canManage ? ['Action'] : [])]}
               striped
@@ -435,8 +445,8 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
 
           {/* Leader / Deputy Controls */}
           {canManage && (
-            <div className="bg-game-surface border border-game-border-gold rounded-lg p-4 space-y-4">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold-bright">
+            <div className="panel-ornate rounded-game-lg p-4 space-y-4">
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">
                 {isLeader ? 'Leader Controls' : 'Deputy Controls'}
               </h2>
 
@@ -469,6 +479,8 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
                 </div>
               )}
 
+              <div className="divider-gold" />
+
               {/* Tribe Spells */}
               <div>
                 <p className="text-game-sm text-game-text-secondary font-body mb-2">Activate tribe spells</p>
@@ -479,7 +491,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
                       return (
                         <div
                           key={spellKey}
-                          className="flex items-center justify-between rounded-lg bg-game-elevated border border-game-border p-2"
+                          className="flex items-center justify-between rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border p-2"
                         >
                           <div>
                             <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-white">

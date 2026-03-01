@@ -26,13 +26,12 @@ function StatPanel({
   link: string; linkLabel: string
 }) {
   return (
-    <div className={cn('rounded-game-xl border p-4 relative overflow-hidden', bgClass, borderClass)}>
-      {/* Glow corner */}
+    <div className={cn('panel-ornate rounded-game-lg p-4 relative overflow-hidden shadow-emboss', bgClass, borderClass)}>
       <div className={cn('absolute top-0 start-0 w-16 h-16 opacity-10 rounded-full blur-2xl', color)} />
 
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className={cn('p-1.5 rounded-lg', bgClass)}>
+          <div className={cn('p-1.5 rounded-game-lg', bgClass)}>
             <Icon className={cn('size-4', colorClass)} />
           </div>
           <div>
@@ -51,24 +50,23 @@ function StatPanel({
         </Link>
       </div>
 
-      {/* Power number */}
       <div className="mb-3">
-        <p className="text-game-xs text-game-text-muted font-body mb-0.5">כוח</p>
+        <p className="text-game-xs text-game-text-muted font-heading mb-0.5">כוח</p>
         <p className={cn('text-game-3xl font-display font-bold', colorClass)}>
           {formatNumber(power, true)}
         </p>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-2 border-t border-game-border pt-3">
+      <div className="divider-ornate" />
+      <div className="grid grid-cols-2 gap-2 pt-3">
         <div>
-          <p className="text-game-xs text-game-text-muted font-body">{unitLabel}</p>
+          <p className="text-game-xs text-game-text-muted font-heading">{unitLabel}</p>
           <p className="text-game-base text-game-text-white font-semibold tabular-nums">
             {formatNumber(units)}
           </p>
         </div>
         <div>
-          <p className="text-game-xs text-game-text-muted font-body">אימון</p>
+          <p className="text-game-xs text-game-text-muted font-heading">אימון</p>
           <p className="text-game-base text-game-text-white font-semibold">
             רמה {level}
           </p>
@@ -113,7 +111,7 @@ export default async function BasePage() {
       {/* ── Header ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide">
+          <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
             {player.army_name}
           </h1>
           <p className="text-game-sm text-game-text-secondary font-body mt-0.5">
@@ -147,7 +145,7 @@ export default async function BasePage() {
         ].map(({ label, value, icon, color }) => (
           <div
             key={label}
-            className="card-game p-3 text-center hover:border-game-border-gold/50 transition-colors duration-150"
+            className="card-game p-3 text-center shadow-emboss hover:border-game-border-gold/50 transition-colors duration-150"
           >
             <span className="text-xl">{icon}</span>
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wider mt-1">{label}</p>
@@ -166,7 +164,7 @@ export default async function BasePage() {
         ].map(({ label, value, emoji, color, bg }) => (
           <div
             key={label}
-            className={cn('card-game p-3 border', bg, 'hover:brightness-110 transition-all')}
+            className={cn('card-game p-3 border shadow-emboss hover:brightness-110 transition-all', bg)}
           >
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">{emoji}</span>
@@ -239,7 +237,7 @@ export default async function BasePage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Mana */}
         {hero && (
-          <div className="card-game p-4 border-game-purple/30 bg-game-purple/5">
+          <div className="card-game p-4 border-game-purple/30 bg-game-purple/5 shadow-emboss">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xl">🔮</span>
               <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">מאנה</p>
@@ -254,7 +252,7 @@ export default async function BasePage() {
         )}
 
         {/* Capacity / Population */}
-        <div className="card-game p-4">
+        <div className="card-game p-4 shadow-emboss">
           <div className="flex items-center gap-2 mb-2">
             <Users className="size-4 text-game-text-secondary" />
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">כוח אדם</p>
@@ -264,12 +262,12 @@ export default async function BasePage() {
             <span className="text-game-sm text-game-text-muted font-body">/{formatNumber(player.capacity)}</span>
           </p>
           {/* Capacity bar */}
-          <div className="mt-2 w-full bg-game-elevated rounded-full h-1.5 overflow-hidden">
+          <div className="progress-bar mt-2">
             <div
               className={cn(
-                'h-1.5 rounded-full transition-all',
-                capacityPct >= 90 ? 'bg-game-red-bright' :
-                capacityPct >= 70 ? 'bg-game-gold' : 'bg-game-green-bright'
+                'progress-fill',
+                capacityPct >= 90 ? 'progress-fill-red' :
+                capacityPct >= 70 ? 'progress-fill-gold' : 'progress-fill-green'
               )}
               style={{ width: `${capacityPct}%` }}
             />
@@ -278,7 +276,7 @@ export default async function BasePage() {
         </div>
 
         {/* Total Power */}
-        <div className="card-gold p-4">
+        <div className="card-gold p-4 shadow-emboss">
           <div className="flex items-center gap-2 mb-2">
             <Zap className="size-4 text-game-gold-bright" />
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">כוח כולל</p>
@@ -296,13 +294,14 @@ export default async function BasePage() {
       </div>
 
       {/* ── Army detail row ─────────────────────────────── */}
-      <div className="card-game p-4">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
+        <div className="panel-header flex items-center gap-2 mb-4">
           <Crown className="size-4 text-game-gold" />
-          <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">
+          <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
             סיכום צבאי
           </h2>
         </div>
+        <div className="divider-gold mb-4" />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
           {[
             { label: 'חיילים',       value: army?.soldiers ?? 0 },
@@ -315,7 +314,7 @@ export default async function BasePage() {
             { label: 'קיבולת',       value: player.capacity },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col">
-              <span className="text-game-xs text-game-text-muted font-body">{label}</span>
+              <span className="text-game-xs text-game-text-muted font-heading">{label}</span>
               <span className="text-game-base text-game-text-white font-semibold tabular-nums">
                 {formatNumber(value)}
               </span>

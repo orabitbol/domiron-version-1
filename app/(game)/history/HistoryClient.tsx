@@ -108,7 +108,7 @@ export function HistoryClient({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+        <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
           Battle History
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
@@ -262,40 +262,43 @@ export function HistoryClient({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-game-xs text-game-text-muted font-body">
-            Page {currentPage} of {totalPages} · {formatNumber(getCount())} total
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={currentPage <= 1}
-              onClick={() => handlePage(currentPage - 1)}
-            >
-              Previous
-            </Button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const p = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
-              return (
-                <Button
-                  key={p}
-                  variant={p === currentPage ? 'primary' : 'ghost'}
-                  size="sm"
-                  onClick={() => handlePage(p)}
-                >
-                  {p}
-                </Button>
-              )
-            })}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={currentPage >= totalPages}
-              onClick={() => handlePage(currentPage + 1)}
-            >
-              Next
-            </Button>
+        <div className="pt-4 space-y-4">
+          <div className="divider-ornate" />
+          <div className="flex items-center justify-between">
+            <p className="text-game-xs text-game-text-muted font-body">
+              Page {currentPage} of {totalPages} · {formatNumber(getCount())} total
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => handlePage(currentPage - 1)}
+              >
+                Previous
+              </Button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
+                return (
+                  <Button
+                    key={p}
+                    variant={p === currentPage ? 'primary' : 'ghost'}
+                    size="sm"
+                    onClick={() => handlePage(p)}
+                  >
+                    {p}
+                  </Button>
+                )
+              })}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => handlePage(currentPage + 1)}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
       )}

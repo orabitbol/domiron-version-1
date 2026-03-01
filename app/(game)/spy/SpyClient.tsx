@@ -99,7 +99,7 @@ export function SpyClient({ player, army, training, targets }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+          <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
             Espionage
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
@@ -107,19 +107,19 @@ export function SpyClient({ player, army, training, targets }: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <div className="bg-game-surface border border-game-border rounded-lg px-3 py-2 text-center">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Turns</p>
-            <p className="text-game-base text-game-text-white font-semibold">
+            <p className="text-game-base text-game-gold font-semibold">
               {playerTurns} / {player.max_turns}
             </p>
           </div>
-          <div className="bg-game-surface border border-game-border rounded-lg px-3 py-2 text-center">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Spies</p>
-            <p className="text-game-base text-game-text-white font-semibold">{formatNumber(mySpies)}</p>
+            <p className="text-game-base text-game-gold font-semibold">{formatNumber(mySpies)}</p>
           </div>
-          <div className="bg-game-surface border border-game-border rounded-lg px-3 py-2 text-center">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Spy Lvl</p>
-            <p className="text-game-base text-game-text-white font-semibold">{training.spy_level}</p>
+            <p className="text-game-base text-game-gold font-semibold">{training.spy_level}</p>
           </div>
         </div>
       </div>
@@ -138,8 +138,8 @@ export function SpyClient({ player, army, training, targets }: Props) {
       )}
 
       {/* How spy works */}
-      <div className="bg-game-surface border border-game-border rounded-lg p-4 text-game-xs font-body text-game-text-muted space-y-1">
-        <p className="font-heading text-game-sm text-game-text-white uppercase tracking-wide mb-2">How Espionage Works</p>
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 text-game-xs font-body text-game-text-muted space-y-1">
+        <p className="font-heading text-game-sm text-game-gold uppercase tracking-wide mb-2">How Espionage Works</p>
         <p>Your <span className="text-game-text-white">Spy Power</span> is compared against the target&apos;s <span className="text-game-text-white">Scout Defense</span>.</p>
         <p>
           Spy Power = Spies × Training Multiplier × Weapon Multiplier × Race Bonus
@@ -284,19 +284,19 @@ export function SpyClient({ player, army, training, targets }: Props) {
 
             {/* Power comparison */}
             <div className="grid grid-cols-2 gap-3 text-game-sm font-body">
-              <div className="bg-game-elevated border border-game-border rounded p-3">
+              <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">
                   Your Spy Power
                 </p>
-                <p className="text-game-text-white font-semibold text-game-lg">
+                <p className="text-game-gold font-semibold text-game-lg">
                   {formatNumber(spyResult.spy_power)}
                 </p>
               </div>
-              <div className="bg-game-elevated border border-game-border rounded p-3">
+              <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">
                   Defender Scout Defense
                 </p>
-                <p className="text-game-text-white font-semibold text-game-lg">
+                <p className="text-game-gold font-semibold text-game-lg">
                   {formatNumber(spyResult.scout_defense)}
                 </p>
               </div>
@@ -351,14 +351,15 @@ export function SpyClient({ player, army, training, targets }: Props) {
 
 function RevealedIntel({ data }: { data: SpyRevealedData }) {
   return (
-    <div className="border-t border-game-border pt-3 space-y-3">
-      <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">
+    <div className="pt-3 space-y-3">
+      <div className="divider-ornate mb-3" />
+      <p className="text-game-xs text-game-gold font-heading uppercase tracking-wide">
         Intelligence Report — {data.army_name}
       </p>
 
       {/* Army */}
-      <div className="bg-game-elevated border border-game-border rounded p-3">
-        <p className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted mb-2">Army</p>
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
+        <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Army</p>
         <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-game-xs font-body">
           <div className="flex justify-between"><span className="text-game-text-secondary">Soldiers</span><span className="text-game-text-white">{formatNumber(data.soldiers)}</span></div>
           <div className="flex justify-between"><span className="text-game-text-secondary">Cavalry</span><span className="text-game-text-white">{formatNumber(data.cavalry)}</span></div>
@@ -370,8 +371,8 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
       </div>
 
       {/* Resources */}
-      <div className="bg-game-elevated border border-game-border rounded p-3">
-        <p className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted mb-2">Resources</p>
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
+        <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Resources</p>
         <div className="flex flex-wrap gap-3">
           <ResourceBadge type="gold" amount={data.gold} showLabel />
           <ResourceBadge type="iron" amount={data.iron} showLabel />
@@ -381,14 +382,14 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
       </div>
 
       {/* Power */}
-      <div className="bg-game-elevated border border-game-border rounded p-3">
-        <p className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted mb-2">Power</p>
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
+        <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Power</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-game-xs font-body">
           <div className="flex justify-between"><span className="text-game-text-secondary">Attack</span><span className="text-game-text-white">{formatNumber(data.power_attack)}</span></div>
           <div className="flex justify-between"><span className="text-game-text-secondary">Defense</span><span className="text-game-text-white">{formatNumber(data.power_defense)}</span></div>
           <div className="flex justify-between"><span className="text-game-text-secondary">Spy</span><span className="text-game-text-white">{formatNumber(data.power_spy)}</span></div>
           <div className="flex justify-between"><span className="text-game-text-secondary">Scout</span><span className="text-game-text-white">{formatNumber(data.power_scout)}</span></div>
-          <div className="flex justify-between col-span-2 border-t border-game-border pt-1 mt-1">
+          <div className="flex justify-between col-span-2 divider-gold pt-1 mt-1">
             <span className="text-game-text-secondary font-semibold">Total Power</span>
             <span className="text-game-gold-bright font-semibold">{formatNumber(data.power_total)}</span>
           </div>

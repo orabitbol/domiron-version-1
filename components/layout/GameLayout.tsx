@@ -10,8 +10,6 @@ import { PageTransition } from './PageTransition'
 import { PlayerProvider } from '@/lib/context/PlayerContext'
 import type { PlayerData } from '@/types/game'
 
-// GameContent renders the shell — ResourceBar and Sidebar source their own
-// data directly from PlayerContext, so no props need threading through here.
 function GameContent({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -19,7 +17,6 @@ function GameContent({ children }: { children: React.ReactNode }) {
       <ConnectionStatus />
       <Sidebar />
 
-      {/* Main content — offset for fixed header + sidebar */}
       <main
         className={cn(
           'pt-header',
@@ -28,8 +25,7 @@ function GameContent({ children }: { children: React.ReactNode }) {
           'min-h-screen'
         )}
       >
-        <div className="max-w-content mx-auto px-3 md:px-6 py-5">
-          {/* Glass panel */}
+        <div className="max-w-content mx-auto px-3 md:px-5 py-4">
           <div className="glass-panel p-4 md:p-6 min-h-[calc(100vh-5.5rem)]">
             <PageTransition>
               {children}

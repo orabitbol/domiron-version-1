@@ -27,27 +27,21 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8" dir="rtl">
-
-      {/* Stars / glow background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(201,144,26,0.06)_0%,transparent_60%)]" />
-      </div>
-
       <div className="relative w-full max-w-sm animate-fade-up">
 
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className={cn(
-              'size-20 rounded-2xl flex items-center justify-center text-4xl',
-              'bg-gradient-to-br from-game-gold/15 to-transparent',
+              'size-20 rounded-game-xl flex items-center justify-center text-4xl',
+              'bg-gradient-to-br from-game-gold/20 to-game-gold/5',
               'border border-game-gold/30 shadow-gold-glow',
               'animate-float'
             )}>
               ⚔️
             </div>
           </div>
-          <h1 className="font-display text-game-4xl gold-gradient-text uppercase tracking-widest">
+          <h1 className="font-display text-game-4xl gold-gradient-text uppercase tracking-widest text-title-glow">
             Domiron
           </h1>
           <p className="text-game-text-secondary font-body mt-2 text-game-sm">
@@ -56,14 +50,11 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className={cn(
-          'rounded-game-xl p-6 space-y-5',
-          'bg-game-surface/80 backdrop-blur-game',
-          'border border-game-border-gold/40 shadow-panel'
-        )}>
-          <h2 className="font-heading text-game-base text-game-text-white uppercase tracking-wider text-center">
+        <div className="panel-ornate p-6 space-y-5">
+          <h2 className="font-heading text-game-base text-game-gold-bright uppercase tracking-wider text-center text-title-glow">
             כניסה לחשבון
           </h2>
+          <div className="divider-gold" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
@@ -111,7 +102,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="divider-gold" />
+          <div className="divider-ornate" />
 
           <p className="text-center text-game-xs text-game-text-muted font-body">
             בכניסה הינך מסכים ל

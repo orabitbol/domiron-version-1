@@ -74,18 +74,18 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
 
       {/* ── A: Outcome header ──────────────────────────────────────── */}
       <div className="text-center space-y-1">
-        <p className={`font-display text-game-4xl uppercase tracking-wide ${outcomeColor}`}>
+        <p className={`font-display text-game-4xl uppercase tracking-wide text-title-glow ${outcomeColor}`}>
           {outcomeLabel}
         </p>
         <p className="text-game-text-muted font-body text-game-xs">
           Power Ratio: <span className="font-semibold text-game-text-white">{report.ratio.toFixed(2)}×</span>
         </p>
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <div className="bg-game-elevated border border-game-border rounded p-3">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Your Attack</p>
             <p className={`font-semibold text-game-lg ${outcomeColor}`}>{formatNumber(report.attacker.ecp_attack)}</p>
           </div>
-          <div className="bg-game-elevated border border-game-border rounded p-3">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Enemy Defense</p>
             <p className="font-semibold text-game-lg text-game-text-white">{formatNumber(report.defender.ecp_defense)}</p>
           </div>
@@ -93,7 +93,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
       </div>
 
       {/* ── B: You Spent ───────────────────────────────────────────── */}
-      <div className="bg-game-surface border border-game-border rounded p-3">
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Spent</p>
         <div className="flex gap-4 font-body text-game-sm">
           <span className="flex items-center gap-1.5">
@@ -108,14 +108,15 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
       </div>
 
       {/* ── C: Combat Results ──────────────────────────────────────── */}
-      <div className="bg-game-surface border border-game-border rounded p-3">
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Combat Results</p>
         <div className="font-body text-game-sm">
-          <div className="grid grid-cols-3 gap-2 text-game-xs text-game-text-muted font-heading uppercase border-b border-game-border pb-1 mb-2">
+          <div className="grid grid-cols-3 gap-2 text-game-xs text-game-text-muted font-heading uppercase pb-1 mb-2">
             <span>Unit</span>
             <span>You Lost</span>
             <span>Enemy Lost</span>
           </div>
+          <div className="divider-ornate mb-2" />
           <div className="grid grid-cols-3 gap-2 py-1">
             <span className="text-game-text-secondary">Soldiers</span>
             <span className={report.attacker.losses.soldiers > 0 ? 'text-game-red-bright font-semibold' : 'text-game-text-muted'}>
@@ -125,7 +126,8 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
               {formatNumber(report.defender.losses.soldiers)}
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-2 py-1 border-t border-game-border">
+          <div className="divider-ornate my-1" />
+          <div className="grid grid-cols-3 gap-2 py-1">
             <span className="text-game-text-secondary">Slaves Taken</span>
             <span className="text-game-text-muted">—</span>
             <span className={report.gained.slaves_created > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
@@ -136,7 +138,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
       </div>
 
       {/* ── D: You Gained — always shown, even when all zeros ─────── */}
-      <div className={`border rounded p-3 ${allGainsZero ? 'bg-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
+      <div className={`border rounded-game-lg p-3 shadow-engrave ${allGainsZero ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Gained</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
           {(['gold', 'iron', 'wood', 'food'] as const).map((res) => (
@@ -148,14 +150,14 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
             </div>
           ))}
         </div>
-        <div className="flex justify-between mt-2 pt-2 border-t border-game-border font-body text-game-sm">
+        <div className="divider-ornate my-2" />
+        <div className="flex justify-between font-body text-game-sm">
           <span className="text-game-text-secondary">Slaves</span>
           <span className={report.gained.slaves_created > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
             {formatNumber(report.gained.slaves_created)}
           </span>
         </div>
 
-        {/* Decay notice when gains are non-zero but loot was reduced */}
         {!allGainsZero && report.flags.anti_farm_decay_mult < 1 && (
           <p className="mt-2 text-game-xs text-game-text-muted font-body italic">
             Anti-farm decay applied (×{report.flags.anti_farm_decay_mult.toFixed(2)})
@@ -165,7 +167,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
 
       {/* ── WHY box — shown prominently BELOW the gains section whenever nothing was gained ── */}
       {allGainsZero && (
-        <div className="border border-amber-900/60 bg-amber-950/20 rounded p-3">
+        <div className="border border-amber-900/60 bg-amber-950/20 rounded-game-lg p-3 shadow-engrave">
           <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-bright mb-2">
             Why Nothing Was Gained
           </p>
@@ -179,7 +181,6 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
               ))}
             </ul>
           ) : (
-            /* Fallback: should not normally appear — means the server sent no reasons */
             <p className="font-body text-game-sm text-game-text-secondary">
               The enemy had no resources available to plunder.
             </p>
@@ -198,7 +199,7 @@ function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: b
     <div className="flex gap-1.5 items-center">
       <span
         title="Resource Shield"
-        className={`inline-block w-2.5 h-2.5 rounded-full border ${
+        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${
           resource
             ? 'bg-game-gold-bright border-game-gold-bright'
             : 'bg-transparent border-game-border'
@@ -206,7 +207,7 @@ function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: b
       />
       <span
         title="Soldier Shield"
-        className={`inline-block w-2.5 h-2.5 rounded-full border ${
+        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${
           soldier
             ? 'bg-blue-400 border-blue-400'
             : 'bg-transparent border-game-border'
@@ -277,7 +278,7 @@ export function AttackClient({ player, targets, resources }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-game-3xl text-game-gold-bright uppercase tracking-wide">
+          <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
             Attack
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
@@ -285,9 +286,9 @@ export function AttackClient({ player, targets, resources }: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <div className="bg-game-surface border border-game-border rounded-lg px-3 py-2 text-center">
+          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center shadow-emboss">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Turns</p>
-            <p className="text-game-base text-game-text-white font-semibold">{playerTurns} / {player.max_turns}</p>
+            <p className="text-game-base text-game-gold font-semibold">{playerTurns} / {player.max_turns}</p>
           </div>
           {playerResources && (
             <ResourceBadge type="food" amount={playerResources.food} showLabel />
@@ -298,7 +299,7 @@ export function AttackClient({ player, targets, resources }: Props) {
       {/* Message */}
       {message && (
         <div
-          className={`rounded border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -318,86 +319,88 @@ export function AttackClient({ player, targets, resources }: Props) {
       {/* Shield legend */}
       <div className="flex gap-4 text-game-xs font-body text-game-text-muted">
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-game-gold-bright" />
+          <span className="inline-block w-3 h-3 rounded-full bg-game-gold-bright shadow-emboss" />
           Resource Shield
         </span>
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400" />
+          <span className="inline-block w-3 h-3 rounded-full bg-blue-400 shadow-emboss" />
           Soldier Shield
         </span>
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-2.5 h-2.5 rounded-full border border-game-border" />
+          <span className="inline-block w-3 h-3 rounded-full border border-game-border" />
           Inactive
         </span>
       </div>
 
       {/* Targets table */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          title="No Targets Found"
-          description="No enemies match your search or are available to attack."
-        />
-      ) : (
-        <GameTable
-          headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Shields', 'Turns', 'Food Cost', 'Action']}
-          striped
-          hoverable
-          rows={filtered.map((target) => {
-            const t = getTargetTurns(target.id)
-            const cost = foodCost(t)
-            const canAttack =
-              playerTurns >= t &&
-              (playerResources?.food ?? 0) >= cost &&
-              !target.is_vacation
+      <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
+        {filtered.length === 0 ? (
+          <EmptyState
+            title="No Targets Found"
+            description="No enemies match your search or are available to attack."
+          />
+        ) : (
+          <GameTable
+            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Shields', 'Turns', 'Food Cost', 'Action']}
+            striped
+            hoverable
+            rows={filtered.map((target) => {
+              const t = getTargetTurns(target.id)
+              const cost = foodCost(t)
+              const canAttack =
+                playerTurns >= t &&
+                (playerResources?.food ?? 0) >= cost &&
+                !target.is_vacation
 
-            return [
-              <span key="rank" className="text-game-sm font-body tabular-nums">
-                {target.rank_city ? `#${target.rank_city}` : '—'}
-              </span>,
-              <div key="army">
-                <span className="font-heading text-game-sm uppercase text-game-text-white">
-                  {target.army_name}
-                </span>
-                {target.is_vacation && (
-                  <Badge variant="blue" className="ml-2">Vacation</Badge>
-                )}
-              </div>,
-              <span key="tribe" className="text-game-sm font-body text-game-text-muted">
-                {target.tribe_name ?? '—'}
-              </span>,
-              <span key="soldiers" className="text-game-sm font-body tabular-nums">
-                {formatNumber(target.soldiers)}
-              </span>,
-              <ShieldIndicators
-                key="shields"
-                resource={target.resource_shield_active}
-                soldier={target.soldier_shield_active}
-              />,
-              <Input
-                key="turns"
-                type="number"
-                value={turns[target.id] ?? '1'}
-                min={1}
-                max={10}
-                onChange={(e) =>
-                  setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))
-                }
-                className="w-16"
-              />,
-              <ResourceBadge key="cost" type="food" amount={cost} />,
-              <Button
-                key="attack"
-                variant="danger"
-                size="sm"
-                disabled={!canAttack}
-                onClick={() => setConfirmTarget(target)}
-              >
-                Attack
-              </Button>,
-            ]
-          })}
-        />
-      )}
+              return [
+                <span key="rank" className="text-game-sm font-body tabular-nums">
+                  {target.rank_city ? `#${target.rank_city}` : '—'}
+                </span>,
+                <div key="army">
+                  <span className="font-heading text-game-sm uppercase text-game-text-white">
+                    {target.army_name}
+                  </span>
+                  {target.is_vacation && (
+                    <Badge variant="blue" className="ml-2">Vacation</Badge>
+                  )}
+                </div>,
+                <span key="tribe" className="text-game-sm font-body text-game-text-muted">
+                  {target.tribe_name ?? '—'}
+                </span>,
+                <span key="soldiers" className="text-game-sm font-body tabular-nums">
+                  {formatNumber(target.soldiers)}
+                </span>,
+                <ShieldIndicators
+                  key="shields"
+                  resource={target.resource_shield_active}
+                  soldier={target.soldier_shield_active}
+                />,
+                <Input
+                  key="turns"
+                  type="number"
+                  value={turns[target.id] ?? '1'}
+                  min={1}
+                  max={10}
+                  onChange={(e) =>
+                    setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))
+                  }
+                  className="w-16"
+                />,
+                <ResourceBadge key="cost" type="food" amount={cost} />,
+                <Button
+                  key="attack"
+                  variant="danger"
+                  size="sm"
+                  disabled={!canAttack}
+                  onClick={() => setConfirmTarget(target)}
+                >
+                  Attack
+                </Button>,
+              ]
+            })}
+          />
+        )}
+      </div>
 
       {/* Attack confirmation modal */}
       <Modal
@@ -420,9 +423,10 @@ export function AttackClient({ player, targets, resources }: Props) {
                   soldier={confirmTarget.soldier_shield_active}
                 />
               </div>
+              <div className="divider-ornate my-1" />
               <div className="flex justify-between">
                 <span className="text-game-text-secondary">Turns</span>
-                <span className="text-game-text-white font-semibold">{getTargetTurns(confirmTarget.id)}</span>
+                <span className="text-game-gold font-semibold">{getTargetTurns(confirmTarget.id)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-game-text-secondary">Food Cost</span>

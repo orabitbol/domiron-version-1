@@ -30,16 +30,16 @@ export function useToast() {
 const MAX_TOASTS = 3
 
 const TOAST_STYLES: Record<ToastType, string> = {
-  attack:  'border-game-red bg-game-surface shadow-red-glow',
-  victory: 'border-game-green bg-game-surface',
-  defeat:  'border-game-red-bright bg-game-surface',
-  tick:    'border-game-border bg-game-surface',
-  tribe:   'border-game-purple bg-game-surface',
-  info:    'border-game-border-gold bg-game-surface',
-  error:   'border-game-red-bright bg-game-surface',
-  success: 'border-game-green bg-game-surface',
-  magic:   'border-game-purple bg-game-surface shadow-purple-glow',
-  warning: 'border-yellow-700 bg-game-surface',
+  attack:  'border-l-game-red-bright bg-gradient-to-r from-game-red/15 to-game-surface shadow-red-glow',
+  victory: 'border-l-game-green-bright bg-gradient-to-r from-game-green/15 to-game-surface shadow-green-glow',
+  defeat:  'border-l-game-red-bright bg-gradient-to-r from-game-red/10 to-game-surface',
+  tick:    'border-l-game-gold bg-gradient-to-r from-game-gold/8 to-game-surface',
+  tribe:   'border-l-game-purple-bright bg-gradient-to-r from-game-purple/15 to-game-surface shadow-purple-glow',
+  info:    'border-l-game-gold bg-gradient-to-r from-game-gold/8 to-game-surface',
+  error:   'border-l-game-red-bright bg-gradient-to-r from-game-red/15 to-game-surface',
+  success: 'border-l-game-green-bright bg-gradient-to-r from-game-green/10 to-game-surface',
+  magic:   'border-l-game-purple-bright bg-gradient-to-r from-game-purple/15 to-game-surface shadow-purple-glow',
+  warning: 'border-l-yellow-500 bg-gradient-to-r from-yellow-900/15 to-game-surface',
 }
 
 const TOAST_ICONS: Record<ToastType, string> = {
@@ -72,14 +72,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`
     setToasts(prev => {
       const next = [...prev, { ...toast, id }]
-      // Keep only the last MAX_TOASTS (dismiss oldest)
       return next.slice(-MAX_TOASTS)
     })
     const timer = setTimeout(() => removeToast(id), toast.duration)
     timers.current.set(id, timer)
   }, [removeToast])
 
-  // Clean up timers on unmount
   useEffect(() => {
     const t = timers.current
     return () => { t.forEach(clearTimeout) }
@@ -88,9 +86,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ addToast }}>
       {children}
-      {/* Toast container — top-right (same for both RTL and LTR per design-system.md) */}
       <div
-        className="fixed top-4 end-4 z-[9999] flex flex-col gap-2 pointer-events-none"
+        className="fixed top-4 end-4 z-[9999] flex flex-col gap-2.5 pointer-events-none"
         aria-live="polite"
         aria-label="Notifications"
       >
@@ -100,8 +97,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className={cn(
               'pointer-events-auto',
               'flex items-start gap-3',
-              'w-80 max-w-full rounded-lg border-2 px-4 py-3',
-              'shadow-xl animate-slide-in-right',
+              'w-80 max-w-full rounded-game-lg px-4 py-3',
+              'border border-game-border/60 border-l-[3px]',
+              'shadow-panel-ornate animate-slide-in-right',
               TOAST_STYLES[toast.type]
             )}
             onClick={toast.onClick}
@@ -122,7 +120,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); removeToast(toast.id) }}
-              className="text-game-text-muted hover:text-game-text transition-colors cursor-pointer shrink-0"
+              className="text-game-text-muted hover:text-game-gold transition-colors cursor-pointer shrink-0 p-0.5 rounded hover:bg-game-elevated/60"
               aria-label="Dismiss"
             >
               <X className="size-4" />

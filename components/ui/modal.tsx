@@ -17,7 +17,9 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/70 backdrop-blur-sm',
+      'fixed inset-0 z-50',
+      'bg-black/75 backdrop-blur-sm',
+      'bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0.8)_100%)]',
       'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-in',
       className
     )}
@@ -49,28 +51,28 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, className
         <DialogPrimitive.Content
           className={cn(
             'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
-            'w-full p-6 shadow-xl',
-            'bg-game-surface border border-game-border-gold rounded-lg',
+            'w-full p-6',
+            'panel-ornate',
             'animate-fade-in',
-            // Mobile: bottom sheet
-            'sm:rounded-lg',
+            'sm:rounded-game-lg',
             sizeClasses[size],
             className
           )}
         >
           {title && (
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-game-border">
-              <h2 className="font-heading text-game-xl text-game-text-white uppercase tracking-wide">
+            <div className="flex items-center justify-between mb-4 pb-3">
+              <h2 className="font-heading text-game-xl text-game-gold-bright uppercase tracking-wide text-title-glow">
                 {title}
               </h2>
               <DialogClose
                 onClick={onClose}
-                className="text-game-text-muted hover:text-game-text transition-colors cursor-pointer"
+                className="text-game-text-muted hover:text-game-gold transition-colors cursor-pointer p-1 rounded-game hover:bg-game-elevated"
               >
                 <X className="size-5" />
               </DialogClose>
             </div>
           )}
+          {title && <div className="divider-gold -mx-6 mb-4" />}
           {children}
         </DialogPrimitive.Content>
       </DialogPortal>

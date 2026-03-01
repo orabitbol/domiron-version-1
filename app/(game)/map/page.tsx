@@ -57,14 +57,14 @@ export default async function MapPage() {
           <Map className="size-5 text-game-blue-bright" />
         </div>
         <div>
-          <h1 className="font-display text-game-2xl gold-gradient-text-static uppercase tracking-wide">מפת ערים</h1>
+          <h1 className="font-display text-game-2xl gold-gradient-text-static text-title-glow uppercase tracking-wide">מפת ערים</h1>
           <p className="text-game-sm text-game-text-secondary font-body">עבור בין ערים ובחר את מיקומך האסטרטגי</p>
         </div>
       </div>
 
       {/* Current city card */}
-      <div className="p-4 rounded-game-xl bg-gradient-to-r from-game-blue/20 to-game-purple/10 border border-game-blue/30">
-        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wider mb-1">העיר הנוכחית שלך</p>
+      <div className="p-4 rounded-game-xl bg-gradient-to-b from-game-elevated to-game-surface border border-game-blue/30">
+        <p className="text-game-xs text-game-gold font-heading uppercase tracking-wider mb-1">העיר הנוכחית שלך</p>
         <div className="flex items-center gap-3">
           <span className="text-4xl">{CITIES[currentCity - 1]?.icon}</span>
           <div>
@@ -117,7 +117,7 @@ export default async function MapPage() {
               <h3 className="font-display text-game-lg text-game-text-white mb-1">{city.name}</h3>
               <p className="text-game-xs text-game-text-secondary font-body mb-3 leading-relaxed">{city.desc}</p>
 
-              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-game-border/50">
+              <div className="grid grid-cols-2 gap-2 pt-3 divider-gold">
                 <div>
                   <p className="text-game-xs text-game-text-muted font-body">מכפיל ייצור</p>
                   <p className="font-heading font-bold text-game-gold-bright">×{cityMultiplier}</p>
@@ -139,9 +139,9 @@ export default async function MapPage() {
       </div>
 
       {/* Info table */}
-      <div className="card-game overflow-hidden">
-        <div className="px-4 py-3 border-b border-game-border bg-game-elevated/40">
-          <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">מידע על ערים</h2>
+      <div className="panel-ornate overflow-hidden">
+        <div className="px-4 py-3 panel-header">
+          <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">מידע על ערים</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-game-sm font-body">

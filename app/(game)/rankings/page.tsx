@@ -12,7 +12,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 2) return <span className="text-xl">🥈</span>
   if (rank === 3) return <span className="text-xl">🥉</span>
   return (
-    <span className="size-7 flex items-center justify-center rounded-full bg-game-elevated border border-game-border font-heading text-game-xs font-bold text-game-text-secondary">
+    <span className="size-7 flex items-center justify-center rounded-full bg-gradient-to-b from-game-elevated to-game-surface border border-game-border font-heading text-game-xs font-bold text-game-text-secondary">
       {rank}
     </span>
   )
@@ -48,7 +48,7 @@ export default async function RankingsPage() {
             <Trophy className="size-5 text-game-gold-bright" />
           </div>
           <div>
-            <h1 className="font-display text-game-2xl gold-gradient-text-static uppercase tracking-wide">
+            <h1 className="font-display text-game-2xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
               לוח הדירוג
             </h1>
             <p className="text-game-sm text-game-text-secondary font-body">השחקנים החזקים ביותר בעולם</p>
@@ -64,10 +64,10 @@ export default async function RankingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ── Player Rankings ── */}
-        <div className="card-game overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-game-border bg-game-elevated/40">
+        <div className="panel-ornate overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 panel-header">
             <Crown className="size-4 text-game-gold" />
-            <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-text">שחקנים</h2>
+            <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">שחקנים</h2>
           </div>
           <div className="divide-y divide-game-border">
             {(players ?? []).map((p, i) => {
@@ -114,10 +114,10 @@ export default async function RankingsPage() {
         </div>
 
         {/* ── Tribe Rankings ── */}
-        <div className="card-game overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-game-border bg-game-elevated/40">
+        <div className="panel-ornate overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 panel-header">
             <Users className="size-4 text-game-gold" />
-            <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-text">שבטים</h2>
+            <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">שבטים</h2>
           </div>
           <div className="divide-y divide-game-border">
             {(tribes ?? []).map((t, i) => (
