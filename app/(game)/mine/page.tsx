@@ -22,5 +22,14 @@ export default async function MinePage() {
 
   if (!player || !army || !development) return null
 
-  return <MineClient player={player} army={army} development={development} />
+  // Ensure assignment fields are numbers (schema: INT NOT NULL DEFAULT 0); avoids NaN when DB returns null
+  const armyForClient = {
+    ...army,
+    slaves_gold: typeof army.slaves_gold === 'number' ? army.slaves_gold : 0,
+    slaves_iron: typeof army.slaves_iron === 'number' ? army.slaves_iron : 0,
+    slaves_wood: typeof army.slaves_wood === 'number' ? army.slaves_wood : 0,
+    slaves_food: typeof army.slaves_food === 'number' ? army.slaves_food : 0,
+  }
+
+  return <MineClient player={player} army={armyForClient} development={development} />
 }

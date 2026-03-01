@@ -117,12 +117,13 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
       } else {
         setMessage({ text: 'Slave assignment saved!', type: 'success' })
         if (data.data?.army) {
-          setArmy(data.data.army)
+          const a = data.data.army
+          setArmy(a)
           setAssignments({
-            gold: data.data.army.slaves_gold,
-            iron: data.data.army.slaves_iron,
-            wood: data.data.army.slaves_wood,
-            food: data.data.army.slaves_food,
+            gold: typeof a.slaves_gold === 'number' ? a.slaves_gold : 0,
+            iron: typeof a.slaves_iron === 'number' ? a.slaves_iron : 0,
+            wood: typeof a.slaves_wood === 'number' ? a.slaves_wood : 0,
+            food: typeof a.slaves_food === 'number' ? a.slaves_food : 0,
           })
         }
         refresh()
@@ -250,7 +251,7 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
                   type="number"
                   min={0}
                   max={totalSlaves}
-                  value={assigned}
+                  value={assigned || 0}
                   onChange={(e) => handleInput(job.key, e.target.value)}
                   className="w-16 text-center bg-game-surface border border-game-border rounded-game text-game-sm text-game-text-white font-body py-1 focus:outline-none focus:border-game-gold"
                 />
