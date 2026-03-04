@@ -74,7 +74,7 @@ function TickCountdown() {
 
 function SectionLabel({ label }: { label: string }) {
   return (
-    <div className="px-3 pt-3 pb-1 flex items-center gap-2">
+    <div className="px-4 pt-4 pb-1.5 flex items-center gap-2">
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-game-border-gold/40 to-transparent" />
       <span className="text-[9px] font-heading uppercase tracking-[0.18em] text-game-text-muted shrink-0">
         {label}
@@ -86,7 +86,7 @@ function SectionLabel({ label }: { label: string }) {
 
 function StatRow({ left, right, rightClass }: { left: React.ReactNode; right: React.ReactNode; rightClass?: string }) {
   return (
-    <div className="flex items-center justify-between px-3 py-[3px]">
+    <div className="flex items-center justify-between px-4 py-1">
       <span className="text-game-xs text-game-text-secondary font-body flex items-center gap-1.5">
         {left}
       </span>
@@ -122,7 +122,7 @@ export function Sidebar() {
         {/* Brand */}
         <Link
           href="/base"
-          className="flex items-center gap-2.5 px-4 py-3 hover:opacity-80 transition-opacity shrink-0"
+          className="flex items-center gap-2.5 px-5 py-4 hover:opacity-80 transition-opacity shrink-0"
         >
           <Crown className="size-5 text-game-gold-bright drop-shadow-[0_0_6px_rgba(240,192,48,0.4)]" />
           <span className="font-display text-game-base text-game-gold-bright uppercase tracking-widest text-title-glow">
@@ -132,7 +132,7 @@ export function Sidebar() {
         <div className="divider-gold" />
 
         {/* Player identity */}
-        <div className="px-3 py-2.5 shrink-0">
+        <div className="px-4 py-3 shrink-0">
           <p className="font-heading text-game-sm text-game-gold-bright truncate leading-snug">
             {player?.username ?? '…'}
           </p>
@@ -143,7 +143,7 @@ export function Sidebar() {
 
         {/* Resources */}
         <SectionLabel label="Resources" />
-        <div className="pb-2 pt-0.5">
+        <div className="pb-3 pt-1">
           <StatRow
             left={<><span className="text-xs leading-none">🪙</span> זהב</>}
             right={<AnimatedNumber value={resources?.gold  ?? 0} />}
@@ -175,7 +175,7 @@ export function Sidebar() {
 
         {/* Status */}
         <SectionLabel label="Status" />
-        <div className="pb-2 pt-0.5">
+        <div className="pb-3 pt-1">
           <StatRow
             left={<><Zap className="size-3 text-res-turns shrink-0" /> תורות</>}
             right={
@@ -196,7 +196,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <SectionLabel label="Navigation" />
-        <nav className="flex-1 py-1 min-h-0 space-y-0.5">
+        <nav className="flex-1 py-2 min-h-0 space-y-1">
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const isActive = pathname === href || pathname.startsWith(href + '/')
             return (
@@ -216,8 +216,8 @@ export function Sidebar() {
         </nav>
 
         {/* Logout */}
-        <div className="p-3 shrink-0">
-          <div className="divider-gold mb-3" />
+        <div className="p-4 shrink-0">
+          <div className="divider-gold mb-4" />
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className={cn(

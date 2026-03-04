@@ -26,7 +26,7 @@ function StatPanel({
   link: string; linkLabel: string
 }) {
   return (
-    <div className={cn('panel-ornate rounded-game-lg p-4 relative overflow-hidden shadow-emboss', bgClass, borderClass)}>
+    <div className={cn('panel-ornate rounded-game-lg p-5 relative overflow-hidden shadow-emboss', bgClass, borderClass)}>
       <div className={cn('absolute top-0 start-0 w-16 h-16 opacity-10 rounded-full blur-2xl', color)} />
 
       <div className="flex items-start justify-between mb-3">
@@ -106,7 +106,7 @@ export default async function BasePage() {
   const capacityPct = Math.min(100, Math.round((combatUnits / (player.capacity || 1)) * 100))
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
       {/* ── Header ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -136,7 +136,7 @@ export default async function BasePage() {
       </div>
 
       {/* ── Top counters row ────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'דירוג עיר',    value: player.rank_city   ? `#${player.rank_city}`   : '—', icon: '🏆', color: 'text-game-gold-bright' },
           { label: 'דירוג כללי',   value: player.rank_global ? `#${player.rank_global}` : '—', icon: '🌍', color: 'text-game-gold-bright' },
@@ -155,7 +155,7 @@ export default async function BasePage() {
       </div>
 
       {/* ── Resources row ───────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'זהב',  value: resources?.gold ?? 0,  emoji: '🪙', color: 'text-res-gold',  bg: 'border-res-gold/20' },
           { label: 'ברזל', value: resources?.iron ?? 0,  emoji: '⚙️', color: 'text-res-iron',  bg: 'border-res-iron/20' },
@@ -178,7 +178,7 @@ export default async function BasePage() {
       </div>
 
       {/* ── Military 2×2 grid ───────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <StatPanel
           title="Attack" titleHe="תקיפה"
           icon={Sword}
@@ -234,7 +234,7 @@ export default async function BasePage() {
       </div>
 
       {/* ── Bottom row: Mana + Population + Total Power ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {/* Mana */}
         {hero && (
           <div className="card-game p-4 border-game-purple/30 bg-game-purple/5 shadow-emboss">
@@ -294,7 +294,7 @@ export default async function BasePage() {
       </div>
 
       {/* ── Army detail row ─────────────────────────────── */}
-      <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
+      <div className="panel-ornate rounded-game-lg p-5 shadow-engrave">
         <div className="panel-header flex items-center gap-2 mb-4">
           <Crown className="size-4 text-game-gold" />
           <h2 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
@@ -302,7 +302,7 @@ export default async function BasePage() {
           </h2>
         </div>
         <div className="divider-gold mb-4" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-5 gap-y-4">
           {[
             { label: 'חיילים',       value: army?.soldiers ?? 0 },
             { label: 'פרשים',        value: army?.cavalry ?? 0 },

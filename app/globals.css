@@ -286,7 +286,7 @@ input[type='number'] { -moz-appearance: textfield; }
     display: flex;
     align-items: center;
     gap: 0.625rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 1rem;
     border-radius: var(--radius);
     font-size: 0.78rem;
     font-family: 'Cinzel', serif;
@@ -295,7 +295,7 @@ input[type='number'] { -moz-appearance: textfield; }
     letter-spacing: 0.06em;
     transition: all 0.2s ease;
     color: var(--text-secondary);
-    margin: 2px 0.4rem;
+    margin: 3px 0.625rem;
     position: relative;
     border: 1px solid transparent;
   }
@@ -378,7 +378,7 @@ input[type='number'] { -moz-appearance: textfield; }
 }
 
 [dir='rtl'] .main-content {
-  margin-right: var(--sidebar-width);
+  margin-right: calc(var(--sidebar-width) + 32px);
   margin-left: 0;
 }
 
