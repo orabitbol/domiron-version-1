@@ -38,6 +38,7 @@
  */
 
 import { BALANCE } from '@/lib/game/balance'
+import { clampBonus } from '@/lib/game/hero-effects'
 import type { Army, Weapons, Training, Development } from '@/types/game'
 
 // ─────────────────────────────────────────
@@ -344,6 +345,11 @@ export function calculateECP(
   clan:      ClanContext | null,
   heroBonus: number = 0,
 ): number {
+  // Defensive clamp: guard against callers that forgot to clamp before passing in.
+  // Callers are still expected to pre-clamp via clampBonus(); this is a server-side
+  // safety net only — valid values (0 – 0.50) are never modified by this step.
+  heroBonus = clampBonus(heroBonus)
+
   const clanBonus = calculateClanBonus(playerPP, clan)
   return Math.floor((playerPP * (1 + heroBonus)) + clanBonus)
 }

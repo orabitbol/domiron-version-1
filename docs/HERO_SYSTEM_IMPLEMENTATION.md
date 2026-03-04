@@ -102,13 +102,22 @@ export function calculateECP(
   clan:      ClanContext | null,
   heroBonus: number = 0,   // pre-clamped, 0–0.50
 ): number {
+  // Defensive clamp: guard against callers that forgot to clamp before passing in.
+  // Callers are still expected to pre-clamp via clampBonus(); this is a server-side
+  // safety net only — valid values (0 – 0.50) are never modified by this step.
+  heroBonus = clampBonus(heroBonus)
+
   const clanBonus = calculateClanBonus(playerPP, clan)
   return Math.floor((playerPP * (1 + heroBonus)) + clanBonus)
 }
 ```
 
 `heroBonus` is the pre-clamped `totalAttackBonus` or `totalDefenseBonus` from
-`calcActiveHeroEffects()`. The caller is responsible for clamping before passing it in.
+`calcActiveHeroEffects()`. Routes that use `getActiveHeroEffects()` must **not** re-clamp these
+values before passing them into `resolveCombat()` / `calculateECP()` — they are already clamped
+at the hero-effects layer. `calculateECP()` additionally enforces a **defensive clamp** via
+`clampBonus()` as a server-side safety layer, ensuring the cap is guaranteed even if a future
+caller passes an unclamped value.
 
 ---
 
@@ -217,15 +226,16 @@ Kill cooldown (`killCooldownActive`) and new player protection (`defenderIsProte
 
 | Location | What is clamped | Enforced by |
 |---|---|---|
-| `calcActiveHeroEffects()` / `calcActiveBoostTotals()` | Each bonus category total → 0.50 | `clampBonus()` |
-| `calculateECP()` | Does **not** clamp internally — caller must pre-clamp | Caller responsibility |
-| `resolveCombat()` | Passes pre-clamped `attackBonus` / `defenseBonus` from inputs | API route responsibility |
+| `calcActiveHeroEffects()` / `calcActiveBoostTotals()` | Each bonus category total → 0.50 | `clampBonus()` (primary clamp) |
+| `calculateECP()` | `heroBonus` → 0.50 (defensive, internal) | `clampBonus()` — safety layer |
+| `resolveCombat()` | Receives pre-clamped `attackBonus` / `defenseBonus` | Callers that use `getActiveHeroEffects()` should not re-clamp |
 | `calculateSoldierLosses()` | Loss rates → `[FLOOR, MAX_LOSS_RATE]` | Internal `clamp()` |
 
-Clamping is **not** performed inside `calculateECP()`. If a caller passes an unclamped value
-(e.g. 0.70), the formula will compute with that value. The contract is that the caller —
-the API route — runs `clampBonus()` on the output of `calcActiveHeroEffects()` before
-forwarding into `resolveCombat()`.
+`calculateECP()` applies a **defensive internal clamp** via `clampBonus()` immediately before
+`heroBonus` is used in the formula. This is a server-side safety layer only — valid values
+(0 – 0.50) pass through unchanged. The canonical place where hero bonuses are clamped is
+`calcActiveHeroEffects()` / `calcActiveBoostTotals()`. Callers that obtain bonuses from these
+helpers should pass them through unchanged into `resolveCombat()` / `calculateECP()`.
 
 ---
 
