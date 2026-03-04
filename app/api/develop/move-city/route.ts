@@ -16,13 +16,13 @@ export async function POST() {
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
 
-    const [{ data: player }, { data: army }, { data: resources }] = await Promise.all([
-      supabase.from('players').select('city').eq('id', playerId).single(),
-      supabase.from('army').select('soldiers').eq('player_id', playerId).single(),
-      supabase.from('resources').select('gold, iron, wood, food').eq('player_id', playerId).single(),
-    ])
+    const { data: player } = await supabase
+      .from('players')
+      .select('city, power_total')
+      .eq('id', playerId)
+      .single()
 
-    if (!player || !army || !resources) {
+    if (!player) {
       return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
     }
 
@@ -31,21 +31,14 @@ export async function POST() {
     }
 
     const nextCityNum  = player.city + 1
-    const nextCityReqs = BALANCE.cities.promotionRequirements[nextCityNum]
     const nextCityName = BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`
+    const threshold    = BALANCE.cities.promotionPowerThreshold[nextCityNum]
 
-    const totalResources = resources.gold + resources.iron + resources.wood + resources.food
-
-    // If promotion requirements are tuned (not undefined), enforce them
-    if (nextCityReqs?.requiredSoldiers != null && army.soldiers < nextCityReqs.requiredSoldiers) {
+    if (threshold != null && player.power_total < threshold) {
       return NextResponse.json({
-        error: `Need ${nextCityReqs.requiredSoldiers} soldiers (you have ${army.soldiers})`,
-      }, { status: 400 })
-    }
-
-    if (nextCityReqs?.requiredResources != null && totalResources < nextCityReqs.requiredResources) {
-      return NextResponse.json({
-        error: `Need ${nextCityReqs.requiredResources} total resources (you have ${totalResources})`,
+        error: `Need ${threshold} power (you have ${player.power_total})`,
+        required: threshold,
+        current: player.power_total,
       }, { status: 400 })
     }
 

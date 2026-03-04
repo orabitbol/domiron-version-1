@@ -285,6 +285,33 @@ describe('calculateECP — hero attack bonus does not multiply ClanBonus', () =>
     expect(ecp).toBe(Math.floor(playerPP * 1.0 + bonus))
   })
 
+  it('raceBonus = 0 produces same ECP as no raceBonus (backward compat)', () => {
+    const playerPP = 10_000
+    const clan: ClanContext = { totalClanPP: 5_000, developmentLevel: 2 }
+    expect(calculateECP(playerPP, clan, 0, 0)).toBe(calculateECP(playerPP, clan, 0))
+  })
+
+  it('raceBonus = 0.10 increases ECP proportionally on PP only', () => {
+    const playerPP  = 10_000
+    const raceBonus = 0.10
+    const ecp       = calculateECP(playerPP, null, 0, raceBonus)
+    expect(ecp).toBe(Math.floor(playerPP * (1 + raceBonus)))
+  })
+
+  it('raceBonus does NOT multiply ClanBonus', () => {
+    const playerPP  = 10_000
+    const raceBonus = 0.10
+    const clan: ClanContext = { totalClanPP: 100_000, developmentLevel: 5 }
+    const clanBonus = calculateClanBonus(playerPP, clan)
+    const ecp       = calculateECP(playerPP, clan, 0, raceBonus)
+    // Correct:   (PP × (1 + race)) + clanBonus
+    const correct   = Math.floor((playerPP * (1 + raceBonus)) + clanBonus)
+    // Incorrect: (PP + clanBonus) × (1 + race)
+    const incorrect = Math.floor((playerPP + clanBonus) * (1 + raceBonus))
+    expect(ecp).toBe(correct)
+    expect(ecp).not.toBe(incorrect)
+  })
+
 })
 
 // ─────────────────────────────────────────
@@ -760,6 +787,49 @@ describe('resolveCombat', () => {
         expect(goldValues[i]).toBeGreaterThanOrEqual(goldValues[i + 1])
       }
     }
+  })
+
+  it('attackerRaceBonus increases attacker ECP, leaving defender ECP unchanged', () => {
+    const base     = resolveCombat(makeBaseInputs({ attackerPP: 5_000 }))
+    const withRace = resolveCombat(makeBaseInputs({ attackerPP: 5_000, attackerRaceBonus: 0.10 }))
+    expect(withRace.attackerECP).toBeGreaterThan(base.attackerECP)
+    expect(withRace.defenderECP).toBe(base.defenderECP)
+  })
+
+  it('attackerTribeMultiplier=1.15 multiplies attacker ECP by 1.15', () => {
+    const base = resolveCombat(makeBaseInputs({ attackerPP: 10_000 }))
+    const withTribe = resolveCombat(makeBaseInputs({ attackerPP: 10_000, attackerTribeMultiplier: 1.15 }))
+    // withTribe.attackerECP should be floor(base.attackerECP × 1.15)
+    expect(withTribe.attackerECP).toBe(Math.floor(base.attackerECP * 1.15))
+  })
+
+  it('defenderTribeMultiplier=1.15 multiplies defender ECP, leaving attacker ECP unchanged', () => {
+    const base      = resolveCombat(makeBaseInputs({ defenderPP: 5_000 }))
+    const withTribe = resolveCombat(makeBaseInputs({ defenderPP: 5_000, defenderTribeMultiplier: 1.15 }))
+    expect(withTribe.defenderECP).toBe(Math.floor(base.defenderECP * 1.15))
+    expect(withTribe.attackerECP).toBe(base.attackerECP)
+  })
+
+  it('attackerECP matches manual calc with hero + race + tribe all combined', () => {
+    const pp         = 10_000
+    const heroBonus  = 0.20
+    const raceBonus  = 0.10
+    const tribeMult  = 1.15
+    const clan: ClanContext = { totalClanPP: 50_000, developmentLevel: 3 }
+
+    const result     = resolveCombat(makeBaseInputs({
+      attackerPP:              pp,
+      attackBonus:             heroBonus,
+      attackerClan:            clan,
+      attackerRaceBonus:       raceBonus,
+      attackerTribeMultiplier: tribeMult,
+    }))
+
+    const clanBonus  = calculateClanBonus(pp, clan)
+    const baseECP    = Math.floor((pp * (1 + heroBonus) * (1 + raceBonus)) + clanBonus)
+    const finalECP   = Math.floor(baseECP * tribeMult)
+
+    expect(result.attackerECP).toBe(finalECP)
   })
 
 })

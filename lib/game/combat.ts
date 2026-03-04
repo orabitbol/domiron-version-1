@@ -27,8 +27,8 @@
  *   1. calculatePersonalPower(attacker), calculatePersonalPower(defender)
  *   2. calculateClanBonus(attackerPP, attackerClan)
  *      calculateClanBonus(defenderPP, defenderClan)
- *   3. calculateECP(attackerPP, attackerClan, attackBonus)
- *      calculateECP(defenderPP, defenderClan, defenseBonus)
+ *   3. calculateECP(attackerPP, attackerClan, attackBonus, raceBonus) → baseECP
+ *      Apply tribe multiplier → finalECP = floor(baseECP × tribeMultiplier)
  *   4. calculateCombatRatio(attackerECP, defenderECP)
  *   5. determineCombatOutcome(ratio)
  *   6. calculateSoldierLosses(...)
@@ -140,6 +140,16 @@ export interface CombatResolutionInputs {
    * Combat ratio and soldier losses still resolve normally.
    */
   resourceShieldActive: boolean
+
+  // ── Race & Tribe inputs ──────────────────────────────────────────────────
+  /** Race attack bonus for attacker (orc: 0.10, human: 0.03, others: 0). Default 0. */
+  attackerRaceBonus?: number
+  /** Race defense bonus for defender (orc: 0.03, dwarf: 0.15, others: 0). Default 0. */
+  defenderRaceBonus?: number
+  /** Tribe combat spell multiplier for attacker (combat_boost: 1.15, war_cry: 1.25). Default 1. */
+  attackerTribeMultiplier?: number
+  /** Tribe combat spell multiplier for defender (tribe_shield: 1.15). Default 1. */
+  defenderTribeMultiplier?: number
 }
 
 export interface CombatResolutionResult {
@@ -332,18 +342,21 @@ type ClanDevLevel = 1 | 2 | 3 | 4 | 5
 /**
  * Order of operations (mandatory):
  *   Step 1: ClanBonus = min(TotalClanPP × EfficiencyRate, 0.20 × PlayerPP)
- *   Step 2: ECP = (PlayerPP × (1 + heroBonus)) + ClanBonus
+ *   Step 2: ECP = (PlayerPP × (1 + heroBonus) × (1 + raceBonus)) + ClanBonus
  *
  * heroBonus is the pre-clamped total from active hero effects (0 – 0.50).
- * It multiplies ONLY PlayerPP — never ClanBonus.
- * This prevents the monetization lever (hero) from amplifying the social mechanic (clan).
+ * raceBonus is the race-specific combat multiplier (not clamped).
+ * Both multiply ONLY PlayerPP — never ClanBonus.
+ * This prevents the monetization lever (hero) and race bonus from amplifying the social mechanic (clan).
  *
  * @param heroBonus Pre-clamped TotalAttackBonus or TotalDefenseBonus (0 – 0.50). Default 0.
+ * @param raceBonus Race combat multiplier (e.g. orc attack 0.10). Default 0.
  */
 export function calculateECP(
   playerPP:  number,
   clan:      ClanContext | null,
   heroBonus: number = 0,
+  raceBonus: number = 0,
 ): number {
   // Defensive clamp: guard against callers that forgot to clamp before passing in.
   // Callers are still expected to pre-clamp via clampBonus(); this is a server-side
@@ -351,7 +364,7 @@ export function calculateECP(
   heroBonus = clampBonus(heroBonus)
 
   const clanBonus = calculateClanBonus(playerPP, clan)
-  return Math.floor((playerPP * (1 + heroBonus)) + clanBonus)
+  return Math.floor((playerPP * (1 + heroBonus) * (1 + raceBonus)) + clanBonus)
 }
 
 // ─────────────────────────────────────────
@@ -535,20 +548,6 @@ export function calculateLoot(
 }
 
 // ─────────────────────────────────────────
-// L. FOOD COST
-// ─────────────────────────────────────────
-
-/**
- * food_cost = deployed_soldiers × FOOD_PER_SOLDIER
- *
- * Food must be the primary aggression bottleneck.
- * Design constraint: MaxAttacks/day via food < MaxAttacks/day via turns.
- */
-export function calculateFoodCost(deployedSoldiers: number): number {
-  return deployedSoldiers * BALANCE.combat.FOOD_PER_SOLDIER
-}
-
-// ─────────────────────────────────────────
 // M. TURN REGEN
 // ─────────────────────────────────────────
 
@@ -577,10 +576,17 @@ export function calcTurnsAfterRegen(currentTurns: number): number {
  *   - Triggering PP recalculation after soldier count changes
  */
 export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionResult {
-  // Step 1: ECP = (PP × (1 + heroBonus)) + ClanBonus
-  // heroBonus multiplies PP only — clan bonus is never touched by the hero effect.
-  const attackerECP = calculateECP(inputs.attackerPP, inputs.attackerClan, inputs.attackBonus)
-  const defenderECP = calculateECP(inputs.defenderPP, inputs.defenderClan, inputs.defenseBonus)
+  // Step 1: ECP = (PP × (1 + heroBonus) × (1 + raceBonus)) + ClanBonus
+  // Then apply tribe combat multiplier on top.
+  // Neither hero nor race bonus nor tribe multiplier touches ClanBonus.
+  const baseAttackerECP = calculateECP(
+    inputs.attackerPP, inputs.attackerClan, inputs.attackBonus, inputs.attackerRaceBonus ?? 0,
+  )
+  const baseDefenderECP = calculateECP(
+    inputs.defenderPP, inputs.defenderClan, inputs.defenseBonus, inputs.defenderRaceBonus ?? 0,
+  )
+  const attackerECP = Math.floor(baseAttackerECP * (inputs.attackerTribeMultiplier ?? 1))
+  const defenderECP = Math.floor(baseDefenderECP * (inputs.defenderTribeMultiplier ?? 1))
 
   // Step 2: Ratio → outcome
   const ratio   = calculateCombatRatio(attackerECP, defenderECP)

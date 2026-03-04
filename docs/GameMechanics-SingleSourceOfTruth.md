@@ -85,20 +85,30 @@ newTurns = min(currentTurns + toAdd, MAX_TURNS)
 
 ### Tick Processing Order
 
+Pre-loop (batch fetches):
+- Batch-fetch all active `player_hero_effects` (slave bonuses) → grouped by `player_id`
+- Batch-fetch active `tribe_spells` with `spell_key = 'production_blessing'` → `Set<tribe_id>`
+
 Per player (sequential in loop, per-player writes parallel):
 
 1. Turns → `calcTurnsToAdd(player.turns, player.is_vacation)`
 2. Population growth → `calcPopulationGrowth(dev.population_level, player.vip_until)`
-3. Slave production per resource → 4× `calcSlaveProduction(slaves_X, dev.X_level, city, vip_until)`
+3. Slave production per resource:
+   - Compute `slaveBonus` from active hero effects (`calcActiveHeroEffects`)
+   - Compute `raceGoldBonus` from `player.race` (human/dwarf get gold bonus)
+   - Compute `tribeProdMult` from tribe production_blessing spell (1.20 if active, else 1.0)
+   - 4× `calcSlaveProduction(slaves_X, dev.X_level, city, vip_until, raceGoldBonus, slaveBonus)`
+   - Final: `floor(rawProduction × tribeProdMult)`
 4. Hero mana → `calcHeroManaGain(hero.level, player.vip_until)`
-5. Bank interest (only when calendar day changes) → `calcBankInterest(...)`
+5. Bank interest (only when calendar day changes) → `calcBankInterest(balance, interest_level, vip_until)`
 
 Then globally:
 
 6. Tribe mana per tribe → `calcTribeManaGain(memberCount)`
 7. Power recalculation → `recalculatePower(playerId, supabase)` for all players
 8. Rankings update (global + per-city)
-9. Realtime broadcast → `broadcastTickCompleted(supabase)`
+9. Tribe power aggregation → `tribes.power_total` = sum of member `power_total` values
+10. Realtime broadcast → `broadcastTickCompleted(supabase)`
 
 ---
 
@@ -129,7 +139,11 @@ goldGained = floor(goldProd.min + random() × (goldProd.max - goldProd.min))
 | `production.baseMin` | 1.0 | [TUNE] |
 | `production.baseMax` | 3.0 | [TUNE] |
 | devOffset per level | +0.5 | Hardcoded in `tick.ts:55` |
-| `cities.CITY_PRODUCTION_MULT[1..5]` | ALL `undefined` | [TUNE: unassigned] — code defaults to `?? 1` |
+| `cities.CITY_PRODUCTION_MULT[1]` | 1.0 | [TUNE] |
+| `cities.CITY_PRODUCTION_MULT[2]` | 1.2 | [TUNE] |
+| `cities.CITY_PRODUCTION_MULT[3]` | 1.5 | [TUNE] |
+| `cities.CITY_PRODUCTION_MULT[4]` | 2.0 | [TUNE] |
+| `cities.CITY_PRODUCTION_MULT[5]` | 2.5 | [TUNE] |
 
 **DB columns involved:** `army.slaves_gold`, `army.slaves_iron`, `army.slaves_wood`, `army.slaves_food`
 **Allocation route:** `POST /api/mine/allocate`
@@ -139,22 +153,34 @@ goldGained = floor(goldProd.min + random() × (goldProd.max - goldProd.min))
 
 Farmers are added to `slaves_food` count for production calculation only:
 ```
-foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, city, vip_until)
+foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, city, vip_until, 0, slaveBonus)
 ```
 
-`lib/game/tick.ts` line 80 in the tick route. Farmers use the same production formula as food slaves.
+Farmers use the same production formula as food slaves.
 
 ### Hero Slave Bonus
 
-Applied as `(1 + slaveBonus)` multiplier where `slaveBonus` = `totalSlaveBonus` from active hero effects (0.0–0.50).
-
-> ⚠️ **[MISSING]** The tick route does **not** fetch hero effects per player. `calcSlaveProduction` accepts a `slaveBonus` parameter but the tick route always passes the default `0`. Hero slave bonuses are **not applied** during tick processing.
+Batch-fetched per tick. `slaveBonus` = `totalSlaveBonus` from `calcActiveHeroEffects()` (0.0–0.50).
+Applied as `(1 + slaveBonus)` inside `calcSlaveProduction()`. Source: `app/api/tick/route.ts`.
 
 ### Race Gold Bonus
 
-`raceGoldBonus` parameter exists in `calcSlaveProduction` signature but the tick route always passes the default `0`. Race gold bonuses (`human: +15%`, `dwarf: +3%`) are **not applied** during production.
+Applied only to gold production. `raceGoldBonus`:
+- `human`: `BALANCE.raceBonuses.human.goldProductionBonus` = 0.15
+- `dwarf`: `BALANCE.raceBonuses.dwarf.goldProductionBonus` = 0.03
+- others: 0
 
-> ⚠️ **[MISSING]** Neither hero slave bonus nor race gold bonus are fed into the tick production loop.
+Gold: `calcSlaveProduction(slaves_gold, ..., raceGoldBonus, slaveBonus)`
+Iron/Wood/Food: `calcSlaveProduction(..., 0, slaveBonus)` — no race bonus.
+
+### Tribe Production Blessing
+
+`production_blessing` spell active for player's tribe → `tribeProdMult = 1.20` applied after production:
+```
+goldGained = floor(rawGoldGained × tribeProdMult)
+```
+
+`BALANCE.tribe.spellEffects.production_blessing.productionMultiplier = 1.20` [TUNE]
 
 ---
 
@@ -375,14 +401,18 @@ Source: `BALANCE.clan.EFFICIENCY`, all [FIXED]
 ### ECP Formula
 
 ```
-ECP = floor((PlayerPP × (1 + heroBonus)) + ClanBonus)
+baseECP = floor((PlayerPP × (1 + heroBonus) × (1 + raceBonus)) + ClanBonus)
+finalECP = floor(baseECP × tribeMultiplier)
 ```
 
-`heroBonus` = `totalAttackBonus` (attacker) or `totalDefenseBonus` (defender), clamped to [0, 0.50].
+- `heroBonus` = `totalAttackBonus` (attacker) or `totalDefenseBonus` (defender), clamped to [0, 0.50]
+- `raceBonus` = race-specific combat multiplier (orc: 0.10 atk / 0.03 def; human: 0.03 atk; dwarf: 0.15 def; elf: 0)
+- `tribeMultiplier` = active combat spell multiplier (war_cry: 1.25, combat_boost: 1.15, tribe_shield: 1.15, none: 1.0)
 
-**Invariant:** Hero bonus multiplies PP **only** — never ClanBonus. This prevents the monetization lever from amplifying the social mechanic.
-
-**Defensive clamp:** `calculateECP()` itself calls `clampBonus(heroBonus)` internally even if the caller already clamped. Callers are still expected to pre-clamp. Source: `lib/game/combat.ts` — added 2026-03-04.
+**Invariants:**
+- Hero bonus and race bonus multiply PP **only** — never ClanBonus
+- Tribe multiplier is applied **after** the ECP formula, on the full base ECP
+- `calculateECP()` defensively calls `clampBonus(heroBonus)` even if caller already clamped
 
 **DB:** `tribes.power_total` (for ClanContext), `tribes.level` (for efficiency lookup)
 
@@ -404,26 +434,30 @@ ECP = floor((PlayerPP × (1 + heroBonus)) + ClanBonus)
 8. Attacker has soldiers > 0 → 400
 9. Fetch defender data
 10. Defender exists → 404
-11. Fetch clan data for both sides
-12. Count kill cooldown (attacker→defender kills in last 6h)
-13. Count loot decay (attacker→defender attacks in last 12h)
-14. Fetch hero effects for attacker → **throws `HeroEffectsUnavailableError` on DB error → 503**
-15. Fetch hero effects for defender → **throws `HeroEffectsUnavailableError` on DB error → 503**
-16. Calculate PP for both sides
-17. `resolveCombat()` → result
-18. DB writes (6 parallel): turns, attacker army+resources, defender army+resources, attacks insert
-19. Recalculate power for both players
+11. **Same-city check: `defPlayer.city !== attPlayer.city` → 400** "Target is in a different city"
+12. Fetch clan data for both sides
+13. Count kill cooldown (attacker→defender kills in last 6h)
+14. Count loot decay (attacker→defender attacks in last 12h)
+15. Fetch hero effects for attacker → **throws `HeroEffectsUnavailableError` on DB error → 503**
+16. Fetch hero effects for defender → **throws `HeroEffectsUnavailableError` on DB error → 503**
+17. Fetch active tribe combat spells for both sides
+18. Compute race combat bonuses and tribe multipliers
+19. Calculate PP for both sides
+20. `resolveCombat(... attackerRaceBonus, defenderRaceBonus, attackerTribeMultiplier, defenderTribeMultiplier)` → result
+21. DB writes (6 parallel): turns, attacker army+resources, defender army+resources, attacks insert
+22. Recalculate power for both players
 
-> **Food cost** in the route: `foodCost = turnsUsed × BALANCE.combat.foodCostPerTurn` (= turns × 1).
-> `calculateFoodCost(deployedSoldiers)` function in `combat.ts` uses `soldiers × FOOD_PER_SOLDIER` — **this function is not called by the route**. See §22.
+> **Food cost** in the route: `foodCost = turnsUsed × BALANCE.combat.foodCostPerTurn` (= turns × 1). `calculateFoodCost(deployedSoldiers)` has been **removed** from `combat.ts` (was dead code).
 
 > **Deployed soldiers:** The route always passes `attArmy.soldiers` as `deployedSoldiers` — meaning **all soldiers are always deployed**. There is no partial deployment mechanic.
 
 ### Combat Resolution Order of Operations
 
 ```
-Step 1: attackerECP = calculateECP(attackerPP, attackerClan, attackBonus)
-        defenderECP = calculateECP(defenderPP, defenderClan, defenseBonus)
+Step 1: baseAttackerECP = calculateECP(attackerPP, attackerClan, attackBonus, attackerRaceBonus)
+        attackerECP     = floor(baseAttackerECP × attackerTribeMultiplier)
+        baseDefenderECP = calculateECP(defenderPP, defenderClan, defenseBonus, defenderRaceBonus)
+        defenderECP     = floor(baseDefenderECP × defenderTribeMultiplier)
 
 Step 2: ratio   = attackerECP / defenderECP  (or WIN_THRESHOLD + 1 if defenderECP = 0)
         outcome = determineCombatOutcome(ratio)
@@ -747,21 +781,22 @@ Tax limit per city: city1=1000, city2=2500, city3=5000, city4=10000, city5=20000
 
 ### Spells
 
-| Spell Key | Mana Cost | Duration |
-|---|---|---|
-| `combat_boost` | 20 | 6h |
-| `tribe_shield` | 30 | 12h |
-| `production_blessing` | 25 | 8h |
-| `mass_spy` | 15 | 0h (instant) |
-| `war_cry` | 40 | 4h |
+| Spell Key | Mana Cost | Duration | Combat/Production Effect |
+|---|---|---|---|
+| `combat_boost` | 20 | 6h | Attacker ECP ×1.15 |
+| `tribe_shield` | 30 | 12h | Defender ECP ×1.15 |
+| `production_blessing` | 25 | 8h | Tick production ×1.20 |
+| `mass_spy` | 15 | 0h (instant) | (instant; route: `POST /api/tribe/spell`) |
+| `war_cry` | 40 | 4h | Attacker ECP ×1.25 (takes priority over `combat_boost` if both active) |
 
-Spells are stored in `tribe_spells` table. `mass_spy` is the only implemented spell with a route (`POST /api/tribe/spell`). Effect of other spells on game mechanics: **[MISSING]** — no route consumes them during combat or production.
+Activation route: `POST /api/tribe/activate-spell`. Spell multipliers: `BALANCE.tribe.spellEffects.*`.
+
+**combat_boost vs war_cry priority:** If both are active, `war_cry` (1.25) takes priority (checked first in attack route). In practice a tribe cannot activate both simultaneously (different spell keys, but no technical guard against it — the route just picks the higher-priority one).
 
 ### Tribe Power
 
-`tribes.power_total` = sum of all member `power_total` values. **[MISSING]** — no route recalculates this automatically. Updated only indirectly via tick recalculation that updates individual `players.power_total`. No aggregation query runs.
-
-> ⚠️ **[INCONSISTENT]** `tribes.power_total` is used in `calculateClanBonus()` for combat but there is no code that updates `tribes.power_total` after individual power changes. It may be stale.
+`tribes.power_total` = sum of all member `power_total` values.
+**Updated once per tick** in step 9 of the tick processing order (`app/api/tick/route.ts`). Intentionally stale between ticks — updates in sync with the global power recalculation. Source: `lib/game/tick.ts` → `calcTribePowerTotal()`.
 
 ---
 
@@ -805,13 +840,20 @@ upgradeCost = upgradeBaseCost × (currentInterestLevel + 1)
 
 Interest formula (run once per calendar day in tick):
 ```
-interest = floor(balance × BANK_INTEREST_RATE_BASE)
-         + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
-         + floor(balance × vipBankInterestBonus)
+interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 ```
 
-> ⚠️ **[TUNE: unassigned]** `BANK_INTEREST_RATE_BASE = undefined` and `BANK_INTEREST_RATE_PER_LEVEL = undefined`. Bank interest produces `NaN` in production. The tick code comment explicitly warns: *"Do not call this in production until both are set."*
-> `vip.bankInterestBonus = 0` so VIP contributes nothing to interest either.
+| Interest Level | Rate | Upgrade cost |
+|---|---|---|
+| 0 (default) | 0% | — |
+| 1 | 5% | 2,000 × 1 = 2,000 gold |
+| 2 | 7.5% | 2,000 × 2 = 4,000 gold |
+| 3 | 10% | 2,000 × 3 = 6,000 gold |
+
+`MAX_INTEREST_LEVEL = 3` [FIXED] — upgrade route rejects at level ≥ 3.
+`vip.bankInterestBonus = 0` — VIP contributes nothing to bank interest.
+
+Source: `BALANCE.bank.INTEREST_RATE_BY_LEVEL`, `lib/game/tick.ts → calcBankInterest()`
 
 ---
 
@@ -922,24 +964,33 @@ Fortification also updates `players.capacity = baseCapacity + level × 200`.
 
 ### Promotion Thresholds
 
-All promotion parameters are `[TUNE: unassigned]`:
-- `S_base`, `s_growth` — soldier threshold formula
-- `P_base`, `p_growth` — PP threshold formula
-- `R_base[gold/iron/wood/food]`, `r_growth` — resource cost formula
+Gate: `player.power_total ≥ promotionPowerThreshold[nextCity]`
 
-```
-SoldierThreshold(C) = S_base × s_growth ^ (C − 2)
-PowerThreshold(C)   = P_base × p_growth ^ (C − 2)
-ResourceCost(C)[r]  = R_base[r] × r_growth ^ (C − 2)
-for C ∈ {2, 3, 4, 5}
-```
+| Target City | Power threshold |
+|---|---|
+| 2 | 5,000 [TUNE] |
+| 3 | 20,000 [TUNE] |
+| 4 | 60,000 [TUNE] |
+| 5 | 150,000 [TUNE] |
 
-`promotionRequirements` table exists in BALANCE with `undefined` values.
-**No promotion route exists.** City change API: **[MISSING]**.
+Source: `BALANCE.cities.promotionPowerThreshold`
+
+**Promote route:** `POST /api/city/promote`
+Gates: auth → season freeze → city < 5 → **not in tribe** → power_total ≥ threshold → update city → return `{ city, city_name }`.
+
+**Also available (legacy):** `POST /api/develop/move-city` — same power-threshold gate, does not check tribe membership.
 
 ### City Production Multiplier
 
-`CITY_PRODUCTION_MULT[1..5]` all `undefined`. Tick code defaults to `?? 1` so all cities produce at the same rate until tuned.
+| City | Multiplier |
+|---|---|
+| 1 (Izrahland) | 1.0 [TUNE] |
+| 2 (Masterina) | 1.2 [TUNE] |
+| 3 (Rivercastlor) | 1.5 [TUNE] |
+| 4 (Grandoria) | 2.0 [TUNE] |
+| 5 (Nerokvor) | 2.5 [TUNE] |
+
+Applied as `cityMult` in `calcSlaveProduction()` — multiplies slave output per tick. Higher cities produce significantly more.
 
 ### Clan-City Locking
 
@@ -1027,16 +1078,18 @@ food  = 5000 × catchUpMult
 
 These are **two different systems** that diverge in important ways:
 
-| Aspect | Stored Power (`power.ts`) | Combat PP (`combat.ts`) |
+| Aspect | Stored Power (`power.ts`) | Combat ECP (`combat.ts`) |
 |---|---|---|
 | Purpose | Rankings, display | Combat ECP calculation |
 | Storage | `players.power_attack/defense/spy/scout/total` | Computed fresh per combat |
-| Race bonuses | **Applied** (orc, human, elf, dwarf) | **Not applied** |
-| Defense formula | `baseUnits × defWeaponMult × trainMult × fortMult × raceMult` | Uses PP weights (all 1.0) |
-| Attack formula | `(baseUnits + weaponPower) × trainMult × raceMult` | Uses SoldierScore+EquipScore+SkillScore |
+| Race bonuses | **Removed** — clean ranking power only | **Applied via `raceBonus` param to `calculateECP()`** |
+| Defense formula | `baseUnits × defWeaponMult × trainMult × fortMult` | Uses PP weights (all 1.0) |
+| Attack formula | `(baseUnits + weaponPower) × trainMult` | Uses SoldierScore+EquipScore+SkillScore |
 | Fortification | Applied via `fortMult = 1 + (level−1) × 0.10` | Applied via DevScore += `level × 100` |
+| Tribe multiplier | Not applied | Applied on final ECP after all PP multipliers |
 
-> ⚠️ **[INCONSISTENT]** Race bonuses affect stored power but **not** ECP. A player's displayed attack/defense power includes their race bonus, but during actual combat, race bonuses have no effect on the outcome. This is architecturally inconsistent — either race bonuses should be wired into ECP or removed from stored power.
+**Stored power** = clean ranking power. It reflects what units and upgrades a player has, without race modifiers.
+**Combat ECP** = strategic combat power. Race bonuses are added here via `raceBonus` parameter, applied as `PP × (1 + raceBonus)` before ClanBonus is added.
 
 ### Power Total (Ranking)
 
@@ -1054,16 +1107,17 @@ Simple sum. Rankings sorted by `power_total` descending.
 
 | Race | Bonus | Applied in |
 |---|---|---|
-| orc | +10% attack, +3% defense | `power.ts` stored power only |
-| human | +15% gold production, +3% attack | `power.ts` stored power + spy route (production: [MISSING] in tick) |
-| elf | +20% spy, +20% scout | `power.ts` + `spy/route.ts` |
-| dwarf | +15% defense, +3% gold production | `power.ts` stored power + production: [MISSING] in tick |
+| orc | +10% attack ECP, +3% defense ECP | `attack/route.ts` → `resolveCombat(attackerRaceBonus/defenderRaceBonus)` |
+| human | +15% gold production, +3% attack ECP | tick route (gold only), attack route |
+| elf | +20% spy, +20% scout | `spy/route.ts` |
+| dwarf | +15% defense ECP, +3% gold production | attack route, tick route (gold only) |
 
 Race bonuses are:
-- Applied in `recalculatePower()` for stored power
-- Applied in spy route (`spy/route.ts`) for spy mission power
-- **Not** applied in `calculatePersonalPower()` for combat ECP
-- **Not** applied in tick for resource production
+- **Applied in combat ECP** via `raceBonus` param to `calculateECP()` (source: `attack/route.ts` helpers)
+- **Applied in tick gold production** via `raceGoldBonus` param to `calcSlaveProduction()` (human: 0.15, dwarf: 0.03)
+- **Applied in spy route** for spy/scout mission power (elf bonus)
+- **Not** applied in stored power (`power.ts`) — stored power is clean ranking power without race modifiers
+- **Not** applied in `calculatePersonalPower()` — PP is race-agnostic
 
 ---
 
@@ -1129,41 +1183,33 @@ Updated every tick (every 30 minutes) for all players simultaneously. Not real-t
 
 | # | Issue | Location |
 |---|---|---|
-| I1 | **Race bonuses in stored power but not ECP.** Stored power includes race bonuses; combat ECP does not. Player rankings reflect race, combat resolution ignores it. | `power.ts` vs `combat.ts` |
-| I2 | **Two food cost formulas.** `calculateFoodCost(soldiers)` in `combat.ts` uses `soldiers × FOOD_PER_SOLDIER`. Attack route uses `turns × foodCostPerTurn`. Route does not call the function. Both constants = 1 so values happen to match only when `turns = soldiers`. | `combat.ts:541` vs `attack/route.ts:73` |
-| I3 | **`maxLifetimeDeposits` vs `depositsPerDay`.** Both = 5 but `maxLifetimeDeposits` is never referenced in code. The actually enforced limit is `depositsPerDay`. | `balance.config.ts:309,323` |
-| I4 | **`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic. | DB schema vs `tick.ts` |
-| I5 | **`players.capacity` DB default = 2,500** vs formula at level-1 fortification = 1,200. | DB schema vs `balance.config.ts` |
-| I6 | **`tribes.power_total` is never recalculated.** Used in `calculateClanBonus()` but no route or tick process aggregates member power into the tribe total after individual power changes. Value may be perpetually stale. | `tribe/create/route.ts` vs `combat.ts:calculateClanBonus` |
+| I1 | **`maxLifetimeDeposits` vs `depositsPerDay`.** Both = 5 but `maxLifetimeDeposits` is never referenced in code. The actually enforced limit is `depositsPerDay`. | `balance.config.ts` |
+| I2 | **`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic. | DB schema vs `tick.ts` |
+| I3 | **`players.capacity` DB default = 2,500** vs formula at level-1 fortification = 1,200. | DB schema vs `balance.config.ts` |
 
 ### B. Missing Implementations
 
 | # | Feature | Status |
 |---|---|---|
-| M1 | Hero slave bonus in tick | `calcSlaveProduction` has `slaveBonus` param; tick always passes 0 |
-| M2 | Race gold production bonus in tick | `calcSlaveProduction` has `raceGoldBonus` param; tick always passes 0 |
-| M3 | Cavalry untrain | No route exists |
-| M4 | City migration route | No route exists; `players.city` never changes |
-| M5 | Hall of Fame population | Season-end snapshotting not implemented |
-| M6 | VIP weekly turns bonus | `weeklyTurnsBonus = 50` in BALANCE; no route applies it |
-| M7 | Tribe combat_boost / tribe_shield / production_blessing / war_cry effects | Spells stored in DB; no route consumes them during combat/production |
-| M8 | Hero XP leveling | `hero.xp` column + `xpPerLevel` in BALANCE; no route increments XP |
-| M9 | Crystal purchase flow | Packages defined in BALANCE; no purchase route |
-| M10 | Season promotion gate for protection | New-player protection implemented; season promotion itself has no route |
-| M11 | Tribe power aggregation | `tribes.power_total` set at creation; never updated via aggregation |
+| M1 | Cavalry untrain | No route exists |
+| M2 | Hall of Fame population | Season-end snapshotting not implemented |
+| M3 | VIP weekly turns bonus | `weeklyTurnsBonus = 50` in BALANCE; no route applies it |
+| M4 | Hero XP leveling | `hero.xp` column + `xpPerLevel` in BALANCE; no route increments XP |
+| M5 | Crystal purchase flow | Packages defined in BALANCE; no purchase route |
+| M6 | Season promotion gate for protection | New-player protection implemented; season promotion itself has no route |
 
-### C. Tuning Needed (constants set to placeholder or unassigned values)
+### C. Tuning Needed (constants set to placeholder values)
 
 | # | Constant | Current Value | Impact |
 |---|---|---|---|
-| T1 | `BANK_INTEREST_RATE_BASE` | `undefined` | Bank interest = NaN in prod |
-| T2 | `BANK_INTEREST_RATE_PER_LEVEL` | `undefined` | Bank interest = NaN in prod |
-| T3 | `CITY_PRODUCTION_MULT[1..5]` | `undefined` (defaults to 1) | All cities produce equally |
-| T4 | City promotion thresholds (S_base, P_base, etc.) | `undefined` | Promotion system inert |
-| T5 | PP weights (W_SOLDIERS etc.) | All `1.0` placeholder | Target distribution not met |
-| T6 | `SOLDIER_V`, `SOLDIER_K` | `1`, `3` placeholder | Tier balance untuned |
-| T7 | `combat.BASE_LOSS` | `0.15` placeholder | Loss rates untuned |
-| T8 | Race bonuses (orc/human/elf/dwarf values) | Set but [TUNE] | May need adjustment |
+| T1 | PP weights (`W_SOLDIERS` etc.) | All `1.0` placeholder | Target power distribution not met |
+| T2 | `SOLDIER_V`, `SOLDIER_K` | `1`, `3` placeholder | Tier balance untuned |
+| T3 | `combat.BASE_LOSS` | `0.15` placeholder | Loss rates untuned |
+| T4 | Race bonuses (orc/human/elf/dwarf values) | Set but [TUNE] | May need adjustment after playtesting |
+| T5 | Bank interest levels (`INTEREST_RATE_BY_LEVEL`) | 0%/5%/7.5%/10% [TUNE] | May need adjustment after playtesting |
+| T6 | City production multipliers (`CITY_PRODUCTION_MULT`) | 1.0/1.2/1.5/2.0/2.5 [TUNE] | May need adjustment after playtesting |
+| T7 | City promotion thresholds (`promotionPowerThreshold`) | 5K/20K/60K/150K [TUNE] | May need adjustment after playtesting |
+| T8 | Tribe spell multipliers (`spellEffects`) | 1.15/1.25/1.20 [TUNE] | May need adjustment after playtesting |
 
 ### D. Refactor Hotspots
 
@@ -1171,8 +1217,4 @@ Updated every tick (every 30 minutes) for all players simultaneously. Not real-t
 |---|---|---|
 | R1 | **6 separate Supabase calls in attack route.** No transaction. Partial failure leaves inconsistent state. | Migrate to `supabase.rpc()` stored function for atomicity |
 | R2 | **Power recalc on every tick for every player.** `N × 5` queries per tick. | Debounce or compute lazily on read |
-| R3 | **Two divergent power systems** (combat PP vs stored power). | Unify: either apply race bonuses to ECP or remove from stored power |
-| R4 | **Food cost formula split.** `calculateFoodCost()` is dead code in practice. | Delete `calculateFoodCost()` or wire it into the attack route |
-| R5 | **`tribes.power_total` staleness.** Used in combat but never refreshed post-creation. | Add tribe power aggregation to tick or use a live subquery |
-| R6 | **Bank interest with `undefined` rates.** Will produce NaN silently in prod. | Block bank interest code path until rates are assigned; or add validation guard |
-| R7 | **Diagnostic logging in attack route.** 20+ `console.log` lines marked for removal. | Remove after root cause confirmed |
+| R3 | **Diagnostic logging in attack route.** 20+ `console.log` lines marked for removal. | Remove after root cause confirmed |

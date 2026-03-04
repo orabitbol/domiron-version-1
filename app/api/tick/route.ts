@@ -8,6 +8,9 @@ import {
   calcHeroManaGain,
   calcBankInterest,
 } from '@/lib/game/tick'
+import { calcActiveHeroEffects } from '@/lib/game/hero-effects'
+import type { PlayerHeroEffect } from '@/lib/game/hero-effects'
+import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
 import { broadcastTickCompleted } from '@/lib/game/realtime'
 
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest) {
     const { data: players, error: playersError } = await supabase
       .from('players')
       .select(`
-        id, city, turns, max_turns, is_vacation, vip_until,
+        id, city, race, turns, max_turns, is_vacation, vip_until,
         power_attack, power_defense, power_spy, power_scout,
         army:army!inner(slaves, slaves_gold, slaves_iron, slaves_wood, slaves_food, farmers, free_population),
         development:development!inner(
@@ -48,6 +51,30 @@ export async function GET(request: NextRequest) {
 
     // Process each player
     const now = new Date().toISOString()
+    const tickTime = new Date()
+
+    // Batch-fetch all active hero effects (slave bonuses)
+    const { data: heroEffectsRows } = await supabase
+      .from('player_hero_effects')
+      .select('player_id, type, starts_at, ends_at, cooldown_ends_at, metadata, id')
+      .gt('ends_at', tickTime.toISOString())
+
+    const heroEffectsByPlayer = new Map<string, PlayerHeroEffect[]>()
+    for (const row of heroEffectsRows ?? []) {
+      const list = heroEffectsByPlayer.get(row.player_id) ?? []
+      list.push(row as PlayerHeroEffect)
+      heroEffectsByPlayer.set(row.player_id, list)
+    }
+
+    // Batch-fetch active tribe production spells
+    const { data: activeTribeSpells } = await supabase
+      .from('tribe_spells')
+      .select('tribe_id, spell_key')
+      .gt('expires_at', tickTime.toISOString())
+
+    const productionBlessingTribes = new Set(
+      activeTribeSpells?.filter(s => s.spell_key === 'production_blessing').map(s => s.tribe_id) ?? []
+    )
 
     for (const player of players) {
       const army = player.army as unknown as {
@@ -74,16 +101,34 @@ export async function GET(request: NextRequest) {
       // 3. Slave production — per-resource assignment (each slave produces one resource)
       // slaves_gold/iron/wood/food are the assigned counts; idle slaves produce nothing.
       // Farmers (separate unit type) always contribute to food production.
-      const goldProd = calcSlaveProduction(army.slaves_gold, dev.gold_level, player.city, player.vip_until)
-      const ironProd = calcSlaveProduction(army.slaves_iron, dev.iron_level, player.city, player.vip_until)
-      const woodProd = calcSlaveProduction(army.slaves_wood, dev.wood_level, player.city, player.vip_until)
-      const foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, player.city, player.vip_until)
 
-      // Random production within range
-      const goldGained = Math.floor(goldProd.min + Math.random() * (goldProd.max - goldProd.min))
-      const ironGained = Math.floor(ironProd.min + Math.random() * (ironProd.max - ironProd.min))
-      const woodGained = Math.floor(woodProd.min + Math.random() * (woodProd.max - woodProd.min))
-      const foodGained = Math.floor(foodProd.min + Math.random() * (foodProd.max - foodProd.min))
+      // Hero slave bonus (pre-clamped 0–0.50)
+      const playerEffects = heroEffectsByPlayer.get(player.id) ?? []
+      const heroEffects = calcActiveHeroEffects(playerEffects, tickTime)
+      const slaveBonus = heroEffects.totalSlaveBonus
+
+      // Race gold production bonus (human: 0.15, dwarf: 0.03, others: 0)
+      const race = (player as unknown as { race: string }).race ?? ''
+      const raceGoldBonus = race === 'human' ? BALANCE.raceBonuses.human.goldProductionBonus
+                          : race === 'dwarf'  ? BALANCE.raceBonuses.dwarf.goldProductionBonus
+                          : 0
+
+      // Tribe production blessing multiplier
+      const tribeId = (player.tribe_members as unknown as { tribe_id: string }[])?.[0]?.tribe_id
+      const tribeProdMult = tribeId && productionBlessingTribes.has(tribeId)
+        ? BALANCE.tribe.spellEffects.production_blessing.productionMultiplier
+        : 1.0
+
+      const goldProd = calcSlaveProduction(army.slaves_gold, dev.gold_level, player.city, player.vip_until, raceGoldBonus, slaveBonus)
+      const ironProd = calcSlaveProduction(army.slaves_iron, dev.iron_level, player.city, player.vip_until, 0, slaveBonus)
+      const woodProd = calcSlaveProduction(army.slaves_wood, dev.wood_level, player.city, player.vip_until, 0, slaveBonus)
+      const foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, player.city, player.vip_until, 0, slaveBonus)
+
+      // Random production within range, apply tribe blessing
+      const goldGained = Math.floor((goldProd.min + Math.random() * (goldProd.max - goldProd.min)) * tribeProdMult)
+      const ironGained = Math.floor((ironProd.min + Math.random() * (ironProd.max - ironProd.min)) * tribeProdMult)
+      const woodGained = Math.floor((woodProd.min + Math.random() * (woodProd.max - woodProd.min)) * tribeProdMult)
+      const foodGained = Math.floor((foodProd.min + Math.random() * (foodProd.max - foodProd.min)) * tribeProdMult)
 
       // 4. Hero mana
       const manaGain = calcHeroManaGain(hero.level, player.vip_until)
@@ -194,7 +239,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 8. Broadcast tick event to all connected players
+    // 8. Aggregate tribe power_total from current member power_total values (intentional staleness)
+    const { data: tribeMembers } = await supabase
+      .from('tribe_members')
+      .select('tribe_id, players!inner(power_total)')
+
+    if (tribeMembers) {
+      const tribeAgg = new Map<string, number>()
+      for (const row of tribeMembers) {
+        const pt = (row.players as unknown as { power_total: number }).power_total
+        tribeAgg.set(row.tribe_id, (tribeAgg.get(row.tribe_id) ?? 0) + pt)
+      }
+      await Promise.all(
+        Array.from(tribeAgg.entries()).map(([tribeId, total]) =>
+          supabase.from('tribes').update({ power_total: total }).eq('id', tribeId)
+        )
+      )
+    }
+
+    // 9. Broadcast tick event to all connected players
     await broadcastTickCompleted(supabase)
 
     const duration = Date.now() - startTime

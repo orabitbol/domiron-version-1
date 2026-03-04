@@ -78,22 +78,23 @@ export function calcTribeManaGain(memberCount: number): number {
   return Math.max(1, Math.floor(memberCount * BALANCE.tribe.manaPerMemberPerTick))
 }
 
-// Bank interest: applied once per day (on tick when date changes)
+// Bank interest: applied once per day (on tick when date changes).
 //
-// interest = floor(balance × BANK_INTEREST_RATE_BASE)
-//           + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
-//           + floor(balance × vipRate)
+// interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 //
-// ⚠️  BANK_INTEREST_RATE_BASE and BANK_INTEREST_RATE_PER_LEVEL are [TUNE: unassigned].
-//     Do not call this in production until both are set in balance.config.ts.
+// VIP bank interest bonus is 0 (BALANCE.vip.bankInterestBonus = 0 [unassigned]).
+// vipUntil param kept for signature compatibility.
 export function calcBankInterest(
   balance:       number,
   interestLevel: number,
-  vipUntil:      string | null
+  vipUntil:      string | null  // reserved for future VIP bank bonus; currently unused
 ): number {
-  const baseRate  = BALANCE.bank.BANK_INTEREST_RATE_BASE
-  const levelRate = interestLevel * BALANCE.bank.BANK_INTEREST_RATE_PER_LEVEL
-  const vipRate   = isVipActive(vipUntil) ? BALANCE.vip.bankInterestBonus : 0
-  const totalRate = baseRate + levelRate + vipRate
-  return Math.floor(balance * totalRate)
+  void vipUntil  // VIP bank bonus is 0 — suppress unused-param lint
+  const rate = BALANCE.bank.INTEREST_RATE_BY_LEVEL[interestLevel] ?? 0
+  return Math.floor(balance * rate)
+}
+
+// Sum of all member power_totals — stored to tribes.power_total once per tick.
+export function calcTribePowerTotal(memberPowerTotals: number[]): number {
+  return memberPowerTotals.reduce((sum, p) => sum + p, 0)
 }

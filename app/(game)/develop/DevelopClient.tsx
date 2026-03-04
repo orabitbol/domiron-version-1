@@ -175,13 +175,11 @@ export function DevelopClient({ player, development, resources, army }: Props) {
   const currentCityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city] ?? 1
   const hasNextCity = player.city < BALANCE.cities.total
   const nextCityNum  = player.city + 1
-  const nextCityReqs = hasNextCity ? BALANCE.cities.promotionRequirements[nextCityNum] : null
+  const nextCityThreshold = hasNextCity ? BALANCE.cities.promotionPowerThreshold[nextCityNum] : null
   const nextCityName = hasNextCity ? (BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`) : null
 
-  const totalResources = localResources.gold + localResources.iron + localResources.wood + localResources.food
-  const meetsResources = nextCityReqs ? totalResources >= (nextCityReqs.requiredResources ?? Infinity) : false
-  const meetsSoldiers  = nextCityReqs ? army.soldiers   >= (nextCityReqs.requiredSoldiers  ?? Infinity) : false
-  const canMoveCity    = meetsResources && meetsSoldiers && hasNextCity
+  const meetsPower  = nextCityThreshold != null ? player.power_total >= nextCityThreshold : false
+  const canMoveCity = meetsPower && hasNextCity
 
   // Population data
   const popLevel    = devState.population_level
@@ -388,17 +386,10 @@ export function DevelopClient({ player, development, resources, army }: Props) {
               </p>
               <div className="space-y-2 text-game-sm font-body">
                 <div className="flex items-center justify-between">
-                  <span className="text-game-text-secondary">Soldiers required</span>
-                  <span className={meetsSoldiers ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                    {formatNumber(army.soldiers)} / {nextCityReqs?.requiredSoldiers != null ? formatNumber(nextCityReqs.requiredSoldiers) : '—'}
-                    {meetsSoldiers ? ' ✓' : ''}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-game-text-secondary">Total resources required</span>
-                  <span className={meetsResources ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                    {formatNumber(totalResources)} / {nextCityReqs?.requiredResources != null ? formatNumber(nextCityReqs.requiredResources) : '—'}
-                    {meetsResources ? ' ✓' : ''}
+                  <span className="text-game-text-secondary">Power required</span>
+                  <span className={meetsPower ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(player.power_total)} / {nextCityThreshold != null ? formatNumber(nextCityThreshold) : '—'}
+                    {meetsPower ? ' ✓' : ''}
                   </span>
                 </div>
               </div>

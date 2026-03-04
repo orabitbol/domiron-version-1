@@ -22,6 +22,20 @@ const attackSchema = z.object({
   turns: z.number().int().min(1).max(10),
 })
 
+function getAttackerRaceBonus(race: string): number {
+  const r = BALANCE.raceBonuses
+  if (race === 'orc')   return r.orc.attackBonus
+  if (race === 'human') return r.human.attackBonus
+  return 0
+}
+
+function getDefenderRaceBonus(race: string): number {
+  const r = BALANCE.raceBonuses
+  if (race === 'orc')   return r.orc.defenseBonus
+  if (race === 'dwarf') return r.dwarf.defenseBonus
+  return 0
+}
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -105,6 +119,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Defender not found' }, { status: 404 })
     }
 
+    if (defPlayer.city !== attPlayer.city) {
+      return NextResponse.json({ error: 'Target is in a different city' }, { status: 400 })
+    }
+
     const now = new Date()
 
     // Fetch tribe data for ClanContext (power_total + level)
@@ -130,11 +148,14 @@ export async function POST(request: NextRequest) {
     const killCooldownStart  = new Date(now.getTime() - BALANCE.combat.KILL_COOLDOWN_HOURS * 3_600_000)
     const decayWindowStart   = new Date(now.getTime() - BALANCE.antiFarm.DECAY_WINDOW_HOURS * 3_600_000)
 
+    const combatTribeIds = [attTribeMember?.tribe_id, defTribeMember?.tribe_id].filter(Boolean) as string[]
+
     const [
       { count: killCount },
       { count: attacksInWindow },
       attHero,
       defHero,
+      { data: activeTribeSpells },
     ] = await Promise.all([
       supabase
         .from('attacks')
@@ -151,12 +172,33 @@ export async function POST(request: NextRequest) {
         .gte('created_at', decayWindowStart.toISOString()),
       getActiveHeroEffects(supabase, playerId),
       getActiveHeroEffects(supabase, defender_id),
+      combatTribeIds.length > 0
+        ? supabase.from('tribe_spells').select('tribe_id, spell_key').in('tribe_id', combatTribeIds).gt('expires_at', now.toISOString())
+        : Promise.resolve({ data: [] as { tribe_id: string; spell_key: string }[], error: null }),
     ])
 
     const killCooldown      = (killCount ?? 0) > 0
     const seasonStartedAt   = new Date(activeSeason.starts_at)
     const attackerProtected = isNewPlayerProtected(new Date(attPlayer.created_at), seasonStartedAt, now)
     const defenderProtected = isNewPlayerProtected(new Date(defPlayer.created_at), seasonStartedAt, now)
+
+    // Tribe combat spell multipliers
+    let attTribeCombatMult = 1
+    if (attTribeMember?.tribe_id && activeTribeSpells) {
+      const attSpells = activeTribeSpells.filter(s => s.tribe_id === attTribeMember.tribe_id)
+      if (attSpells.some(s => s.spell_key === 'war_cry')) {
+        attTribeCombatMult = BALANCE.tribe.spellEffects.war_cry.combatMultiplier
+      } else if (attSpells.some(s => s.spell_key === 'combat_boost')) {
+        attTribeCombatMult = BALANCE.tribe.spellEffects.combat_boost.combatMultiplier
+      }
+    }
+    let defTribeCombatMult = 1
+    if (defTribeMember?.tribe_id && activeTribeSpells) {
+      const defSpells = activeTribeSpells.filter(s => s.tribe_id === defTribeMember.tribe_id)
+      if (defSpells.some(s => s.spell_key === 'tribe_shield')) {
+        defTribeCombatMult = BALANCE.tribe.spellEffects.tribe_shield.defenseMultiplier
+      }
+    }
 
     // ── DIAGNOSTIC LOGGING — remove after root cause is identified ────────────
     console.log('[ATK_DIAG] === ATTACK DIAGNOSTIC START ===')
@@ -215,6 +257,10 @@ export async function POST(request: NextRequest) {
       defenseBonus:        clampBonus(defHero.totalDefenseBonus),
       soldierShieldActive: defHero.soldierShieldActive,
       resourceShieldActive: defHero.resourceShieldActive,
+      attackerRaceBonus:       getAttackerRaceBonus(attPlayer.race),
+      defenderRaceBonus:       getDefenderRaceBonus(defPlayer.race),
+      attackerTribeMultiplier: attTribeCombatMult,
+      defenderTribeMultiplier: defTribeCombatMult,
     })
 
     // ── DIAGNOSTIC LOGGING — remove after root cause is identified ────────────

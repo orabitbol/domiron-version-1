@@ -33,30 +33,6 @@ const SCOUT_WEAPON_MULTIPLIERS = {
   elven_boots:  1.50,
 } as const
 
-function getRaceAttackMult(race: string): number {
-  const r = BALANCE.raceBonuses
-  if (race === 'orc')   return 1 + r.orc.attackBonus
-  if (race === 'human') return 1 + r.human.attackBonus
-  return 1.0
-}
-
-function getRaceDefenseMult(race: string): number {
-  const r = BALANCE.raceBonuses
-  if (race === 'orc')   return 1 + r.orc.defenseBonus
-  if (race === 'dwarf') return 1 + r.dwarf.defenseBonus
-  return 1.0
-}
-
-function getRaceSpyMult(race: string): number {
-  if (race === 'elf') return 1 + BALANCE.raceBonuses.elf.spyBonus
-  return 1.0
-}
-
-function getRaceScoutMult(race: string): number {
-  if (race === 'elf') return 1 + BALANCE.raceBonuses.elf.scoutBonus
-  return 1.0
-}
-
 export async function recalculatePower(
   playerId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,22 +40,19 @@ export async function recalculatePower(
 ): Promise<void> {
   // Fetch all data needed for power calculation
   const [
-    { data: player },
     { data: army },
     { data: weapons },
     { data: training },
     { data: development },
   ] = await Promise.all([
-    supabase.from('players').select('race').eq('id', playerId).single(),
     supabase.from('army').select('soldiers, cavalry, spies, scouts').eq('player_id', playerId).single(),
     supabase.from('weapons').select('*').eq('player_id', playerId).single(),
     supabase.from('training').select('attack_level, defense_level, spy_level, scout_level').eq('player_id', playerId).single(),
     supabase.from('development').select('fortification_level').eq('player_id', playerId).single(),
   ])
 
-  if (!player || !army || !weapons || !training || !development) return
+  if (!army || !weapons || !training || !development) return
 
-  const { race } = player
   const { attack: atkWeapons, defense: defWeapons } = BALANCE.weapons
 
   // ── Attack Power ────────────────────────────────────────────────────────────
@@ -94,7 +67,7 @@ export async function recalculatePower(
     weapons.iron_ball    * atkWeapons.iron_ball.power
   const attackTrainMult = 1 + training.attack_level * BALANCE.training.advancedMultiplierPerLevel
   const powerAttack = Math.floor(
-    (baseAttackUnits + attackWeaponPower) * attackTrainMult * getRaceAttackMult(race)
+    (baseAttackUnits + attackWeaponPower) * attackTrainMult
   )
 
   // ── Defense Power ───────────────────────────────────────────────────────────
@@ -110,7 +83,7 @@ export async function recalculatePower(
   const defenseTrainMult = 1 + training.defense_level * BALANCE.training.advancedMultiplierPerLevel
   const fortMult = 1 + (development.fortification_level - 1) * 0.10
   const powerDefense = Math.floor(
-    baseDefenseUnits * defWeaponMult * defenseTrainMult * fortMult * getRaceDefenseMult(race)
+    baseDefenseUnits * defWeaponMult * defenseTrainMult * fortMult
   )
 
   // ── Spy Power ───────────────────────────────────────────────────────────────
@@ -120,7 +93,7 @@ export async function recalculatePower(
   if (weapons.dark_mask    > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.dark_mask
   if (weapons.elven_gear   > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.elven_gear
   const powerSpy = Math.floor(
-    army.spies * spyTrainMult * spyWeaponMult * getRaceSpyMult(race)
+    army.spies * spyTrainMult * spyWeaponMult
   )
 
   // ── Scout Power ─────────────────────────────────────────────────────────────
@@ -130,7 +103,7 @@ export async function recalculatePower(
   if (weapons.scout_cloak  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.scout_cloak
   if (weapons.elven_boots  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.elven_boots
   const powerScout = Math.floor(
-    army.scouts * scoutTrainMult * scoutWeaponMult * getRaceScoutMult(race)
+    army.scouts * scoutTrainMult * scoutWeaponMult
   )
 
   // ── Total Power ─────────────────────────────────────────────────────────────

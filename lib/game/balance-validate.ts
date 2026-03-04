@@ -88,12 +88,13 @@ const balanceSchema = z.object({
     LOOT_DECAY_STEPS:   z.tuple([z.number(), z.number(), z.number(), z.number(), z.number()]),
   }),
   bank: z.object({
-    maxLifetimeDeposits: z.number(),
-    theftProtection:     z.number(),
-    upgradeBaseCost:     z.number(),
-    depositsPerDay:      z.number(),
-    maxDepositPercent:   z.number(),
-    // BANK_INTEREST_RATE_BASE / BANK_INTEREST_RATE_PER_LEVEL are [TUNE: unassigned] — excluded
+    maxLifetimeDeposits:   z.number(),
+    theftProtection:       z.number(),
+    INTEREST_RATE_BY_LEVEL: z.record(z.number()),
+    MAX_INTEREST_LEVEL:    z.number(),
+    upgradeBaseCost:       z.number(),
+    depositsPerDay:        z.number(),
+    maxDepositPercent:     z.number(),
   }).passthrough(),
   training: z.object({
     unitCost: z.object({
@@ -113,6 +114,12 @@ const balanceSchema = z.object({
   }),
   tribe: z.object({
     spells:               z.record(z.object({ manaCost: z.number(), durationHours: z.number() })),
+    spellEffects: z.object({
+      combat_boost:        z.object({ combatMultiplier:     z.number() }),
+      tribe_shield:        z.object({ defenseMultiplier:    z.number() }),
+      war_cry:             z.object({ combatMultiplier:     z.number() }),
+      production_blessing: z.object({ productionMultiplier: z.number() }),
+    }),
     taxLimits:            z.record(z.number()),
     manaPerMemberPerTick: z.number(),
   }),
@@ -152,10 +159,11 @@ const balanceSchema = z.object({
     scout:             z.record(z.object({ costGold: z.number() })),
     sellRefundPercent: z.number(),
   }),
-  // cities: CITY_PRODUCTION_MULT and promotionRequirements are [TUNE: unassigned] — excluded from deep validation
   cities: z.object({
-    total: z.number(),
-    names: z.record(z.string()),
+    total:                   z.number(),
+    names:                   z.record(z.string()),
+    CITY_PRODUCTION_MULT:    z.record(z.number()),
+    promotionPowerThreshold: z.record(z.number()),
   }).passthrough(),
 })
 

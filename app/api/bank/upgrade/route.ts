@@ -25,6 +25,10 @@ export async function POST() {
       return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
     }
 
+    if (bank.interest_level >= BALANCE.bank.MAX_INTEREST_LEVEL) {
+      return NextResponse.json({ error: 'Bank interest already at maximum level' }, { status: 400 })
+    }
+
     const upgradeCost = BALANCE.bank.upgradeBaseCost * (bank.interest_level + 1)
 
     if (resources.gold < upgradeCost) {

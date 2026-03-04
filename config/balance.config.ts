@@ -309,13 +309,10 @@ export const BALANCE = {
     maxLifetimeDeposits: 5,     // [FIXED] Total deposits across account lifetime
     theftProtection:     1.00,  // [FIXED] 100% of banked gold is safe
 
-    // Interest formula: interest = floor(balance × BANK_INTEREST_RATE_BASE)
-    //                            + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
-    //
-    // Both rates are [TUNE: unassigned]. Assign during economy balance.
-    // Guideline: total rate should feel meaningful but not dominate gold production.
-    BANK_INTEREST_RATE_BASE:      undefined as unknown as number, // [TUNE: unassigned]
-    BANK_INTEREST_RATE_PER_LEVEL: undefined as unknown as number, // [TUNE: unassigned]
+    // Interest by level: floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
+    // Level 0 → no interest; levels 1–3 are upgrade-gated.
+    INTEREST_RATE_BY_LEVEL: { 0: 0.0, 1: 0.05, 2: 0.075, 3: 0.10 } as Record<number, number>, // [TUNE]
+    MAX_INTEREST_LEVEL: 3, // [FIXED]
 
     upgradeBaseCost: 2_000, // [TUNE]
 
@@ -366,6 +363,14 @@ export const BALANCE = {
       mass_spy:            { manaCost: 15, durationHours:  0 }, // [TUNE] instant
       war_cry:             { manaCost: 40, durationHours:  4 }, // [TUNE]
     } as Record<string, { manaCost: number; durationHours: number }>,
+
+    // Combat and production multipliers applied when the spell is active.
+    spellEffects: {
+      combat_boost:        { combatMultiplier:     1.15 }, // [TUNE] attacker ECP ×1.15
+      tribe_shield:        { defenseMultiplier:    1.15 }, // [TUNE] defender ECP ×1.15
+      war_cry:             { combatMultiplier:     1.25 }, // [TUNE] attacker ECP ×1.25
+      production_blessing: { productionMultiplier: 1.20 }, // [TUNE] tick production ×1.20
+    },
 
     taxLimits: {
       city1:  1_000, // [TUNE]
@@ -462,17 +467,17 @@ export const BALANCE = {
     p_growth: undefined as unknown as number, // Per-city multiplier for PP threshold
     r_growth: undefined as unknown as number, // Per-city multiplier for resource costs
 
-    // ── City production multipliers [TUNE: unassigned] ────
+    // ── City production multipliers [TUNE] ────
     // CityProductionMultiplier(C): applied to slave output per tick.
     // Higher cities produce more resources — this is the primary promotion incentive.
     // Each city is independently tunable (not constrained to a linear sequence).
     CITY_PRODUCTION_MULT: {
-      1: undefined as unknown as number, // [TUNE: unassigned]
-      2: undefined as unknown as number, // [TUNE: unassigned]
-      3: undefined as unknown as number, // [TUNE: unassigned]
-      4: undefined as unknown as number, // [TUNE: unassigned]
-      5: undefined as unknown as number, // [TUNE: unassigned]
-    } as Record<number, number>,
+      1: 1.0,
+      2: 1.2,
+      3: 1.5,
+      4: 2.0,
+      5: 2.5,
+    } as Record<number, number>, // [TUNE]
 
     // City names (display only)
     names: {
@@ -483,15 +488,15 @@ export const BALANCE = {
       5: 'Nerokvor',
     } as Record<number, string>,
 
-    // ── City promotion requirements [TUNE: unassigned] ────
-    // Requirements to move from city C-1 → C.
+    // ── City promotion power thresholds [TUNE] ────
+    // Minimum power_total required to promote from city C-1 → C.
     // City 1 is starting city; no promotion required to reach it.
-    promotionRequirements: {
-      2: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
-      3: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
-      4: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
-      5: { requiredSoldiers: undefined as unknown as number, requiredResources: undefined as unknown as number },
-    } as Record<number, { requiredSoldiers: number; requiredResources: number }>,
+    promotionPowerThreshold: {
+      2:   5_000,
+      3:  20_000,
+      4:  60_000,
+      5: 150_000,
+    } as Record<number, number>, // [TUNE]
   },
 
   // ═══════════════════════════════════════
