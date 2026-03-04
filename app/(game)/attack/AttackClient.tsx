@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -205,8 +206,10 @@ function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: b
 
 export function AttackClient({ player, targets, resources }: Props) {
   const { refresh } = usePlayer()
+  const router = useRouter()
   const isFrozen = useFreeze()
   const [search, setSearch] = useState('')
+  const [localTargets, setLocalTargets] = useState<Target[]>(targets)
   const [turns, setTurns] = useState<Record<string, string>>({})
   const [confirmTarget, setConfirmTarget] = useState<Target | null>(null)
   const [battleReport, setBattleReport] = useState<BattleReport | null>(null)
@@ -217,10 +220,10 @@ export function AttackClient({ player, targets, resources }: Props) {
 
   const filtered = useMemo(
     () =>
-      targets.filter((t) =>
+      localTargets.filter((t) =>
         t.army_name.toLowerCase().includes(search.toLowerCase())
       ),
-    [targets, search]
+    [localTargets, search]
   )
 
   function getTargetTurns(targetId: string) {
@@ -248,10 +251,21 @@ export function AttackClient({ player, targets, resources }: Props) {
         setMessage({ text: data.error ?? 'Attack failed', type: 'error' })
         setConfirmTarget(null)
       } else {
-        setBattleReport(data.battleReport)
+        const report = data.battleReport
+        setBattleReport(report)
         setConfirmTarget(null)
         if (data.turns !== undefined) setPlayerTurns(data.turns)
         if (data.resources) setPlayerResources(data.resources)
+        setLocalTargets((prev) =>
+          prev.map((t) => {
+            if (t.id === player.id)
+              return { ...t, soldiers: report.attacker.after.soldiers }
+            if (t.id === confirmTarget.id)
+              return { ...t, soldiers: report.defender.after.soldiers, gold: report.defender.after.gold }
+            return t
+          })
+        )
+        router.refresh()
         refresh()
       }
     } catch {
