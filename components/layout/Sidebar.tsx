@@ -74,9 +74,9 @@ function TickCountdown() {
 
 function SectionLabel({ label }: { label: string }) {
   return (
-    <div className="px-4 pt-4 pb-1.5 flex items-center gap-2">
+    <div className="px-3 pt-3 pb-0.5 flex items-center gap-2">
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-game-border-gold/40 to-transparent" />
-      <span className="text-[9px] font-heading uppercase tracking-[0.18em] text-game-text-muted shrink-0">
+      <span className="text-[8px] font-heading uppercase tracking-[0.18em] text-game-text-muted shrink-0">
         {label}
       </span>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-game-border-gold/40 to-transparent" />
@@ -86,11 +86,11 @@ function SectionLabel({ label }: { label: string }) {
 
 function StatRow({ left, right, rightClass }: { left: React.ReactNode; right: React.ReactNode; rightClass?: string }) {
   return (
-    <div className="flex items-center justify-between px-4 py-1">
-      <span className="text-game-xs text-game-text-secondary font-body flex items-center gap-1.5">
+    <div className="flex items-center justify-between px-3 py-[2px]">
+      <span className="text-[10px] text-game-text-secondary font-body flex items-center gap-1">
         {left}
       </span>
-      <span className={cn('text-game-sm font-semibold font-body tabular-nums', rightClass)}>
+      <span className={cn('text-[11px] font-semibold font-body tabular-nums', rightClass)}>
         {right}
       </span>
     </div>
@@ -110,63 +110,64 @@ export function Sidebar() {
       <aside
         className={cn(
           'sidebar hidden md:flex flex-col',
-          'fixed top-header bottom-0 start-0 z-30',
+          'fixed top-[76px] bottom-3 start-4 z-30',
           'w-sidebar',
-          'border-e border-game-border',
-          'bg-gradient-to-b from-game-surface/98 via-game-surface/95 to-game-bg/90',
+          'rounded-xl',
+          'border border-game-border-gold/20',
+          'bg-gradient-to-b from-game-surface/98 via-game-surface/96 to-game-bg/92',
           'backdrop-blur-game',
           'overflow-y-auto overflow-x-hidden',
-          'shadow-[2px_0_24px_rgba(0,0,0,0.4)]'
+          'shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_0_1px_rgba(201,144,26,0.08),inset_0_1px_0_rgba(240,192,48,0.05)]'
         )}
       >
         {/* Brand */}
         <Link
           href="/base"
-          className="flex items-center gap-2.5 px-5 py-4 hover:opacity-80 transition-opacity shrink-0"
+          className="flex items-center gap-2 px-4 py-3 hover:opacity-80 transition-opacity shrink-0"
         >
-          <Crown className="size-5 text-game-gold-bright drop-shadow-[0_0_6px_rgba(240,192,48,0.4)]" />
-          <span className="font-display text-game-base text-game-gold-bright uppercase tracking-widest text-title-glow">
+          <Crown className="size-4 text-game-gold-bright drop-shadow-[0_0_6px_rgba(240,192,48,0.4)]" />
+          <span className="font-display text-game-sm text-game-gold-bright uppercase tracking-widest text-title-glow">
             Domiron
           </span>
         </Link>
         <div className="divider-gold" />
 
         {/* Player identity */}
-        <div className="px-4 py-3 shrink-0">
-          <p className="font-heading text-game-sm text-game-gold-bright truncate leading-snug">
+        <div className="px-3 py-2 shrink-0">
+          <p className="font-heading text-game-xs text-game-gold-bright truncate leading-snug">
             {player?.username ?? '…'}
           </p>
-          <p className="text-[10px] text-game-text-muted font-body mt-0.5 uppercase tracking-wide">
+          <p className="text-[9px] text-game-text-muted font-body mt-0.5 uppercase tracking-wide">
             {raceName} · {cityName}
           </p>
         </div>
 
         {/* Resources */}
         <SectionLabel label="Resources" />
-        <div className="pb-3 pt-1">
+        <div className="pb-2 pt-0.5">
           <StatRow
-            left={<><span className="text-xs leading-none">🪙</span> זהב</>}
+            left={<><span className="text-[10px] leading-none">🪙</span> זהב</>}
             right={<AnimatedNumber value={resources?.gold  ?? 0} />}
             rightClass="text-res-gold"
           />
           <StatRow
-            left={<><span className="text-xs leading-none">⚙️</span> ברזל</>}
+            left={<><span className="text-[10px] leading-none">⚙️</span> ברזל</>}
             right={<AnimatedNumber value={resources?.iron  ?? 0} />}
             rightClass="text-res-iron"
           />
           <StatRow
-            left={<><span className="text-xs leading-none">🪵</span> עץ</>}
+            left={<><span className="text-[10px] leading-none">🪵</span> עץ</>}
             right={<AnimatedNumber value={resources?.wood  ?? 0} />}
             rightClass="text-res-wood"
           />
           <StatRow
-            left={<><span className="text-xs leading-none">🌾</span> מזון</>}
+            left={<><span className="text-[10px] leading-none">🌾</span> מזון</>}
             right={<AnimatedNumber value={resources?.food  ?? 0} />}
             rightClass="text-res-food"
           />
           {hero?.mana !== undefined && (
             <StatRow
-              left={<><span className="text-xs leading-none">🔮</span> מאנה</>}
+              left={<><span className="text-[10px] leading-none">🔮</span> מאנה</>}
               right={<AnimatedNumber value={hero.mana} />}
               rightClass="text-res-mana"
             />
@@ -175,13 +176,13 @@ export function Sidebar() {
 
         {/* Status */}
         <SectionLabel label="Status" />
-        <div className="pb-3 pt-1">
+        <div className="pb-2 pt-0.5">
           <StatRow
-            left={<><Zap className="size-3 text-res-turns shrink-0" /> תורות</>}
+            left={<><Zap className="size-2.5 text-res-turns shrink-0" /> תורות</>}
             right={
               <>
                 {player?.turns ?? 0}
-                <span className="text-game-text-muted font-normal text-game-xs">
+                <span className="text-game-text-muted font-normal text-[10px]">
                   /{player?.max_turns ?? 30}
                 </span>
               </>
@@ -189,14 +190,14 @@ export function Sidebar() {
             rightClass="text-res-turns"
           />
           <StatRow
-            left={<><span className="text-xs leading-none">⏱</span> טיק הבא</>}
+            left={<><span className="text-[10px] leading-none">⏱</span> טיק הבא</>}
             right={<TickCountdown />}
           />
         </div>
 
         {/* Navigation */}
         <SectionLabel label="Navigation" />
-        <nav className="flex-1 py-2 min-h-0 space-y-1">
+        <nav className="flex-1 py-1 min-h-0 space-y-0.5">
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const isActive = pathname === href || pathname.startsWith(href + '/')
             return (
@@ -206,7 +207,7 @@ export function Sidebar() {
                 className={cn('nav-link', isActive && 'active')}
               >
                 <Icon className={cn(
-                  'size-4 shrink-0 transition-all duration-200',
+                  'size-3.5 shrink-0 transition-all duration-200',
                   isActive && 'text-game-gold-bright drop-shadow-[0_0_4px_rgba(240,192,48,0.4)]'
                 )} />
                 <span>{label}</span>
@@ -216,8 +217,8 @@ export function Sidebar() {
         </nav>
 
         {/* Logout */}
-        <div className="p-4 shrink-0">
-          <div className="divider-gold mb-4" />
+        <div className="p-3 shrink-0">
+          <div className="divider-gold mb-3" />
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className={cn(
