@@ -20,12 +20,11 @@ export default async function AttackPage() {
 
   if (!player) return null
 
-  // Fetch all players in same city (excluding self)
+  // Fetch all players in same city (including self — self row has no Attack button)
   const { data: cityPlayers } = await supabase
     .from('players')
     .select('id, army_name, city, rank_city, rank_global, power_total, is_vacation')
     .eq('city', player.city)
-    .neq('id', playerId)
     .order('rank_city', { ascending: true })
     .limit(100)
 

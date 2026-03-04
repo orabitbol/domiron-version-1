@@ -231,6 +231,7 @@ export function AttackClient({ player, targets, resources }: Props) {
 
   async function executeAttack() {
     if (!confirmTarget) return
+    if (confirmTarget.id === player.id) return
     const t = getTargetTurns(confirmTarget.id)
     setLoading(true)
     setMessage(null)
@@ -267,7 +268,7 @@ export function AttackClient({ player, targets, resources }: Props) {
             Attack
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
-            City {player.city} — {filtered.length} targets available
+            City {player.city} — {filtered.filter((t) => t.id !== player.id).length} targets available
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -330,9 +331,11 @@ export function AttackClient({ player, targets, resources }: Props) {
             striped
             hoverable
             rows={filtered.map((target) => {
+              const isSelf = target.id === player.id
               const t = getTargetTurns(target.id)
               const cost = foodCost(t)
               const canAttack =
+                !isSelf &&
                 playerTurns >= t &&
                 (playerResources?.food ?? 0) >= cost &&
                 !target.is_vacation
@@ -348,6 +351,9 @@ export function AttackClient({ player, targets, resources }: Props) {
                   {target.is_vacation && (
                     <Badge variant="blue" className="ml-2">Vacation</Badge>
                   )}
+                  {isSelf && (
+                    <Badge variant="green" className="ml-2">You</Badge>
+                  )}
                 </div>,
                 <span key="tribe" className="text-game-sm font-body text-game-text-muted">
                   {target.tribe_name ?? '—'}
@@ -360,27 +366,39 @@ export function AttackClient({ player, targets, resources }: Props) {
                   resource={target.resource_shield_active}
                   soldier={target.soldier_shield_active}
                 />,
-                <Input
-                  key="turns"
-                  type="number"
-                  value={turns[target.id] ?? '1'}
-                  min={1}
-                  max={10}
-                  onChange={(e) =>
-                    setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))
-                  }
-                  className="w-16"
-                />,
-                <ResourceBadge key="cost" type="food" amount={cost} />,
-                <Button
-                  key="attack"
-                  variant="danger"
-                  size="sm"
-                  disabled={isFrozen || !canAttack}
-                  onClick={() => setConfirmTarget(target)}
-                >
-                  Attack
-                </Button>,
+                isSelf ? (
+                  <span key="turns" />
+                ) : (
+                  <Input
+                    key="turns"
+                    type="number"
+                    value={turns[target.id] ?? '1'}
+                    min={1}
+                    max={10}
+                    onChange={(e) =>
+                      setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))
+                    }
+                    className="w-16"
+                  />
+                ),
+                isSelf ? (
+                  <span key="cost" />
+                ) : (
+                  <ResourceBadge key="cost" type="food" amount={cost} />
+                ),
+                isSelf ? (
+                  <span key="action" className="text-game-xs text-game-text-muted font-body">—</span>
+                ) : (
+                  <Button
+                    key="attack"
+                    variant="danger"
+                    size="sm"
+                    disabled={isFrozen || !canAttack}
+                    onClick={() => setConfirmTarget(target)}
+                  >
+                    Attack
+                  </Button>
+                ),
               ]
             })}
           />
