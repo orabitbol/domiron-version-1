@@ -301,4 +301,4 @@ WHERE player_id = $1 AND ends_at > now()
 | All bonus categories capped at 50% | `clampBonus()` called on every category before use |
 | Shields apply inside combat, not at the gate | `resolveCombat()` inputs; gate checks are separate |
 | Loot decay counting is unaffected by shields | `attackCountInWindow` is incremented regardless |
-| Fail-safe on DB error | `getActiveHeroEffects()` returns all-zeros on error; combat never blocked |
+| DB error on hero effects fetch | `getActiveHeroEffects()` throws `HeroEffectsUnavailableError`; attack route returns HTTP 503 — combat is blocked to prevent silent shield/bonus loss |

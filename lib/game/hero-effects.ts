@@ -131,11 +131,25 @@ export function applyTurnsPack(currentTurns: number, amount: number): number {
 // ─────────────────────────────────────────
 
 /**
+ * Thrown by getActiveHeroEffects() when the DB query fails.
+ * Callers must catch this and abort the request (HTTP 503) — do NOT fall back to zero effects.
+ * Falling back to zeros would silently strip active shields from a player mid-combat.
+ */
+export class HeroEffectsUnavailableError extends Error {
+  constructor(public readonly playerId: string, cause?: unknown) {
+    super(`Failed to load hero effects for player ${playerId}`)
+    this.name = 'HeroEffectsUnavailableError'
+    if (cause !== undefined) this.cause = cause
+  }
+}
+
+/**
  * Queries player_hero_effects for the given player and returns computed totals.
  * Requires a Supabase server client — never call from client components.
  *
- * Fail-safe: returns all-zeros/false if the query fails, so combat resolution
- * is never blocked by an effect lookup error.
+ * Throws HeroEffectsUnavailableError on DB/query failure.
+ * The caller must catch this and return HTTP 503 — do NOT proceed with combat using
+ * zeroed effects, as that silently strips a player's active shields and bonuses.
  */
 export async function getActiveHeroEffects(
   supabase: SupabaseClient,
@@ -150,13 +164,7 @@ export async function getActiveHeroEffects(
     .gt('ends_at', now.toISOString())
 
   if (error || !data) {
-    return {
-      totalSlaveBonus:      0,
-      totalAttackBonus:     0,
-      totalDefenseBonus:    0,
-      resourceShieldActive: false,
-      soldierShieldActive:  false,
-    }
+    throw new HeroEffectsUnavailableError(playerId, error)
   }
 
   return calcActiveHeroEffects(data as PlayerHeroEffect[], now)

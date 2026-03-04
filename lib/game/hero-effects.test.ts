@@ -21,7 +21,10 @@ import {
   calcActiveHeroEffects,
   isShieldActive,
   applyTurnsPack,
+  getActiveHeroEffects,
+  HeroEffectsUnavailableError,
 } from '@/lib/game/hero-effects'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   calculateClanBonus,
   calculateECP,
@@ -582,6 +585,73 @@ describe('calcActiveHeroEffects — date string parsing consistency', () => {
     const effect: PlayerHeroEffect = { ...makeEffect('SLAVE_OUTPUT_10'), ends_at: withOffset }
     const totals = calcActiveHeroEffects([effect], NOW)
     expect(totals.totalSlaveBonus).toBe(BALANCE.hero.EFFECT_RATES.SLAVE_OUTPUT_10)
+  })
+
+})
+
+// ─────────────────────────────────────────
+// 12. getActiveHeroEffects — DB error throws HeroEffectsUnavailableError
+// ─────────────────────────────────────────
+
+/** Minimal Supabase mock that returns a DB error on any query. */
+function makeErrorSupabase(): SupabaseClient {
+  const chain = {
+    select: () => chain,
+    eq:     () => chain,
+    gt:     () => Promise.resolve({ data: null, error: { message: 'DB connection error', code: 'PGRST000' } }),
+  }
+  return { from: () => chain } as unknown as SupabaseClient
+}
+
+/** Minimal Supabase mock that returns an empty result (no active effects). */
+function makeEmptySupabase(): SupabaseClient {
+  const chain = {
+    select: () => chain,
+    eq:     () => chain,
+    gt:     () => Promise.resolve({ data: [], error: null }),
+  }
+  return { from: () => chain } as unknown as SupabaseClient
+}
+
+describe('getActiveHeroEffects — DB error handling', () => {
+
+  it('throws HeroEffectsUnavailableError when the DB query returns an error', async () => {
+    const supabase = makeErrorSupabase()
+    await expect(getActiveHeroEffects(supabase, 'player-1'))
+      .rejects
+      .toThrow(HeroEffectsUnavailableError)
+  })
+
+  it('thrown error carries the correct playerId', async () => {
+    const supabase = makeErrorSupabase()
+    try {
+      await getActiveHeroEffects(supabase, 'player-abc')
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(HeroEffectsUnavailableError)
+      expect((err as HeroEffectsUnavailableError).playerId).toBe('player-abc')
+    }
+  })
+
+  it('thrown error carries the original DB error as cause', async () => {
+    const supabase = makeErrorSupabase()
+    try {
+      await getActiveHeroEffects(supabase, 'player-1')
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(HeroEffectsUnavailableError)
+      expect((err as HeroEffectsUnavailableError).cause).toBeTruthy()
+    }
+  })
+
+  it('does NOT throw and returns all-zeros when DB returns empty array (no active effects)', async () => {
+    const supabase = makeEmptySupabase()
+    const result = await getActiveHeroEffects(supabase, 'player-1')
+    expect(result.totalAttackBonus).toBe(0)
+    expect(result.totalDefenseBonus).toBe(0)
+    expect(result.totalSlaveBonus).toBe(0)
+    expect(result.resourceShieldActive).toBe(false)
+    expect(result.soldierShieldActive).toBe(false)
   })
 
 })

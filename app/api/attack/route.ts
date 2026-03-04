@@ -12,7 +12,7 @@ import {
   getLootDecayMultiplier,
 } from '@/lib/game/combat'
 import type { ClanContext } from '@/lib/game/combat'
-import { getActiveHeroEffects, clampBonus } from '@/lib/game/hero-effects'
+import { getActiveHeroEffects, clampBonus, HeroEffectsUnavailableError } from '@/lib/game/hero-effects'
 import { recalculatePower } from '@/lib/game/power'
 import type { BattleReport, BattleReportReason } from '@/types/game'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
@@ -494,6 +494,13 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (err) {
+    if (err instanceof HeroEffectsUnavailableError) {
+      console.error('[attack] HeroEffectsUnavailable — attacker:', playerId, 'cause:', err.cause)
+      return NextResponse.json(
+        { error: 'HeroEffectsUnavailable', message: 'Temporary issue loading hero effects. Please try again.' },
+        { status: 503 },
+      )
+    }
     console.error('Attack error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
