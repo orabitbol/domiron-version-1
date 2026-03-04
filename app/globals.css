@@ -62,10 +62,10 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #050403;
+  background-color: #120E08;
   background:
-    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(201,144,26,0.06) 0%, transparent 60%),
-    linear-gradient(rgba(8, 6, 4, 0.75), rgba(8, 6, 4, 0.75)),
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(201,144,26,0.10) 0%, transparent 65%),
+    linear-gradient(rgba(10, 8, 6, 0.55), rgba(10, 8, 6, 0.65)),
     url('/background-game.png') center / cover no-repeat fixed;
 }
 
