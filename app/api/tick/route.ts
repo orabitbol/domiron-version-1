@@ -14,6 +14,8 @@ import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
 import { broadcastTickCompleted } from '@/lib/game/realtime'
 
+const TICK_DEBUG = process.env.TICK_DEBUG === '1'
+
 // GET /api/tick — called by Vercel Cron every 30 minutes
 // Protected by CRON_SECRET header
 export async function GET(request: NextRequest) {
@@ -46,7 +48,12 @@ export async function GET(request: NextRequest) {
     if (playersError) throw playersError
 
     if (!players || players.length === 0) {
+      if (TICK_DEBUG) console.log('[TICK] No players found — nothing to process')
       return NextResponse.json({ data: { processed: 0, duration: 0 } })
+    }
+
+    if (TICK_DEBUG) {
+      console.log(`[TICK] Starting tick for ${players.length} player(s) at ${new Date().toISOString()}`)
     }
 
     // Process each player
@@ -94,6 +101,9 @@ export async function GET(request: NextRequest) {
 
       // 1. Turns
       const newTurns = calcTurnsToAdd(player.turns, player.is_vacation)
+      if (TICK_DEBUG) {
+        console.log(`[TICK] player=${player.id.slice(0, 8)} turns: ${player.turns} → ${newTurns} vacation=${player.is_vacation}`)
+      }
 
       // 2. Population growth
       const popGrowth = calcPopulationGrowth(dev.population_level, player.vip_until)
@@ -265,7 +275,7 @@ export async function GET(request: NextRequest) {
     await broadcastTickCompleted(supabase)
 
     const duration = Date.now() - startTime
-    console.log(`Tick completed: ${players.length} players processed in ${duration}ms`)
+    console.log(`[TICK] Completed: ${players.length} player(s) in ${duration}ms`)
 
     return NextResponse.json({
       data: {
@@ -276,7 +286,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (err) {
-    console.error('Tick error:', err)
+    console.error('[TICK] Fatal error:', err)
     return NextResponse.json({ error: 'Tick failed' }, { status: 500 })
   }
 }

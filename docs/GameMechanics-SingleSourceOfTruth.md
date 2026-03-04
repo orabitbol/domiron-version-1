@@ -436,9 +436,17 @@ finalECP = floor(baseECP × tribeMultiplier)
 17. Fetch active tribe combat spells for both sides
 18. Compute race combat bonuses and tribe multipliers
 19. Calculate PP for both sides
-20. `resolveCombat(... attackerRaceBonus, defenderRaceBonus, attackerTribeMultiplier, defenderTribeMultiplier)` → result
-21. DB writes (6 parallel): turns, attacker army+resources, defender army+resources, attacks insert
-22. Recalculate power for both players
+20. `resolveCombat(... attackerRaceBonus, defenderRaceBonus, attackerTribeMultiplier, defenderTribeMultiplier)` → single-turn result
+21. **Multi-turn scaling** (TypeScript, before DB write):
+    - `lootTotal = loot × turnsUsed` (per resource, capped at defender's available resource)
+    - `attLosses = min(attackerLosses × turnsUsed, attArmy.soldiers)`
+    - `defLosses = min(defenderLosses × turnsUsed, defArmy.soldiers)`
+22. **Atomic DB write** via `supabase.rpc('attack_multi_turn_apply', preComputedDeltas)`:
+    - Acquires row-level locks (`SELECT … FOR UPDATE`) on `players + army + resources` for both players in **ascending UUID order** to prevent A↔B deadlocks
+    - Re-validates turns / food / soldiers / same-city **under lock** (race-condition safety)
+    - All mutations + `attacks` INSERT in one Postgres transaction; returns `{ ok, error? }`
+    - Source: `supabase/migrations/0006_attack_rpc.sql` — `attack_multi_turn_apply()`
+23. Recalculate stored power for both players (non-fatal — failure self-corrects on next tick)
 
 > **Food cost** in the route: `foodCost = turnsUsed × BALANCE.combat.foodCostPerTurn` (= turns × 1). `calculateFoodCost(deployedSoldiers)` has been **removed** from `combat.ts` (was dead code).
 
@@ -550,6 +558,18 @@ foodCost = turnsUsed × foodCostPerTurn    (= turns × 1)
 ```
 
 `foodCostPerTurn = 1` — one food per turn used (not per soldier). `FOOD_PER_SOLDIER` remains in `BALANCE.combat` as a tuning note but `calculateFoodCost(deployedSoldiers)` has been removed from `combat.ts` (was dead code — the route never called it).
+
+### Multi-Turn Scaling and Persistence
+
+`resolveCombat` is called **once** and produces single-turn values. The route then scales in TypeScript before the DB write:
+
+```
+lootTotal[resource]  = loot[resource]  × turnsUsed   (capped to defender's available resource)
+attLossesTotal       = attackerLosses  × turnsUsed   (clamped to attArmy.soldiers)
+defLossesTotal       = defenderLosses  × turnsUsed   (clamped to defArmy.soldiers)
+```
+
+These pre-computed deltas are passed as parameters to `attack_multi_turn_apply()` (one `supabase.rpc()` call). The Postgres function re-validates everything under lock and applies all mutations atomically. There is **no loop** over turns and **no partial writes** — either the entire attack commits or nothing changes.
 
 ### Slaves from Combat
 
@@ -1225,6 +1245,6 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 
 | # | Issue | Recommendation |
 |---|---|---|
-| R1 | **6 separate Supabase calls in attack route.** No transaction. Partial failure leaves inconsistent state. | Migrate to `supabase.rpc()` stored function for atomicity |
+| R1 | ~~6 separate Supabase calls in attack route. No transaction.~~ | ✅ **Resolved** — `attack_multi_turn_apply()` RPC (`0006_attack_rpc.sql`) is now the sole write path; row-level locks + single Postgres transaction guarantee atomicity |
 | R2 | **Power recalc on every tick for every player.** `N × 5` queries per tick. | Debounce or compute lazily on read |
-| R3 | **Diagnostic logging in attack route.** 20+ `console.log` lines marked for removal. | Remove after root cause confirmed |
+| R3 | ~~Diagnostic logging in attack route. 20+ `console.log` lines.~~ | ✅ **Resolved** — all `[ATK_DIAG]` blocks removed |

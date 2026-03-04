@@ -9,11 +9,13 @@ import { ConnectionStatus } from './ConnectionStatus'
 import { PageTransition } from './PageTransition'
 import { PlayerProvider } from '@/lib/context/PlayerContext'
 import { FreezeModeBanner } from '@/components/game/FreezeModeBanner'
+import { RealtimeSync } from './RealtimeSync'
 import type { PlayerData } from '@/types/game'
 
 function GameContent({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <RealtimeSync />
       <ResourceBar />
       <FreezeModeBanner />
       <ConnectionStatus />

@@ -20,7 +20,8 @@ export function subscribeToPlayerEvents(
   supabase: SupabaseClient,
   playerId: string,
   tribeId: string | null,
-  onToast: ToastCallback
+  onToast: ToastCallback,
+  onTickCompleted?: () => void,
 ): RealtimeChannel[] {
   const channels: RealtimeChannel[] = []
 
@@ -119,6 +120,7 @@ export function subscribeToPlayerEvents(
   const tickChannel = supabase
     .channel('tick:broadcast')
     .on('broadcast', { event: 'tick_completed' }, () => {
+      onTickCompleted?.()
       onToast({
         type: 'info',
         title: '⏱ Tick Completed',

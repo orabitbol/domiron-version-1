@@ -17,6 +17,12 @@ import { recalculatePower } from '@/lib/game/power'
 import type { BattleReport, BattleReportReason } from '@/types/game'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
+/** Response shape returned by the attack_multi_turn_apply Postgres RPC. */
+interface AttackRpcResult {
+  ok:     boolean
+  error?: string
+}
+
 const attackSchema = z.object({
   defender_id: z.string().uuid(),
   turns: z.number().int().min(1).max(10),
@@ -274,14 +280,11 @@ export async function POST(request: NextRequest) {
     // Season ID — already fetched at top of handler
     const seasonId = activeSeason.id
 
-    const nowIso = now.toISOString()
-
     // Map 'partial' → 'draw' for DB constraint compatibility
     const dbOutcome = result.outcome === 'partial' ? 'draw' : result.outcome
 
     // ── Pre-commit invariant assertions ──────────────────────────────────────
-    // These are always true by construction. They catch future coding mistakes
-    // (wrong formula rewrites) before they reach the DB.
+    // Always true by construction — catch formula regressions before the RPC.
     if (goldStolen > defResources.gold) throw new Error('Attack invariant: goldStolen > defResources.gold')
     if (ironStolen > defResources.iron)  throw new Error('Attack invariant: ironStolen > defResources.iron')
     if (woodStolen > defResources.wood)  throw new Error('Attack invariant: woodStolen > defResources.wood')
@@ -291,61 +294,75 @@ export async function POST(request: NextRequest) {
     if (newAttSoldiers < 0) throw new Error('Attack invariant: newAttSoldiers < 0')
     if (newAttFood     < 0) throw new Error('Attack invariant: newAttFood < 0')
 
-    // ── DB writes ────────────────────────────────────────────────────────────
-    // NOTE: These run as 6 separate HTTP calls — PostgREST does not support
-    // cross-call transactions. A partial failure leaves an inconsistent state.
-    // True atomicity requires migrating this to a supabase.rpc() stored function.
-    // Error checking below ensures we return 500 (not 200) if any write fails.
-    const [
-      attPlayerRes,
-      attArmyRes,
-      attResourcesRes,
-      defArmyRes,
-      defResourcesRes,
-      attackInsertRes,
-    ] = await Promise.all([
-      supabase.from('players').update({ turns: newAttTurns }).eq('id', playerId),
-      supabase.from('army').update({ soldiers: newAttSoldiers, updated_at: nowIso }).eq('player_id', playerId),
-      supabase.from('resources').update({ gold: newAttGold, iron: newAttIron, wood: newAttWood, food: newAttFood, updated_at: nowIso }).eq('player_id', playerId),
-      supabase.from('army').update({ soldiers: newDefSoldiers, updated_at: nowIso }).eq('player_id', defender_id),
-      supabase.from('resources').update({ gold: newDefGold, iron: newDefIron, wood: newDefWood, food: newDefFood, updated_at: nowIso }).eq('player_id', defender_id),
-      supabase.from('attacks').insert({
-        attacker_id:     playerId,
-        defender_id,
-        turns_used:      turnsUsed,
-        atk_power:       result.attackerECP,
-        def_power:       result.defenderECP,
-        outcome:         dbOutcome,
-        attacker_losses: attLossesScaled,
-        defender_losses: safeDefLosses,
-        slaves_taken:    0,
-        gold_stolen:     goldStolen,
-        iron_stolen:     ironStolen,
-        wood_stolen:     woodStolen,
-        food_stolen:     foodStolen,
-        season_id:       seasonId,
-      }),
-    ])
+    // ── Atomic DB write via RPC ───────────────────────────────────────────────
+    // Passes pre-computed deltas to a Postgres stored function that:
+    //   1. Acquires FOR UPDATE row locks in ascending UUID order (no deadlocks)
+    //   2. Re-validates turns / food / soldiers under lock (race-condition safety)
+    //   3. Applies all mutations + inserts one attacks row in one transaction
+    // See: supabase/migrations/0006_attack_rpc.sql
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      'attack_multi_turn_apply',
+      {
+        p_attacker_id:     playerId,
+        p_defender_id:     defender_id,
+        p_turns_used:      turnsUsed,
+        p_food_cost:       foodCost,
+        p_gold_stolen:     goldStolen,
+        p_iron_stolen:     ironStolen,
+        p_wood_stolen:     woodStolen,
+        p_food_stolen:     foodStolen,
+        p_attacker_losses: attLossesScaled,
+        p_defender_losses: safeDefLosses,
+        p_outcome:         dbOutcome,
+        p_atk_power:       result.attackerECP,
+        p_def_power:       result.defenderECP,
+        p_season_id:       seasonId,
+      },
+    )
 
-    // Abort if any write failed — prevents phantom battleReport on DB error
-    const writeErrors = [
-      attPlayerRes.error,
-      attArmyRes.error,
-      attResourcesRes.error,
-      defArmyRes.error,
-      defResourcesRes.error,
-      attackInsertRes.error,
-    ].filter(Boolean)
-    if (writeErrors.length > 0) {
-      console.error('Attack DB write failures:', writeErrors)
-      throw new Error(`Attack DB write failed (${writeErrors.length} errors)`)
+    if (rpcError) {
+      // Log the full error so Vercel logs (or local server) expose the root cause.
+      // Common causes:
+      //   code 42883 — function does not exist (migration 0006_attack_rpc.sql not applied)
+      //   code 23514 — constraint violation (check outcome/turns constraints)
+      console.error('[attack] RPC error — code:', rpcError.code, 'message:', rpcError.message, 'details:', rpcError.details, 'hint:', rpcError.hint)
+      const isDev = process.env.NODE_ENV === 'development'
+      return NextResponse.json(
+        {
+          error: 'Server error',
+          ...(isDev && { debug: { code: rpcError.code, message: rpcError.message } }),
+        },
+        { status: 500 },
+      )
     }
 
-    // Recalculate stored power for both sides (army counts changed)
-    await Promise.all([
-      recalculatePower(playerId, supabase),
-      recalculatePower(defender_id, supabase),
-    ])
+    // RPC re-validated constraints under lock — map error codes to HTTP 400.
+    // 'not_enough_turns' / 'not_enough_food': a concurrent attack from the same
+    // attacker spent the resource between the TS pre-check and the RPC lock.
+    if (!(rpcResult as AttackRpcResult)?.ok) {
+      const code = (rpcResult as AttackRpcResult)?.error ?? 'unknown'
+      const RPC_ERROR_MAP: Record<string, { message: string; status: number }> = {
+        not_enough_turns: { message: 'Not enough turns',             status: 400 },
+        not_enough_food:  { message: 'Not enough food',              status: 400 },
+        no_soldiers:      { message: 'No soldiers to attack with',   status: 400 },
+        different_city:   { message: 'Target is in a different city', status: 400 },
+        invalid_turns:    { message: 'Invalid turns value',          status: 400 },
+      }
+      const mapped = RPC_ERROR_MAP[code] ?? { message: 'Attack failed', status: 400 }
+      return NextResponse.json({ error: mapped.message }, { status: mapped.status })
+    }
+
+    // Recalculate stored power for both sides (army counts changed).
+    // Non-fatal: the RPC already committed the combat result. If power recalc
+    // fails here it will self-correct on the next tick.
+    try {
+      await Promise.all([
+        recalculatePower(playerId, supabase),
+        recalculatePower(defender_id, supabase),
+      ])
+    } catch (powerErr) {
+      console.error('[attack] Power recalculation failed (non-fatal):', powerErr)
+    }
 
     // Build battleReport: structured result the client renders directly
     const attackCount   = (attacksInWindow ?? 0) + 1
@@ -443,7 +460,15 @@ export async function POST(request: NextRequest) {
         { status: 503 },
       )
     }
-    console.error('Attack error:', err)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    console.error('[attack] Unhandled error:', err instanceof Error ? err.message : err)
+    if (err instanceof Error && err.stack) console.error(err.stack)
+    const isDev = process.env.NODE_ENV === 'development'
+    return NextResponse.json(
+      {
+        error: 'Server error',
+        ...(isDev && { debug: err instanceof Error ? err.message : String(err) }),
+      },
+      { status: 500 },
+    )
   }
 }
