@@ -28,7 +28,7 @@ export default async function GameRouteLayout({
     { data: bank },
     { data: tribeMember },
   ] = await Promise.all([
-    supabase.from('players').select('id,username,email,role,race,army_name,city,turns,max_turns,capacity,reputation,rank_city,rank_global,power_attack,power_defense,power_spy,power_scout,power_total,vip_until,is_vacation,vacation_days_used,season_id,joined_at,last_seen_at,created_at').eq('id', playerId).single(),
+    supabase.from('players').select('id,username,email,role,race,army_name,city,turns,max_turns,reputation,rank_city,rank_global,power_attack,power_defense,power_spy,power_scout,power_total,vip_until,is_vacation,vacation_days_used,season_id,joined_at,last_seen_at,created_at').eq('id', playerId).single(),
     supabase.from('resources').select('*').eq('player_id', playerId).single(),
     supabase.from('army').select('*').eq('player_id', playerId).single(),
     supabase.from('weapons').select('*').eq('player_id', playerId).single(),

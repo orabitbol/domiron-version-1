@@ -248,32 +248,26 @@ Source: `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
 
 ### Unit Costs
 
-| Unit | Gold cost | Capacity cost | Population cost | Special requirement |
-|---|---|---|---|---|
-| soldier | 60 | 1 | 1 free_pop | — |
-| slave | 0 | 0 | 1 free_pop | — |
-| spy | 80 | 1 | 1 free_pop | — |
-| scout | 80 | 1 | 1 free_pop | — |
-| cavalry | 200 | 2 | **0** | amount × 5 existing soldiers |
-| farmer | 20 | 0 | 1 free_pop | — |
+| Unit | Gold cost | Population cost | Special requirement |
+|---|---|---|---|
+| soldier | 60 | 1 free_pop | — |
+| slave | 0 | 1 free_pop | — |
+| spy | 80 | 1 free_pop | — |
+| scout | 80 | 1 free_pop | — |
+| cavalry | 200 | **0** | amount × 5 existing soldiers |
+| farmer | 20 | 1 free_pop | — |
 
 Source: `BALANCE.training.unitCost`
 
-### Capacity System
+### No Unit Cap — Training Gates Only
 
-```
-capacity = baseCapacity + fortification_level × capacityPerDevelopmentLevel
-         = 1000         + fortification_level × 200
-```
+There is **no capacity cap** on any unit type. The old `players.capacity` DB column is legacy and is not used in any training gate. Training is gated only by:
 
-Capacity is stored in `players.capacity` and updated whenever fortification upgrades.
+1. Gold sufficiency
+2. Free population (all units except cavalry consume 1 free_pop per unit)
+3. Cavalry soldier ratio (cavalry requires `amount × 5` existing soldiers)
 
-| Constant | Value |
-|---|---|
-| `training.baseCapacity` | 1,000 |
-| `training.capacityPerDevelopmentLevel` | 200 |
-
-> ⚠️ **[INCONSISTENT]** `players.capacity` DB default = 2,500. But formula at level 1 fortification = 1,000 + 1×200 = 1,200. DB default does not match formula. Only `fortification_level` upgrades update the stored capacity.
+`players.capacity` column remains in DB for historical reference — not read, not written by any route.
 
 ### Gate Order (train route)
 
@@ -282,11 +276,10 @@ Capacity is stored in `players.capacity` and updated whenever fortification upgr
 3. Input validation (unit, amount ≥ 1)
 4. Fetch army + resources
 5. Gold sufficiency check
-6. Capacity check (soldiers/spies/scouts: capacity − current ≥ amount)
-7. Free population check (if not cavalry)
-8. Cavalry ratio check (if cavalry: soldiers ≥ amount × 5)
-9. DB writes: resources (deduct gold), army (add unit, deduct free_pop if applicable)
-10. Recalculate power
+6. Free population check (if not cavalry)
+7. Cavalry ratio check (if cavalry: `soldiers ≥ amount × 5`)
+8. DB writes: resources (deduct gold), army (add unit, deduct free_pop if applicable)
+9. Recalculate power
 
 ### Gate Order (untrain route)
 
@@ -556,8 +549,7 @@ When `attackerIsProtected`: `attackerLosses = 0`.
 foodCost = turnsUsed × foodCostPerTurn    (= turns × 1)
 ```
 
-`foodCostPerTurn = 1` — one food per turn used (not per soldier).
-**Note:** `calculateFoodCost(deployedSoldiers)` in `combat.ts` is a separate function using `FOOD_PER_SOLDIER` but is **not called** by the attack route (see §22).
+`foodCostPerTurn = 1` — one food per turn used (not per soldier). `FOOD_PER_SOLDIER` remains in `BALANCE.combat` as a tuning note but `calculateFoodCost(deployedSoldiers)` has been removed from `combat.ts` (was dead code — the route never called it).
 
 ### Slaves from Combat
 
@@ -942,9 +934,9 @@ Examples:
 | `wood_level` | wood | production output ↑ |
 | `iron_level` | iron | production output ↑ |
 | `population_level` | gold (only) | pop growth/tick ↑ |
-| `fortification_level` | gold + wood | capacity ↑, defense power ↑ |
+| `fortification_level` | gold + wood | defense power ↑ |
 
-Fortification also updates `players.capacity = baseCapacity + level × 200`.
+Fortification no longer updates `players.capacity` — there is no unit capacity cap.
 
 ---
 
@@ -1203,7 +1195,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 |---|---|---|
 | I1 | **`maxLifetimeDeposits` vs `depositsPerDay`.** Both = 5 but `maxLifetimeDeposits` is never referenced in code. The actually enforced limit is `depositsPerDay`. | `balance.config.ts` |
 | I2 | **`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic. | DB schema vs `tick.ts` |
-| I3 | **`players.capacity` DB default = 2,500** vs formula at level-1 fortification = 1,200. | DB schema vs `balance.config.ts` |
+| ~~I3~~ | ~~`players.capacity` DB default mismatch~~ | **Resolved** — capacity gate removed entirely; `players.capacity` column is legacy (not read or written). |
 
 ### B. Missing Implementations
 

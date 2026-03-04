@@ -31,16 +31,14 @@ export async function POST(request: NextRequest) {
     if (!activeSeason) return seasonFreezeResponse()
 
     const [
-      { data: player },
       { data: army },
       { data: resources },
     ] = await Promise.all([
-      supabase.from('players').select('capacity').eq('id', playerId).single(),
       supabase.from('army').select('*').eq('player_id', playerId).single(),
       supabase.from('resources').select('gold').eq('player_id', playerId).single(),
     ])
 
-    if (!player || !army || !resources) {
+    if (!army || !resources) {
       return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
     }
 
@@ -49,16 +47,6 @@ export async function POST(request: NextRequest) {
 
     if (resources.gold < totalGoldCost) {
       return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
-    }
-
-    // ── Capacity check for combat units (soldiers, spies, scouts) ──────────
-    const combatUnits = army.soldiers + army.spies + army.scouts
-    if (unit === 'soldier' || unit === 'spy' || unit === 'scout') {
-      if (combatUnits + amount > player.capacity) {
-        return NextResponse.json({
-          error: `Not enough capacity (need ${combatUnits + amount}, have ${player.capacity})`,
-        }, { status: 400 })
-      }
     }
 
     // ── Free population check (all units except cavalry consume pop) ───────

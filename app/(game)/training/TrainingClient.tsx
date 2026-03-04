@@ -81,8 +81,7 @@ export function TrainingClient({
   const [loadingAdv,  setLoadingAdv]  = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
-  const combatUnits = army.soldiers + army.spies + army.scouts
-  const capacityPct = Math.min(100, Math.round((combatUnits / player.capacity) * 100))
+  // No capacity cap — training is gated only by gold, free_population, and (for cavalry) soldier count.
 
   // ── Train ─────────────────────────────────────────────────────────────────
 
@@ -255,28 +254,6 @@ export function TrainingClient({
           ]}
         />
         <div className="space-y-4">
-          {/* Capacity */}
-          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 space-y-3 shadow-emboss">
-            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
-              Capacity
-            </h3>
-            <div className="flex justify-between text-game-sm font-body text-game-text-secondary">
-              <span>Combat Units</span>
-              <span className="text-game-text-white font-semibold">
-                {formatNumber(combatUnits)} / {formatNumber(player.capacity)}
-              </span>
-            </div>
-            <div className="progress-bar">
-              <div
-                className={`progress-fill ${
-                  capacityPct >= 90 ? 'progress-fill-red' : capacityPct >= 70 ? 'progress-fill-gold' : 'progress-fill-green'
-                }`}
-                style={{ width: `${capacityPct}%` }}
-              />
-            </div>
-            <p className="text-game-xs text-game-text-muted font-body">{capacityPct}% capacity used</p>
-          </div>
-
           {/* Available Population + Slaves panel */}
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 space-y-2 shadow-emboss">
             <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
@@ -439,7 +416,7 @@ export function TrainingClient({
                     </p>
                     <p className="text-game-xs text-game-text-muted font-body mt-1">
                       Available: <span className="text-game-text-white font-semibold">{formatNumber(current)}</span>
-                      {' · '}Will gain: <span className="text-game-gold font-semibold">{formatNumber(amt)} Slaves</span>
+                      {' · '}Will return: <span className="text-game-gold font-semibold">{formatNumber(amt)} Free Population</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2 sm:w-52">

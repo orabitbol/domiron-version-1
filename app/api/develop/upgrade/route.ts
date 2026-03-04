@@ -98,20 +98,10 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
-    const updates: PromiseLike<unknown>[] = [
+    await Promise.all([
       supabase.from('resources').update({ ...resourceUpdate, updated_at: now }).eq('player_id', playerId),
       supabase.from('development').update({ [field]: currentLevel + 1, updated_at: now }).eq('player_id', playerId),
-    ]
-
-    // Fortification also increases player capacity
-    if (field === 'fortification_level') {
-      const newCapacity = BALANCE.training.baseCapacity + (currentLevel + 1) * BALANCE.training.capacityPerDevelopmentLevel
-      updates.push(
-        supabase.from('players').update({ capacity: newCapacity }).eq('id', playerId)
-      )
-    }
-
-    await Promise.all(updates)
+    ])
 
     // Recalculate power (fortification affects defense power)
     if (field === 'fortification_level') {

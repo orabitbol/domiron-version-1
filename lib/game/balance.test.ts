@@ -40,8 +40,7 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
     expect(typeof BALANCE.training.unitCost.soldier.gold).toBe('number')
     expect(typeof BALANCE.training.unitCost.cavalry.soldierRatio).toBe('number')
     expect(typeof BALANCE.training.populationPerTick[1]).toBe('number')
-    expect(typeof BALANCE.training.baseCapacity).toBe('number')
-    expect(typeof BALANCE.training.capacityPerDevelopmentLevel).toBe('number')
+    // Note: baseCapacity / capacityPerDevelopmentLevel removed — no capacity cap on units
   })
 
   // ── production ────────────────────────────────────────────────────────────

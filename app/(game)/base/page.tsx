@@ -151,7 +151,7 @@ export default async function BasePage() {
     supabase
       .from("players")
       .select(
-        "id,username,race,army_name,city,turns,max_turns,capacity,reputation,rank_city,rank_global,power_attack,power_defense,power_spy,power_scout,power_total,vip_until,is_vacation",
+        "id,username,race,army_name,city,turns,max_turns,reputation,rank_city,rank_global,power_attack,power_defense,power_spy,power_scout,power_total,vip_until,is_vacation",
       )
       .eq("id", playerId)
       .single(),
@@ -178,10 +178,6 @@ export default async function BasePage() {
     (army?.cavalry ?? 0) +
     (army?.spies ?? 0) +
     (army?.scouts ?? 0);
-  const capacityPct = Math.min(
-    100,
-    Math.round((combatUnits / (player.capacity || 1)) * 100),
-  );
 
   return (
     <div className="space-y-4">
@@ -281,36 +277,19 @@ export default async function BasePage() {
           </div>
         )}
 
-        {/* Capacity / Population */}
+        {/* Combat Units */}
         <div className="card-game p-3 shadow-emboss">
           <div className="flex items-center gap-1.5 mb-1.5">
             <Users className="size-4 text-game-text-secondary" />
             <p className="text-game-2xs text-game-text-muted font-heading uppercase tracking-wide">
-              כוח אדם
+              יחידות קרב
             </p>
           </div>
           <p className="text-game-xl text-game-text-white font-heading font-bold tabular-nums">
             {formatNumber(combatUnits)}
-            <span className="text-game-sm text-game-text-muted font-body">
-              /{formatNumber(player.capacity)}
-            </span>
           </p>
-          {/* Capacity bar */}
-          <div className="progress-bar mt-1.5">
-            <div
-              className={cn(
-                "progress-fill",
-                capacityPct >= 90
-                  ? "progress-fill-red"
-                  : capacityPct >= 70
-                    ? "progress-fill-gold"
-                    : "progress-fill-green",
-              )}
-              style={{ width: `${capacityPct}%` }}
-            />
-          </div>
           <p className="text-game-2xs text-game-text-muted font-body mt-1">
-            {capacityPct}% בשימוש
+            חיילים + פרשים + מרגלים + סיירים
           </p>
         </div>
 
@@ -475,7 +454,6 @@ export default async function BasePage() {
             { label: "עבדים", value: army?.slaves ?? 0 },
             { label: "חקלאים", value: army?.farmers ?? 0 },
             { label: "פנויים", value: army?.free_population ?? 0 },
-            { label: "קיבולת", value: player.capacity },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col">
               <span className="text-game-2xs text-game-text-muted font-heading">

@@ -109,8 +109,6 @@ const balanceSchema = z.object({
     advancedMultiplierPerLevel:  z.number(),
     advancedCost:                z.object({ gold: z.number(), food: z.number() }),
     EXPONENTIAL_GROWTH_FLOOR:    z.number(),
-    baseCapacity:                z.number(),
-    capacityPerDevelopmentLevel: z.number(),
   }),
   tribe: z.object({
     spells:               z.record(z.object({ manaCost: z.number(), durationHours: z.number() })),

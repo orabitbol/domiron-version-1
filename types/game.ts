@@ -97,7 +97,6 @@ export interface Player {
   city: number
   turns: number
   max_turns: number
-  capacity: number
   reputation: number
   rank_city: number | null
   rank_global: number | null

@@ -179,7 +179,6 @@ describe('Season reset — pure derivations', () => {
       city:              1,
       turns:             BALANCE.startingResources.turns,
       max_turns:         30,
-      capacity:          2500,
       reputation:        0,
       power_attack:      0,
       power_defense:     0,

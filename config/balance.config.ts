@@ -342,10 +342,10 @@ export const BALANCE = {
     advancedMultiplierPerLevel: 0.08,                    // [TUNE]
     advancedCost: { gold: 300, food: 300 },              // [TUNE]
     EXPONENTIAL_GROWTH_FLOOR:   10_000,                  // [TUNE]
-
-    // Capacity system: base + fortification levels × per-level bonus
-    baseCapacity:                 1_000, // [TUNE]
-    capacityPerDevelopmentLevel:    200, // [TUNE]
+    // NOTE: There is no capacity cap on combat units.
+    // The players.capacity DB column is legacy — not used in any training gate.
+    // Only constraints that remain: gold cost, free_population (consumed per unit),
+    // and cavalry's soldierRatio requirement.
   },
 
   // ═══════════════════════════════════════
