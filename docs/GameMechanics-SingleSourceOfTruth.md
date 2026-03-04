@@ -1175,6 +1175,8 @@ rank_city:   sorted by power_total DESC within each city (1–5)
 
 Updated every tick (every 30 minutes) for all players simultaneously. Not real-time between ticks.
 
+**UI display:** The Sidebar (`components/layout/Sidebar.tsx`) reads `player.rank_global` and `player.rank_city` from `PlayerContext` (sourced from `GET /api/player`) and displays both ranks for the logged-in player. Shows `—` until the first tick runs (nullable). Updates on every `refresh()` call (after any mutation).
+
 ---
 
 ## 22. Known Gaps / Inconsistencies / Missing / Tuning Needed
