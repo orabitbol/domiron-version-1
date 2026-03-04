@@ -482,3 +482,70 @@
 ✅ `/api/tribe/spell`
 ✅ `/api/admin/season/reset`
 ✅ `/api/tick`
+
+---
+
+## Execution Regression Suite
+
+A real integration test file lives at `scripts/api-regression.test.ts`. It uses **Vitest** and hits every major API endpoint against a running local server.
+
+### How to run
+
+```bash
+# Terminal 1 — start the dev server
+npm run dev
+
+# Terminal 2 — run the integration tests
+INTEGRATION_TEST=true npx vitest run scripts/api-regression.test.ts
+```
+
+Without `INTEGRATION_TEST=true`, running `npx vitest run` skips all integration tests and prints an info message. This keeps the unit-test suite (combat, tick, hero-effects, etc.) unaffected.
+
+### What is covered
+
+| Group | Endpoints tested |
+|-------|-----------------|
+| Auth | `POST /api/auth/register` (success, duplicate, invalid race) |
+| Session | NextAuth login, cookie acquisition |
+| Player | `GET /api/player` (data, no password_hash leak) |
+| Mine | `POST /api/mine/allocate` (zero, negative, over-allocation) |
+| Bank | `POST /api/bank/deposit`, `withdraw`, `upgrade` |
+| Shop | `POST /api/shop/buy`, `sell` |
+| Training | `POST /api/training/train`, `untrain` |
+| Development | `POST /api/develop/upgrade` |
+| Spy | `GET /api/spy` |
+| Attack | `POST /api/attack` (self-attack blocked, zero turns blocked) |
+| Tribe | `POST /api/tribe/create`, `pay-tax` |
+| Security | 401 returned for all write routes without session |
+| Tick | `GET /api/tick` — 401 without CRON_SECRET |
+
+### Expected output
+
+```
+✓ POST /api/auth/register — creates a new player
+✓ POST /api/auth/register — rejects duplicate username
+✓ POST /api/auth/register — rejects invalid race
+✓ NextAuth login — obtains session cookie
+✓ GET /api/player — returns player data
+✓ POST /api/mine/allocate — assigns 0 slaves (no-op)
+✓ POST /api/mine/allocate — rejects negative assignment
+✓ POST /api/mine/allocate — rejects over-allocation
+...
+```
+
+If a test fails, Vitest prints the received status code and response body so you can diagnose the issue immediately.
+
+### Diagnosing /api/mine/allocate 500 errors
+
+If the allocate endpoint returns `500`, check the `details` field in the response body (present in non-production builds):
+
+```json
+{ "error": "Failed to save allocation", "details": "column \"slaves_gold\" does not exist" }
+```
+
+This means migration `0005_slave_assignments.sql` has not been applied. Fix:
+```bash
+# Apply via Supabase CLI
+npx supabase db push
+# Or apply manually in the Supabase SQL editor — see supabase/migrations/0005_slave_assignments.sql
+```

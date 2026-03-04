@@ -134,6 +134,31 @@ food_production = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_
 
 Farmers cost 20 gold + 1 population to train (see §4.1). They have no capacity cost and cannot be reassigned.
 
+### 2.4 Mine UI — Next Upgrade Display
+
+The `/mine` page shows a **"Next level" preview** below each job row so players know the benefit before upgrading development.
+
+**What is shown:**
+- Current rate: `X.X–Y.Y` per slave (derived from `devLevel` + city multiplier)
+- Next level rate: `X.X–Y.Y` per slave (derived from `devLevel + 1` + city multiplier)
+- Gain: always exactly `+0.5` per slave (linear by design)
+
+**Formula used by UI (`calcProdRange` in `MineClient.tsx`):**
+```
+devOffset = (devLevel - 1) × 0.5
+rate_min  = (baseMin + devOffset) × cityMult    // VIP/race/slave bonuses NOT included (tick-side only)
+rate_max  = (baseMax + devOffset) × cityMult
+```
+
+The UI preview intentionally omits VIP, race gold bonus, and hero slave bonus because those are tick-side multipliers not visible to the player at allocation time. The displayed range is the **base** range.
+
+**Display rules:**
+- If `devLevel >= 10` (max): shows "Max development reached" instead of next-level hint.
+- If `devLevel < 10`: shows `Next level (N→N+1): X.X–Y.Y (+0.5 per slave)`.
+- Rates are formatted to 1 decimal place.
+
+**Source files:** `app/(game)/mine/MineClient.tsx` — `perSlaveRateAt()` helper.
+
 ---
 
 ## 3. Population & Slaves System

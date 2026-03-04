@@ -76,17 +76,26 @@ export default async function AttackPage() {
     })(),
   ])
 
-  // Fetch army counts
-  const { data: armyRows } = playerIds.length > 0
-    ? await supabase.from('army').select('player_id, soldiers').in('player_id', playerIds)
-    : { data: [] }
+  // Fetch army counts and unbanked gold in parallel
+  const [armyResult, resourcesResult] = await Promise.all([
+    playerIds.length > 0
+      ? supabase.from('army').select('player_id, soldiers').in('player_id', playerIds)
+      : Promise.resolve({ data: [] as { player_id: string; soldiers: number }[] }),
+    playerIds.length > 0
+      ? supabase.from('resources').select('player_id, gold').in('player_id', playerIds)
+      : Promise.resolve({ data: [] as { player_id: string; gold: number }[] }),
+  ])
+
+  const armyRows      = armyResult.data      ?? []
+  const resourcesRows = resourcesResult.data  ?? []
 
   const targetList = (cityPlayers ?? []).map((p) => ({
     id:                     p.id,
     army_name:              p.army_name,
     rank_city:              p.rank_city,
     tribe_name:             playerTribes[p.id] ?? null,
-    soldiers:               armyRows?.find((a) => a.player_id === p.id)?.soldiers ?? 0,
+    soldiers:               armyRows.find((a) => a.player_id === p.id)?.soldiers ?? 0,
+    gold:                   resourcesRows.find((r) => r.player_id === p.id)?.gold ?? 0,
     is_vacation:            p.is_vacation,
     resource_shield_active: resourceShields.has(p.id),
     soldier_shield_active:  soldierShields.has(p.id),

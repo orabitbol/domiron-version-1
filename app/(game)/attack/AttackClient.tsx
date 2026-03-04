@@ -20,6 +20,8 @@ interface Target {
   rank_city: number | null
   tribe_name: string | null
   soldiers: number
+  /** Unbanked gold visible to all players in the same city — mirrors reference game. */
+  gold: number
   is_vacation: boolean
   resource_shield_active: boolean
   soldier_shield_active: boolean
@@ -327,7 +329,7 @@ export function AttackClient({ player, targets, resources }: Props) {
           />
         ) : (
           <GameTable
-            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Shields', 'Turns', 'Food Cost', 'Action']}
+            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Shields', 'Turns', 'Food Cost', 'Action']}
             striped
             hoverable
             rows={filtered.map((target) => {
@@ -360,6 +362,9 @@ export function AttackClient({ player, targets, resources }: Props) {
                 </span>,
                 <span key="soldiers" className="text-game-sm font-body tabular-nums">
                   {formatNumber(target.soldiers)}
+                </span>,
+                <span key="gold" className="text-game-sm font-body tabular-nums text-res-gold">
+                  {isSelf ? '—' : formatNumber(target.gold)}
                 </span>,
                 <ShieldIndicators
                   key="shields"

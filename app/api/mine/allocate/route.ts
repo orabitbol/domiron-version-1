@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       .from('army')
       .select('slaves')
       .eq('player_id', playerId)
-      .single()
+      .maybeSingle()
 
     if (!army) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })
@@ -75,7 +75,12 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Mine/allocate DB error:', updateError)
-      return NextResponse.json({ error: 'Failed to save allocation' }, { status: 500 })
+      // Return the raw DB message in non-production so developers can diagnose
+      // (e.g. "column slaves_gold does not exist" → run migration 0005)
+      return NextResponse.json({
+        error: 'Failed to save allocation',
+        ...(process.env.NODE_ENV !== 'production' && { details: updateError.message }),
+      }, { status: 500 })
     }
 
     const { data: updatedArmy } = await supabase
