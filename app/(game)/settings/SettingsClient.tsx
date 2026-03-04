@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Settings, User, Gamepad2, AlertTriangle, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { BALANCE } from '@/lib/game/balance'
 
 interface Props {
   player: {
@@ -109,7 +110,7 @@ export function SettingsClient({ player }: Props) {
                   { label: 'כוח',  value: player.power_total },
                   { label: 'גזע',  value: RACE_HE[player.race] ?? player.race },
                   { label: 'עיר',  value: player.city },
-                  { label: 'תורות', value: `${player.turns}/${player.max_turns}` },
+                  { label: 'תורות', value: `${player.turns}/${BALANCE.tick.maxTurns}` },
                   { label: 'VIP', value: player.vip_until && new Date(player.vip_until) > new Date() ? '✅' : '❌' },
                 ].map(({ label, value }) => (
                   <div key={label}>
@@ -177,7 +178,7 @@ export function SettingsClient({ player }: Props) {
                   { label: 'שם משתמש',   value: player.username },
                   { label: 'אימייל',      value: player.email },
                   { label: 'כוח כולל',   value: player.power_total },
-                  { label: 'תורות',      value: `${player.turns}/${player.max_turns}` },
+                  { label: 'תורות',      value: `${player.turns}/${BALANCE.tick.maxTurns}` },
                   { label: 'תפקיד',      value: player.role },
                 ].map(({ label, value }) => (
                   <div key={label}>

@@ -112,7 +112,7 @@ export function SpyClient({ player, army, training, targets }: Props) {
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Turns</p>
             <p className="text-game-base text-game-gold font-semibold">
-              {playerTurns} / {player.max_turns}
+              {playerTurns} / {BALANCE.tick.maxTurns}
             </p>
           </div>
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">

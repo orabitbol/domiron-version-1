@@ -237,7 +237,7 @@ export function Sidebar() {
             </span>
             <span className="text-game-text-muted">/</span>
             <span className="text-game-text-muted tabular-nums">
-              {player?.max_turns ?? 30}
+              {BALANCE.tick.maxTurns}
             </span>
           </div>
           <span className="text-game-text-muted">·</span>
