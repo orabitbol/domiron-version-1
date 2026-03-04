@@ -79,14 +79,62 @@ function AnimatedNumber({ value }: { value: number }) {
   return <span className="tabular-nums">{formatNumber(displayed, true)}</span>;
 }
 
+/**
+ * TickCountdown — server-authoritative countdown timer.
+ *
+ * Source of truth: next_tick_at from /api/tick-status (set by the tick route).
+ * All players see the identical countdown because it counts down from the
+ * same server timestamp, not from the local wall-clock.
+ *
+ * Update paths:
+ *   1. On mount: fetch /api/tick-status → set nextTickAt
+ *   2. On tick_completed window event (dispatched by RealtimeSync from the
+ *      realtime broadcast payload): update nextTickAt to the new server value
+ *   3. Heartbeat re-sync every 5 minutes to correct any drift
+ *   4. Fallback: if fetch fails, getTimeUntilNextTick() is used (local clock)
+ */
 function TickCountdown() {
+  const [nextTickAt, setNextTickAt] = useState<string | null>(null);
   const [ms, setMs] = useState<number | null>(null);
 
+  // Fetch server-authoritative next_tick_at
+  const syncFromServer = () => {
+    fetch("/api/tick-status")
+      .then((r) => r.json())
+      .then((data: { next_tick_at: string | null }) => {
+        if (data.next_tick_at) setNextTickAt(data.next_tick_at);
+      })
+      .catch(() => {/* fallback to local clock via null nextTickAt */});
+  };
+
+  // Mount: initial fetch + heartbeat every 5 minutes
   useEffect(() => {
-    setMs(getTimeUntilNextTick());
-    const id = setInterval(() => setMs(getTimeUntilNextTick()), 1000);
-    return () => clearInterval(id);
+    syncFromServer();
+    const heartbeat = setInterval(syncFromServer, 5 * 60 * 1000);
+    return () => clearInterval(heartbeat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Listen for tick_completed window event dispatched by RealtimeSync
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ next_tick_at: string }>).detail;
+      if (detail?.next_tick_at) setNextTickAt(detail.next_tick_at);
+    };
+    window.addEventListener("domiron:tick-completed", handler);
+    return () => window.removeEventListener("domiron:tick-completed", handler);
+  }, []);
+
+  // Count down every second from nextTickAt (or fallback to local clock)
+  useEffect(() => {
+    const compute = () =>
+      nextTickAt
+        ? Math.max(0, new Date(nextTickAt).getTime() - Date.now())
+        : getTimeUntilNextTick();
+    setMs(compute());
+    const id = setInterval(() => setMs(compute()), 1000);
+    return () => clearInterval(id);
+  }, [nextTickAt]);
 
   return (
     <span className="tabular-nums font-semibold text-game-gold-bright">

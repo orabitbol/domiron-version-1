@@ -16,7 +16,13 @@ import { broadcastTickCompleted } from '@/lib/game/realtime'
 
 const TICK_DEBUG = process.env.TICK_DEBUG === '1'
 
-// GET /api/tick — called by Vercel Cron every 30 minutes
+// How many minutes until the next tick after this one completes.
+// Production: 30  (match vercel.json "*/30 * * * *")
+// Debug:       1  (match vercel.json "* * * * *" OR set env var)
+// Override: set TICK_INTERVAL_MINUTES=1 in .env without touching balance config.
+const TICK_INTERVAL_MINUTES = Number(process.env.TICK_INTERVAL_MINUTES ?? BALANCE.tick.intervalMinutes)
+
+// GET /api/tick — called by Vercel Cron (see vercel.json for schedule)
 // Protected by CRON_SECRET header
 export async function GET(request: NextRequest) {
   const cronSecret = request.headers.get('x-cron-secret')
@@ -101,12 +107,18 @@ export async function GET(request: NextRequest) {
 
       // 1. Turns
       const newTurns = calcTurnsToAdd(player.turns, player.is_vacation)
-      if (TICK_DEBUG) {
-        console.log(`[TICK] player=${player.id.slice(0, 8)} turns: ${player.turns} → ${newTurns} vacation=${player.is_vacation}`)
-      }
 
       // 2. Population growth
       const popGrowth = calcPopulationGrowth(dev.population_level, player.vip_until)
+
+      if (TICK_DEBUG) {
+        console.log(
+          `[TICK] player=${player.id.slice(0, 8)}` +
+          ` turns: ${player.turns} → ${newTurns}` +
+          ` untrained: ${army.free_population} → ${army.free_population + popGrowth}` +
+          ` vacation=${player.is_vacation}`
+        )
+      }
 
       // 3. Slave production — per-resource assignment (each slave produces one resource)
       // slaves_gold/iron/wood/food are the assigned counts; idle slaves produce nothing.
@@ -271,11 +283,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 9. Broadcast tick event to all connected players
-    await broadcastTickCompleted(supabase)
+    // 9. Compute next_tick_at and persist to world_state (server-authoritative timer)
+    const nextTickAt = new Date(Date.now() + TICK_INTERVAL_MINUTES * 60_000).toISOString()
+    await supabase.from('world_state').update({ next_tick_at: nextTickAt }).eq('id', 1)
+
+    // 10. Broadcast tick event — includes next_tick_at so clients reset their countdown
+    await broadcastTickCompleted(supabase, nextTickAt)
 
     const duration = Date.now() - startTime
-    console.log(`[TICK] Completed: ${players.length} player(s) in ${duration}ms`)
+    console.log(`[TICK] Completed: ${players.length} player(s) in ${duration}ms — next tick at ${nextTickAt}`)
 
     return NextResponse.json({
       data: {

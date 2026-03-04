@@ -30,7 +30,17 @@ export function RealtimeSync() {
       player.id,
       tribeId,
       addToast,
-      refresh,   // called on tick_completed — updates turns + resources in UI
+      (nextTickAt?: string) => {
+        // Refresh player data (turns, resources, population) from /api/player
+        refresh()
+        // Notify TickCountdown with the new server-authoritative next_tick_at
+        // so all clients reset their countdown to the same value simultaneously.
+        if (nextTickAt) {
+          window.dispatchEvent(
+            new CustomEvent('domiron:tick-completed', { detail: { next_tick_at: nextTickAt } })
+          )
+        }
+      },
     )
 
     return () => {

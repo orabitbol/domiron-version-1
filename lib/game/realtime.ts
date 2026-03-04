@@ -21,7 +21,8 @@ export function subscribeToPlayerEvents(
   playerId: string,
   tribeId: string | null,
   onToast: ToastCallback,
-  onTickCompleted?: () => void,
+  /** Called when a tick_completed broadcast arrives. Receives next_tick_at from payload. */
+  onTickCompleted?: (nextTickAt?: string) => void,
 ): RealtimeChannel[] {
   const channels: RealtimeChannel[] = []
 
@@ -119,8 +120,9 @@ export function subscribeToPlayerEvents(
   // 5. Tick broadcast (all players)
   const tickChannel = supabase
     .channel('tick:broadcast')
-    .on('broadcast', { event: 'tick_completed' }, () => {
-      onTickCompleted?.()
+    .on('broadcast', { event: 'tick_completed' }, ({ payload }) => {
+      const nextTickAt = (payload as { next_tick_at?: string } | null)?.next_tick_at
+      onTickCompleted?.(nextTickAt)
       onToast({
         type: 'info',
         title: '⏱ Tick Completed',
@@ -142,11 +144,12 @@ export async function unsubscribeAll(
   await Promise.all(channels.map(ch => supabase.removeChannel(ch)))
 }
 
-// Broadcast tick completed event (called from API route after tick)
-export async function broadcastTickCompleted(supabase: SupabaseClient): Promise<void> {
+// Broadcast tick completed event (called from API route after tick).
+// nextTickAt: the authoritative ISO timestamp when the NEXT tick will run.
+export async function broadcastTickCompleted(supabase: SupabaseClient, nextTickAt: string): Promise<void> {
   await supabase.channel('tick:broadcast').send({
     type: 'broadcast',
     event: 'tick_completed',
-    payload: { timestamp: new Date().toISOString() },
+    payload: { timestamp: new Date().toISOString(), next_tick_at: nextTickAt },
   })
 }
