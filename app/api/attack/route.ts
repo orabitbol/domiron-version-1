@@ -200,32 +200,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── DIAGNOSTIC LOGGING — remove after root cause is identified ────────────
-    console.log('[ATK_DIAG] === ATTACK DIAGNOSTIC START ===')
-    console.log('[ATK_DIAG] Attacker ID:', playerId, '| Defender ID:', defender_id)
-    console.log('[ATK_DIAG] Defender resources (unbanked):', {
-      gold: defResources.gold,
-      iron: defResources.iron,
-      wood: defResources.wood,
-      food: defResources.food,
-    })
-    console.log('[ATK_DIAG] Defender army:', {
-      soldiers: defArmy.soldiers,
-      slaves: defArmy.slaves,
-    })
-    console.log('[ATK_DIAG] Combat flags:', {
-      killCooldown,
-      attackerProtected,
-      defenderProtected,
-      defenderCreatedAt: defPlayer.created_at,
-      resourceShieldActive: defHero.resourceShieldActive,
-      soldierShieldActive:  defHero.soldierShieldActive,
-      attackerTotalAttackBonus: attHero.totalAttackBonus,
-      defenderTotalDefenseBonus: defHero.totalDefenseBonus,
-    })
-    console.log('[ATK_DIAG] attackCountInWindow (incl. current):', (attacksInWindow ?? 0) + 1)
-    // ─────────────────────────────────────────────────────────────────────────
-
     // PersonalPower — computed fresh from stored stat rows
     const attackerPP = calculatePersonalPower({
       army:        attArmy,
@@ -263,30 +237,28 @@ export async function POST(request: NextRequest) {
       defenderTribeMultiplier: defTribeCombatMult,
     })
 
-    // ── DIAGNOSTIC LOGGING — remove after root cause is identified ────────────
-    console.log('[ATK_DIAG] attackerPP:', attackerPP, '| defenderPP:', defenderPP)
-    console.log('[ATK_DIAG] resolveCombat result:', {
-      outcome:        result.outcome,
-      ratio:          result.ratio,
-      attackerECP:    result.attackerECP,
-      defenderECP:    result.defenderECP,
-      loot:           result.loot,
-      attackerLosses: result.attackerLosses,
-      defenderLosses: result.defenderLosses,
-    })
-    // ─────────────────────────────────────────────────────────────────────────
+    // Multi-turn scaling — combat ratio resolves once; totals scale linearly with turnsUsed.
+    // Loot per turn is the single-resolution result; total = lootPerTurn × turnsUsed.
+    // Losses per turn are similarly scaled, then clamped so neither side loses more than they have.
+    const scaledLoot = {
+      gold: result.loot.gold * turnsUsed,
+      iron: result.loot.iron * turnsUsed,
+      wood: result.loot.wood * turnsUsed,
+      food: result.loot.food * turnsUsed,
+    }
+    const attLossesScaled = Math.min(result.attackerLosses * turnsUsed, attArmy.soldiers)
+    const defLossesScaled = Math.min(result.defenderLosses * turnsUsed, defArmy.soldiers)
 
     // Safety clamps — never steal more than defender has
-    const goldStolen = Math.min(result.loot.gold, defResources.gold)
-    const ironStolen = Math.min(result.loot.iron, defResources.iron)
-    const woodStolen = Math.min(result.loot.wood, defResources.wood)
-    const foodStolen = Math.min(result.loot.food, defResources.food)
+    const goldStolen = Math.min(scaledLoot.gold, defResources.gold)
+    const ironStolen = Math.min(scaledLoot.iron, defResources.iron)
+    const woodStolen = Math.min(scaledLoot.wood, defResources.wood)
+    const foodStolen = Math.min(scaledLoot.food, defResources.food)
 
-    // Safety clamp — never lose more soldiers than available
-    const safeDefLosses = Math.min(result.defenderLosses, defArmy.soldiers)
+    const safeDefLosses = defLossesScaled
 
     // New resource values
-    const newAttSoldiers = Math.max(0, attArmy.soldiers - result.attackerLosses)
+    const newAttSoldiers = Math.max(0, attArmy.soldiers - attLossesScaled)
     const newAttGold     = attResources.gold + goldStolen
     const newAttIron     = attResources.iron + ironStolen
     const newAttWood     = attResources.wood + woodStolen
@@ -344,7 +316,7 @@ export async function POST(request: NextRequest) {
         atk_power:       result.attackerECP,
         def_power:       result.defenderECP,
         outcome:         dbOutcome,
-        attacker_losses: result.attackerLosses,
+        attacker_losses: attLossesScaled,
         defender_losses: safeDefLosses,
         slaves_taken:    0,
         gold_stolen:     goldStolen,
@@ -374,77 +346,6 @@ export async function POST(request: NextRequest) {
       recalculatePower(playerId, supabase),
       recalculatePower(defender_id, supabase),
     ])
-
-    // ── DIAGNOSTIC: DB re-fetch + delta verification ──────────────────────────
-    // Re-read DB truth and compare against what we computed. Remove after confirmed.
-    const [
-      { data: dbAttRes },
-      { data: dbAttArmy },
-      { data: dbDefRes },
-      { data: dbDefArmy },
-    ] = await Promise.all([
-      supabase.from('resources').select('gold,iron,wood,food').eq('player_id', playerId).single(),
-      supabase.from('army').select('soldiers').eq('player_id', playerId).single(),
-      supabase.from('resources').select('gold,iron,wood,food').eq('player_id', defender_id).single(),
-      supabase.from('army').select('soldiers').eq('player_id', defender_id).single(),
-    ])
-
-    // attDelta = dbAfter − before (positive = attacker gained)
-    // food delta = foodStolen − foodCost, not just foodStolen — this is expected and correct
-    const attDelta = dbAttRes && dbAttArmy ? {
-      gold:     dbAttRes.gold     - attResources.gold,
-      iron:     dbAttRes.iron     - attResources.iron,
-      wood:     dbAttRes.wood     - attResources.wood,
-      food:     dbAttRes.food     - attResources.food,
-      soldiers: dbAttArmy.soldiers - attArmy.soldiers,
-    } : null
-
-    // defDelta = before − dbAfter (positive = stolen from defender / lost by defender)
-    const defDelta = dbDefRes && dbDefArmy ? {
-      gold:     defResources.gold     - dbDefRes.gold,
-      iron:     defResources.iron     - dbDefRes.iron,
-      wood:     defResources.wood     - dbDefRes.wood,
-      food:     defResources.food     - dbDefRes.food,
-      soldiers: defArmy.soldiers      - dbDefArmy.soldiers,
-    } : null
-
-    console.log('[ATK_DIAG] DB_DELTA attacker :', attDelta)
-    console.log('[ATK_DIAG] DB_DELTA defender :', defDelta)
-    console.log('[ATK_DIAG] Report gained     :', {
-      loot: { gold: goldStolen, iron: ironStolen, wood: woodStolen, food: foodStolen },
-    })
-    console.log('[ATK_DIAG] Expected att delta:', {
-      gold: goldStolen, iron: ironStolen, wood: woodStolen,
-      food: foodStolen - foodCost,   // net: loot food minus food spent
-      soldiers: -result.attackerLosses,
-    })
-    console.log('[ATK_DIAG] Expected def delta:', {
-      gold: goldStolen, iron: ironStolen, wood: woodStolen, food: foodStolen,
-      soldiers: safeDefLosses,
-    })
-
-    // Invariant checks: DB truth must match report exactly
-    const violations: string[] = []
-    if (attDelta) {
-      if (attDelta.gold   !== goldStolen)  violations.push(`att.gold   DB=${attDelta.gold}   report=${goldStolen}`)
-      if (attDelta.iron   !== ironStolen)  violations.push(`att.iron   DB=${attDelta.iron}   report=${ironStolen}`)
-      if (attDelta.wood   !== woodStolen)  violations.push(`att.wood   DB=${attDelta.wood}   report=${woodStolen}`)
-    }
-    if (defDelta) {
-      if (defDelta.gold     !== goldStolen)  violations.push(`def.gold     DB=${defDelta.gold}     report=${goldStolen}`)
-      if (defDelta.iron     !== ironStolen)  violations.push(`def.iron     DB=${defDelta.iron}     report=${ironStolen}`)
-      if (defDelta.wood     !== woodStolen)  violations.push(`def.wood     DB=${defDelta.wood}     report=${woodStolen}`)
-      if (defDelta.food     !== foodStolen)  violations.push(`def.food     DB=${defDelta.food}     report=${foodStolen}`)
-      if (defDelta.soldiers !== safeDefLosses) violations.push(`def.soldiers DB=${defDelta.soldiers} report=${safeDefLosses}`)
-    }
-
-    if (violations.length > 0) {
-      console.error('[ATK_DIAG] *** DB INVARIANT VIOLATIONS — DB ≠ Report ***')
-      violations.forEach((v) => console.error('[ATK_DIAG]   ✗', v))
-    } else {
-      console.log('[ATK_DIAG] ✓ All DB deltas match report — no desync')
-    }
-    // ─────────────────────────────────────────────────────────────────────────
 
     // Build battleReport: structured result the client renders directly
     const attackCount   = (attacksInWindow ?? 0) + 1
@@ -482,7 +383,7 @@ export async function POST(request: NextRequest) {
         ecp_attack:  result.attackerECP,
         turns_spent: turnsUsed,
         food_spent:  foodCost,
-        losses:      { soldiers: result.attackerLosses, cavalry: 0 },
+        losses:      { soldiers: attLossesScaled, cavalry: 0 },
         before: {
           gold: attResources.gold, iron: attResources.iron,
           wood: attResources.wood, food: attResources.food,
@@ -523,11 +424,6 @@ export async function POST(request: NextRequest) {
       },
       reasons,
     }
-
-    // ── DIAGNOSTIC ───────────────────────────────────────────────────────────
-    console.log('[ATK_DIAG] battleReport.reasons:', reasons)
-    console.log('[ATK_DIAG] === ATTACK DIAGNOSTIC END ===')
-    // ─────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
       battleReport,

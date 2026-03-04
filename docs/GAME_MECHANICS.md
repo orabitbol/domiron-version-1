@@ -600,14 +600,49 @@ goldStolen = min(result.loot.gold, defResources.gold)
 ```
 Cannot steal more than the defender actually has (guards against floating-point edge cases).
 
-### 6.9 Attack Cost
+### 6.9 Multi-Turn Attack Mechanic
+
+Attackers choose 1–10 turns per attack. More turns = proportionally more loot and more losses.
+
+**Cost (paid regardless of outcome):**
+```
+foodCost = turnsUsed × foodCostPerTurn   (foodCostPerTurn = 1)
+turnCost = turnsUsed
+```
+
+**Combat resolution — computed once, scaled linearly:**
+
+Combat outcome and ratio are resolved a single time (one call to `resolveCombat`). The per-turn
+results are then multiplied by `turnsUsed` to produce totals. No loop is used; the system
+performs one in-memory calculation and one atomic database update per attack request.
 
 ```
-foodCost  = turnsUsed × foodCostPerTurn = turns × 1
-turnCost  = turnsUsed (1–10 turns per attack)
+lootTotal[r]    = lootPerTurn[r] × turnsUsed
+                  then clamped: min(lootTotal[r], defender.unbanked[r])
+
+attLossesTotal  = attackerLossesPerTurn × turnsUsed
+                  then clamped: min(attLossesTotal, attacker.soldiers)
+
+defLossesTotal  = defenderLossesPerTurn × turnsUsed
+                  then clamped: min(defLossesTotal, defender.soldiers)
 ```
 
-Both are paid **regardless of outcome, protection, or any other flag**. Even attacking a protected player costs turns and food.
+`lootPerTurn` inherits all existing rules (shields zero it, protection zeros it, anti-farm decay
+multiplies it, outcome multiplier applies). The scaling step happens after all those guards.
+
+**Example — 5-turn win attack:**
+```
+lootPerTurn.gold  = floor(10,000 × 0.20 × 1.0 × 1.0)  = 2,000
+lootTotal.gold    = 2,000 × 5                           = 10,000
+                    clamped to defender.unbanked.gold    = 10,000 (if defender had ≥ 10,000)
+
+lossesPerTurn     = floor(1,000 soldiers × 0.03)        = 30 soldiers
+attLossesTotal    = 30 × 5                              = 150 soldiers
+```
+
+**Database write — always exactly one atomic update:**
+All five resource/army tables for both players are updated in a single `Promise.all` alongside
+one `attacks` row insert. No database writes occur inside loops.
 
 ### 6.10 Cooldowns and Protection
 
@@ -648,7 +683,7 @@ The attack route checks these conditions before resolving combat:
 3. Attacker has enough turns (`turns ≥ turnsUsed`)
 4. Attacker has enough food (`food ≥ turnsUsed × 1`)
 5. Attacker has soldiers (`soldiers > 0`)
-6. Defender found in same (or any) city — **no city restriction enforced** in current code
+6. Defender is in the same city as the attacker (`defPlayer.city === attPlayer.city`)
 
 ---
 
