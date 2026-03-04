@@ -22,9 +22,9 @@ const config: Config = {
         'game-border-gold':   '#7A5C12',
         'game-border-active': '#C9901A',
 
-        'game-text':          '#E8C96A',
-        'game-text-secondary':'#9A7830',
-        'game-text-muted':    '#4A3418',
+        'game-text':          '#F6E4B0',
+        'game-text-secondary':'#E0B866',
+        'game-text-muted':    '#8B5A2F',
         'game-text-white':    '#F5EDD5',
 
         'game-gold':        '#C9901A',

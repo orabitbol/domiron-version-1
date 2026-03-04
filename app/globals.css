@@ -19,9 +19,9 @@
   --border-gold:    #7A5C12;
   --border-active:  #C9901A;
 
-  --text-primary:   #E8C96A;
-  --text-secondary: #9A7830;
-  --text-muted:     #4A3418;
+  --text-primary:   #F6E4B0;
+  --text-secondary: #E0B866;
+  --text-muted:     #8B5A2F;
   --text-white:     #F5EDD5;
   --text-error:     #D42B2B;
   --text-success:   #44A028;
@@ -121,7 +121,7 @@ input[type='number'] { -moz-appearance: textfield; }
   /* ── Glass panel (main content wrapper) ───────── */
   .glass-panel {
     background:
-      linear-gradient(180deg, rgba(26,21,13,0.85) 0%, rgba(18,14,8,0.9) 100%);
+      linear-gradient(180deg, rgba(32,26,16,0.78) 0%, rgba(22,17,10,0.84) 100%);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(122, 92, 18, 0.3);
@@ -137,7 +137,7 @@ input[type='number'] { -moz-appearance: textfield; }
   /* ── Panel ornate (primary card/container) ────── */
   .panel-ornate {
     background:
-      linear-gradient(180deg, rgba(26,21,13,0.95) 0%, rgba(18,14,8,0.98) 100%);
+      linear-gradient(180deg, rgba(32,26,16,0.88) 0%, rgba(22,17,10,0.94) 100%);
     border: 1px solid var(--border-gold);
     border-top-color: rgba(201,144,26,0.45);
     border-radius: var(--radius-lg);
