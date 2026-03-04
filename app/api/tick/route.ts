@@ -210,11 +210,15 @@ export async function GET(request: NextRequest) {
       // Re-fetch updated power_total values for ranking
       const { data: powered } = await supabase
         .from('players')
-        .select('id, power_total, city')
+        .select('id, power_total, city, joined_at')
 
       if (powered) {
         // Sort globally for rank_global
-        const sorted = [...powered].sort((a, b) => b.power_total - a.power_total)
+        // Primary: power_total DESC — Tie-break: joined_at ASC (earlier join = higher rank)
+        const sorted = [...powered].sort((a, b) => {
+          if (b.power_total !== a.power_total) return b.power_total - a.power_total
+          return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
+        })
         const globalRanks = new Map(sorted.map((p, i) => [p.id, i + 1]))
 
         // Sort per city for rank_city

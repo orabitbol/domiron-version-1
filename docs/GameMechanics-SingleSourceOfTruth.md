@@ -1166,16 +1166,32 @@ Crystal purchase flow for VIP: `vip.crystalCost = 500` crystals, no purchase rou
 
 ## 21. Rankings
 
-**File:** `app/api/tick/route.ts` (ranking update in tick)
+**File:** `app/api/tick/route.ts` — Step 7
 
-```
-rank_global: sorted by power_total DESC globally
-rank_city:   sorted by power_total DESC within each city (1–5)
-```
+**DB fields** — `players` table, both `INT NULL` (no DEFAULT — `NULL` until first tick):
+- `rank_global` — 1-based position among ALL players in the season
+- `rank_city`   — 1-based position among players in the same city (1–5)
 
-Updated every tick (every 30 minutes) for all players simultaneously. Not real-time between ticks.
+Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_city ON players(city, rank_city)`.
 
-**UI display:** The Sidebar (`components/layout/Sidebar.tsx`) reads `player.rank_global` and `player.rank_city` from `PlayerContext` (sourced from `GET /api/player`) and displays both ranks for the logged-in player. Shows `—` until the first tick runs (nullable). Updates on every `refresh()` call (after any mutation).
+**Computation (tick only — never recalculated elsewhere):**
+1. After `recalculatePower()` runs for all players, re-fetch `id, power_total, city, joined_at`
+2. Sort once with stable rule:
+   - Primary: `power_total DESC`
+   - Tie-break: `joined_at ASC` (player who joined earlier ranks higher on equal power)
+3. Global rank: assign 1-based index from the global sorted list → `rank_global`
+4. City rank: filter per city (1..5) from the same sorted list, assign 1-based index → `rank_city`
+5. Batch-write both fields: `Promise.all` of one `UPDATE players SET rank_global=?, rank_city=? WHERE id=?` per player
+
+**Update timing:** Computed and persisted ONLY on tick (every 30 minutes via Vercel Cron). No other route touches these fields.
+
+**API:** `GET /api/player` and the server-side `app/(game)/layout.tsx` both SELECT `rank_city,rank_global` explicitly. The `Player` TypeScript type (`types/game.ts:102-103`) defines both as `number | null`.
+
+**Sidebar display** (`components/layout/Sidebar.tsx:186-201`):
+- Reads `player.rank_global` and `player.rank_city` from `usePlayer()` (fed by `PlayerContext` initial SSR data + refreshed on any mutation)
+- Renders a "Ranking" section label followed by two rows:
+  - `Global Rank  #N` (or `—` while null, i.e. before first tick)
+  - `City Rank    #N` (or `—` while null)
 
 ---
 

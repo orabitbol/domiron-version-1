@@ -176,19 +176,21 @@ export function Sidebar() {
           <p className="text-[8px] text-game-text-muted font-body mt-0.5 uppercase tracking-wide">
             {raceName} · {cityName}
           </p>
-          {/* דירוג בעיר / דירוג כללי */}
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[9px] text-game-text-secondary font-body">
-            <span>
-              דירוג בעיר:{" "}
-              <span className="font-semibold text-game-gold-bright tabular-nums">
-                {player?.rank_city != null ? `#${player.rank_city}` : "—"}
-              </span>
+        </div>
+
+        {/* Ranking */}
+        <SectionLabel label="Ranking" />
+        <div className="px-3 pb-2 pt-0.5 space-y-0.5">
+          <div className="flex items-center justify-between text-[10px] font-body">
+            <span className="text-game-text-secondary">Global Rank</span>
+            <span className="font-semibold text-game-gold-bright tabular-nums">
+              {player?.rank_global != null ? `#${player.rank_global}` : "—"}
             </span>
-            <span>
-              דירוג כללי:{" "}
-              <span className="font-semibold text-game-gold-bright tabular-nums">
-                {player?.rank_global != null ? `#${player.rank_global}` : "—"}
-              </span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] font-body">
+            <span className="text-game-text-secondary">City Rank</span>
+            <span className="font-semibold text-game-gold-bright tabular-nums">
+              {player?.rank_city != null ? `#${player.rank_city}` : "—"}
             </span>
           </div>
         </div>
