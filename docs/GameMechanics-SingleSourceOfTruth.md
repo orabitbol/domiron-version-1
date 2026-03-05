@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Bank interest table extended to 11 tiers (levels 0–10) with Zod boot-time invariant guards. Prior: spy/attack/city-promote RPC atomicity.
+**Last updated:** 2026-03-05 — Bank upgrade made atomic via `bank_interest_upgrade_apply()` RPC. Prior: interest table extended to 11 tiers, spy/attack/city-promote RPC atomicity.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -1146,7 +1146,7 @@ Activation route: `POST /api/tribe/activate-spell`. Spell multipliers: `BALANCE.
 
 ## 11. Bank System
 
-**Files:** `app/api/bank/deposit/route.ts`, `app/api/bank/withdraw/route.ts`, `app/api/bank/upgrade/route.ts`
+**Files:** `app/api/bank/deposit/route.ts`, `app/api/bank/withdraw/route.ts`, `app/api/bank/upgrade/route.ts`, `supabase/migrations/0015_bank_upgrade_rpc.sql`, `lib/game/bank-upgrade.test.ts`
 
 ### Deposit
 
@@ -1211,6 +1211,27 @@ interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 - `MAX_INTEREST_LEVEL` equals highest key in the table
 
 Source: `BALANCE.bank.INTEREST_RATE_BY_LEVEL`, `lib/game/tick.ts → calcBankInterest()`
+
+### Bank Upgrade — Atomicity
+
+The upgrade mutation is **fully atomic** via the `bank_interest_upgrade_apply()` Postgres RPC
+(`supabase/migrations/0015_bank_upgrade_rpc.sql`).
+
+**Row locks:** `SELECT … FOR UPDATE` on `bank` + `resources` in a single JOIN (no deadlock risk — one player only).
+
+**Post-lock re-validation (TOCTTOU-safe):**
+- `bank.interest_level < p_max_level` (concurrent upgrade guard)
+- `bank.interest_level + 1 == p_next_level` (stale-read guard → `stale_level` error)
+- `resources.gold >= p_cost_gold`
+
+**RPC error codes → HTTP 400:**
+| Code | Meaning |
+|---|---|
+| `already_max_level` | Level is already at `MAX_INTEREST_LEVEL` |
+| `not_enough_gold` | Concurrent spend drained gold after pre-check |
+| `stale_level` | Another concurrent upgrade ran first |
+
+**No partial state:** either both writes commit (gold deducted + level incremented) or neither does.
 
 **`POST /api/bank/upgrade` response shape:**
 ```json
@@ -1697,6 +1718,13 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Bank Upgrade: Atomic RPC (`bank_interest_upgrade_apply`)
+
+Made the bank interest upgrade fully atomic via `bank_interest_upgrade_apply()`.
+- `supabase/migrations/0015_bank_upgrade_rpc.sql`: new RPC — FOR UPDATE lock on bank + resources; post-lock re-validation (already_max_level, stale_level, not_enough_gold); both writes in one transaction (gold deduction + level increment); GRANT to service_role
+- `app/api/bank/upgrade/route.ts`: replaced `Promise.all([resources.update, bank.update])` with single `supabase.rpc('bank_interest_upgrade_apply', …)`; RPC error codes mapped via `BANK_UPGRADE_RPC_ERROR_MAP`; upgrade next-info recomputed from BALANCE after RPC success (no extra DB writes)
+- `lib/game/bank-upgrade.test.ts`: 15 new tests — structural contract (1 rpc call, no direct .update on bank/resources), error-code mapping, upgrade cost formula, next-upgrade info, atomicity contract
 
 ### 2026-03-05 — Bank Interest Table + BALANCE Invariant Guards
 
