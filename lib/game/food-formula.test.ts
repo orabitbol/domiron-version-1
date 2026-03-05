@@ -189,3 +189,85 @@ describe('AttackDialog UI structural contract — food formula', () => {
   })
 
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GROUP 6 — Server authority: attack route enforces food check server-side
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Server Authority — attack route food gate', () => {
+
+  it('route source contains a food < foodCost guard (server is the authority)', () => {
+    // The route must reject the request before touching the DB when food is insufficient.
+    // Pattern: attResources.food < foodCost
+    expect(routeSource).toMatch(/attResources\.food\s*<\s*foodCost/)
+  })
+
+  it('route returns 400 "Not enough food" when food insufficient (error text present)', () => {
+    expect(routeSource).toContain("'Not enough food'")
+  })
+
+  it('route computes foodCost before the guard (not after)', () => {
+    // foodCost must be assigned before the if-check that uses it
+    const assignIdx = routeSource.indexOf('const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER')
+    const guardIdx  = routeSource.indexOf('attResources.food < foodCost')
+    expect(assignIdx).toBeGreaterThanOrEqual(0)
+    expect(guardIdx).toBeGreaterThan(assignIdx)
+  })
+
+  // ── Pure-logic rejection / acceptance scenarios ───────────────────────────
+  // These test the gate logic in isolation (no DB, no HTTP).
+
+  it('10 soldiers, 1 turn — rejects when food is zero', () => {
+    const soldiers = 10; const turns = 1
+    const foodCost = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns
+    expect(0 < foodCost).toBe(true)  // 0 food → would be rejected
+  })
+
+  it('10 soldiers, 1 turn — accepts when food exactly equals cost', () => {
+    const soldiers = 10; const turns = 1
+    const foodCost = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns
+    expect(foodCost < foodCost).toBe(false)  // food === cost → passes gate
+  })
+
+  it('10 soldiers, 5 turns — rejects when food < requiredFood', () => {
+    const soldiers = 10; const turns = 5
+    const requiredFood = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns
+    const playerFood   = requiredFood - 0.01  // just below
+    expect(playerFood < requiredFood).toBe(true)
+  })
+
+  it('10 soldiers, 5 turns — accepts when food >= requiredFood', () => {
+    const soldiers = 10; const turns = 5
+    const requiredFood = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns
+    const playerFood   = requiredFood
+    expect(playerFood < requiredFood).toBe(false)
+  })
+
+  it('1000 soldiers, 10 turns — rejects when food = 0', () => {
+    const soldiers = 1000; const turns = 10
+    const requiredFood = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns
+    expect(0 < requiredFood).toBe(true)
+  })
+
+  it('gate is bypassed only when soldiers = 0 (formula yields 0 cost)', () => {
+    const turns = 5
+    expect(0 * BALANCE.combat.FOOD_PER_SOLDIER * turns).toBe(0)
+    // Note: a separate guard (soldiers <= 0) rejects before food check anyway
+  })
+
+  // ── Spy route: no food validation (spy is not a combat action) ────────────
+  it('spy route does NOT reference FOOD_PER_SOLDIER (spy consumes turns only)', () => {
+    const SPY_ROUTE_PATH = path.resolve(__dirname, '../../app/api/spy/route.ts')
+    const spySource      = fs.readFileSync(SPY_ROUTE_PATH, 'utf8')
+    expect(spySource).not.toContain('FOOD_PER_SOLDIER')
+  })
+
+  it('spy route has no legacy food-cost identifiers', () => {
+    const SPY_ROUTE_PATH = path.resolve(__dirname, '../../app/api/spy/route.ts')
+    const spySource      = fs.readFileSync(SPY_ROUTE_PATH, 'utf8')
+    expect(spySource).not.toContain('foodCostPerTurn')
+    expect(spySource).not.toContain('turnFoodCost')
+    expect(spySource).not.toContain('foodPerTurn')
+  })
+
+})

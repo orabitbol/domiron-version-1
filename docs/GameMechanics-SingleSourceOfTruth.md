@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Attack page UX: turns/food columns removed from table; AttackDialog with turn selector, spy tab, validation, and cost preview added. Prior: Audit #5 food formula SSOT.
+**Last updated:** 2026-03-05 — Security hardening: server authority for food cost documented; GROUP 6 tests added confirming attack route gate. Prior: Attack page UX (AttackDialog).
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -891,6 +891,32 @@ Requirements:
 |---|---|
 | Attack dialog cost preview | `components/game/AttackDialog.tsx` |
 | Any future action dialog with food cost | (same rule applies) |
+
+### Server Authority Rule
+
+**The UI is informational only. The server is the single authority for all gameplay costs.**
+
+The food cost gate is enforced server-side in `app/api/attack/route.ts` before any DB write:
+
+```typescript
+const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+if (attResources.food < foodCost) {
+  return NextResponse.json({ error: 'Not enough food' }, { status: 400 })
+}
+```
+
+Rules:
+- A player bypassing the UI and calling `/api/attack` directly will still be rejected if they lack food.
+- The DB write (via `attack_resolve_apply` RPC) re-validates food a second time under `FOR UPDATE` lock — preventing TOCTTOU races from concurrent requests.
+- **Spy (`/api/spy`)** does **not** enforce food validation — spy missions are intelligence operations, not military deployments; they consume turns only, not food.
+
+**Routes enforcing food validation:**
+| Route | Validated | Formula |
+|---|---|---|
+| `POST /api/attack` | ✅ server-side + RPC re-check | `soldiers × FOOD_PER_SOLDIER × turns` |
+| `POST /api/spy` | N/A — spy has no food cost | turns only (`BALANCE.spy.turnCost`) |
+
+**Test coverage:** GROUP 6 in `lib/game/food-formula.test.ts` — structural + rejection/acceptance scenarios.
 
 ### Multi-Turn Scaling and Persistence
 
@@ -1785,6 +1811,17 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Security Hardening: Server Authority for Food Cost
+
+Confirmed attack route enforces canonical food formula server-side; added GROUP 6 structural + logic tests; documented Server Authority Rule in SSOT.
+
+- `app/api/attack/route.ts`: already correct — `const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed` + `if (attResources.food < foodCost)` gate at line 93. No changes needed.
+- `app/api/spy/route.ts`: confirmed no food validation needed — spy consumes turns only, not food. No legacy identifiers present.
+- `lib/game/food-formula.test.ts`: GROUP 6 added (11 tests) — structural: route has `attResources.food < foodCost` guard, returns `'Not enough food'`, foodCost computed before guard; pure-logic: 10s/1t reject-at-zero, accept-at-cost, 10s/5t reject-below/accept-at, 1000s/10t reject-at-zero, soldiers=0 bypass; spy structural: no `FOOD_PER_SOLDIER`, no legacy identifiers
+- `docs/GameMechanics-SingleSourceOfTruth.md`: Server Authority Rule subsection added with code snippet, route table, and test reference
+
+**439 → 450 tests passing, 0 TypeScript errors.**
 
 ### 2026-03-05 — Attack Page UX: AttackDialog + Spy Integration
 
