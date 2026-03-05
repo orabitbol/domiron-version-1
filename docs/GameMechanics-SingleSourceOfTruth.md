@@ -1,6 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
+**Last updated:** 2026-03-05 — Tick/countdown system root-cause analysis and all fixes
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -19,8 +20,13 @@
 | Combat resolution API | `app/api/attack/route.ts` |
 | Spy mission API | `app/api/spy/route.ts` |
 | Tick cron handler | `app/api/tick/route.ts` |
+| Tick status (server clock) | `app/api/tick-status/route.ts` |
+| Dev auto-tick scheduler | `instrumentation.ts` |
+| Supabase server clients | `lib/supabase/server.ts` |
+| Countdown UI component | `components/layout/Sidebar.tsx` → `TickCountdown` |
 | Registration | `app/api/auth/register/route.ts` |
 | DB schema | `supabase/migrations/0001_initial.sql` |
+| World-state timer seed | `supabase/migrations/0008_world_state.sql` |
 
 ---
 
@@ -108,7 +114,241 @@ Then globally:
 7. Power recalculation → `recalculatePower(playerId, supabase)` for all players
 8. Rankings update (global + per-city)
 9. Tribe power aggregation → `tribes.power_total` = sum of member `power_total` values
-10. Realtime broadcast → `broadcastTickCompleted(supabase)`
+10. **`world_state` upsert** — `next_tick_at = tickDoneAt + TICK_INTERVAL_MINUTES` (`app/api/tick/route.ts` ~line 347)
+11. Realtime broadcast — `broadcastTickCompleted(supabase, nextTickAt)` includes `next_tick_at` in payload
+
+---
+
+### Server-Authoritative Countdown (Local Dev + Production)
+
+**Summary:** Every client reads `world_state.next_tick_at` (single DB row, `id=1`) to drive the Sidebar countdown. The tick route advances this value after each tick completes. In production, Vercel Cron triggers the tick. In local dev, `instrumentation.ts` runs a Node.js `setInterval` that calls the same endpoint.
+
+**DB table:** `supabase/migrations/0008_world_state.sql`
+```sql
+CREATE TABLE world_state (
+  id           INT PRIMARY KEY DEFAULT 1,
+  next_tick_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT world_state_single_row CHECK (id = 1)
+);
+INSERT INTO world_state (id, next_tick_at) VALUES (1, now());
+ALTER TABLE world_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "world_state_select_public" ON world_state FOR SELECT USING (true);
+```
+The seed value (`now()` at migration time) becomes immediately stale, which is why the tick must run within the first minute of any dev session.
+
+---
+
+#### Root Cause Analysis — Why the countdown was stuck at 00:00 (all 4 bugs, in discovery order)
+
+**Bug 1 — `next.config.mjs` missing `instrumentationHook` flag**
+- **File:** `next.config.mjs`
+- **Symptom:** No `[INSTRUMENTATION]` log ever appeared in the terminal. `instrumentation.ts:register()` was never called.
+- **Root cause:** Next.js 14.x requires `experimental: { instrumentationHook: true }` to activate `instrumentation.ts`. This flag was removed only in Next.js 15. Without it, the file is silently ignored.
+- **Fix:**
+  ```js
+  // next.config.mjs
+  const nextConfig = {
+    experimental: {
+      instrumentationHook: true,  // required for Next.js 14; not needed in Next.js 15+
+    },
+  }
+  ```
+
+**Bug 2 — `instrumentation.ts` guard exited early on `NEXT_RUNTIME = undefined`**
+- **File:** `instrumentation.ts` line 29 (pre-fix)
+- **Symptom:** Even after enabling the hook, `register()` was called but exited before starting the interval. Visible in logs as `[INSTRUMENTATION] register() … NEXT_RUNTIME="undefined"` with no scheduler armed log.
+- **Root cause:** The guard was `if (process.env.NEXT_RUNTIME !== 'nodejs') return`. In Next.js 14 dev, the Node.js server invocation has `NEXT_RUNTIME = undefined` (not `'nodejs'`). So `undefined !== 'nodejs'` evaluated `true` and the function returned immediately.
+- **Fix:**
+  ```ts
+  // instrumentation.ts
+  // WRONG: if (process.env.NEXT_RUNTIME !== 'nodejs') return
+  // CORRECT: skip only the Edge runtime; allow undefined (= Node.js dev) through
+  if (process.env.NEXT_RUNTIME === 'edge') return
+  ```
+
+**Bug 3 — `world_state` UPDATE silently matched 0 rows**
+- **File:** `app/api/tick/route.ts` ~line 349 (pre-fix)
+- **Symptom:** `[TICK] world_state updated` log appeared but `/api/tick-status` still returned the stale seeded timestamp.
+- **Root cause:** Supabase `.update().eq('id', 1)` returns `{ data: [], error: null }` when 0 rows match. The code checked `if (wsError)` — which was `null` — and logged success. But the row was not updated. (Cause of 0-row match was the stale seeded row existing but the UPDATE being silently no-op'd before the upsert fix was applied.)
+- **Fix:** Replace `update()` with `upsert()` + `.select()` to confirm the persisted value:
+  ```ts
+  // app/api/tick/route.ts
+  const { data: wsData, error: wsError } = await supabase
+    .from('world_state')
+    .upsert({ id: 1, next_tick_at: nextTickAt })
+    .select('next_tick_at')
+  // wsData[0].next_tick_at is the confirmed DB value — log both sent and confirmed
+  const confirmedAt = wsData?.[0]?.next_tick_at ?? '(no row returned)'
+  console.log(`[TICK] world_state OK: sent=${nextTickAt} confirmed=${confirmedAt} diffSec=${diffSec}`)
+  ```
+  > **Note:** `sent` ends in `Z` and `confirmed` ends in `+00:00` — Supabase normalises `TIMESTAMPTZ` to `+00:00` in the response. These are the same UTC instant and the MISMATCH log is a false positive.
+
+**Bug 4 — Next.js 14 fetch cache served stale DB values from `/api/tick-status`**
+- **Files:** `lib/supabase/server.ts`, `app/api/tick-status/route.ts`
+- **Symptom:** Supabase DB confirmed (via direct REST call) that `next_tick_at` was in the future, but `/api/tick-status` still returned the 10-hour-old seeded value.
+- **Root cause:** Next.js 14 patches the global `fetch` and caches responses by default. `export const dynamic = 'force-dynamic'` prevents the _route response_ from being cached but does **not** prevent Next.js from caching the individual `fetch()` calls made by the Supabase client internally. The Supabase `createServerClient` uses `fetch` for all DB requests, so the `world_state` SELECT was served from the Next.js fetch cache.
+- **Fix 1 — `lib/supabase/server.ts`:** Pass `cache: 'no-store'` in the global fetch override so every Supabase HTTP call from `createAdminClient()` bypasses the cache:
+  ```ts
+  export function createAdminClient() {
+    return createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (url: RequestInfo | URL, init?: RequestInit) =>
+            fetch(url, { ...init, cache: 'no-store' }),
+        },
+        cookies: { getAll() { return [] }, setAll() {} },
+      }
+    )
+  }
+  ```
+- **Fix 2 — `app/api/tick-status/route.ts`:** Belt-and-suspenders: call `noStore()` at request time:
+  ```ts
+  import { unstable_noStore as noStore } from 'next/cache'
+  export const dynamic = 'force-dynamic'
+
+  export async function GET() {
+    noStore()
+    const supabase = createAdminClient()
+    const { data } = await supabase
+      .from('world_state').select('next_tick_at').eq('id', 1).maybeSingle()
+    return NextResponse.json({
+      server_now:   new Date().toISOString(),
+      next_tick_at: data?.next_tick_at ?? null,
+    })
+  }
+  ```
+
+---
+
+#### `instrumentation.ts` — Dev Auto-Tick Scheduler
+
+**File:** `instrumentation.ts` (project root)
+**Purpose:** In local dev, Vercel Cron never fires. This file registers a Node.js `setInterval` at server startup that calls `GET /api/tick` with the `x-cron-secret` header, exactly as Vercel Cron does in production.
+
+**Guard logic (in order):**
+```ts
+export async function register() {
+  console.log(`[INSTRUMENTATION] register() called — NEXT_RUNTIME="${process.env.NEXT_RUNTIME}" …`)
+  if (process.env.NODE_ENV !== 'development') return      // Never run in production
+  if (process.env.NEXT_RUNTIME === 'edge') return         // Skip Edge runtime (no setInterval)
+  // NEXT_RUNTIME === undefined → Node.js dev → continue
+  // NEXT_RUNTIME === 'nodejs'  → Node.js   → continue
+  if (devCronStarted) return                              // HMR guard — only one interval
+  devCronStarted = true
+```
+
+**Interval parsing — rejects empty string:**
+```ts
+const rawInterval = Number(process.env.TICK_INTERVAL_MINUTES)
+const intervalMinutes =
+  Number.isFinite(rawInterval) && rawInterval > 0 ? rawInterval : 30
+// Number("") = 0 → isFinite(0) = true BUT 0 > 0 = false → falls back to 30
+// Number(undefined) = NaN → isFinite(NaN) = false → falls back to 30
+// Number("1") = 1 → isFinite(1) = true AND 1 > 0 = true → uses 1
+```
+
+**Tick call:**
+```ts
+const res = await fetch(`http://localhost:${port}/api/tick`, {
+  headers: { 'x-cron-secret': secret }
+})
+// Logs every attempt: [DEV CRON] → calling http://localhost:3000/api/tick at <ISO>
+// Logs result:        [DEV CRON] Tick OK (HTTP 200): {"data":{...}}
+//                     [DEV CRON] Tick HTTP 401: {"error":"Unauthorized"}
+```
+
+**First tick delay:** 3 seconds after server startup (so Next.js dev server finishes booting before the first fetch).
+
+---
+
+#### `/api/tick-status` — Public Clock Endpoint
+
+**File:** `app/api/tick-status/route.ts`
+**Auth:** None (public, unauthenticated).
+**Response:**
+```json
+{ "server_now": "2026-03-05T07:22:29.220Z", "next_tick_at": "2026-03-05T07:22:51.863+00:00" }
+```
+`next_tick_at > server_now` = timer is live and counting down.
+`next_tick_at < server_now` = tick has not run yet or world_state update failed.
+
+---
+
+#### `TickCountdown` UI Component — How It Works
+
+**File:** `components/layout/Sidebar.tsx` → `function TickCountdown()`
+
+| Mechanism | Detail |
+|---|---|
+| Mount | Fetches `/api/tick-status`, sets `nextTickAt` state |
+| Heartbeat | Re-fetches every 5 minutes (drift correction) |
+| Realtime update | Listens for `window.CustomEvent('domiron:tick-completed')`, dispatched by `RealtimeSync` when the Supabase Realtime broadcast arrives |
+| Countdown | `setInterval(1000)`: computes `new Date(nextTickAt).getTime() - Date.now()` |
+| Overdue polling | When `ms ≤ 0`: starts a 5-second poll of `/api/tick-status` until `next_tick_at` advances |
+| Dev debug label | `(Ns)` shown next to timer, hover tooltip shows `server_now / next_tick_at / diff` |
+| Dev console logs | On each `/api/tick-status` response: `server_now`, `next_tick_at`, `parsed toString()`, `isNaN?`, `diff ms FUTURE ✓ / PAST ✗` |
+
+**Parsing:** `new Date(nextTickAt).getTime()` — handles both `Z` and `+00:00` suffixes correctly. If `isNaN` appears in browser console, the server returned a malformed timestamp.
+
+**Two-tab consistency:** Both tabs read the same `world_state.next_tick_at` row and both update via the same Supabase Realtime broadcast → identical countdown on all clients.
+
+---
+
+#### How to Verify the Full Tick Pipeline
+
+**Required `.env` values:**
+```
+CRON_SECRET=<any non-empty string, must match between .env and Supabase>
+SUPABASE_SERVICE_ROLE_KEY=<set>
+TICK_INTERVAL_MINUTES=1    # 1-minute debug cadence; change to 30 for production parity
+TICK_DEBUG=1               # Verbose per-player logs
+```
+
+**Start dev server:** `npm run dev`
+
+**Expected terminal output (within 5 seconds):**
+```
+[INSTRUMENTATION] register() called — NEXT_RUNTIME="undefined" NODE_ENV="development"
+[DEV CRON] Scheduler armed — interval=1min url=http://localhost:3000/api/tick
+[DEV CRON] Auto-tick STARTED (every 1 min / 60s)
+[DEV CRON] → calling http://localhost:3000/api/tick at 2026-…
+[TICK] auth=ok — tick starting at 2026-…
+[TICK] playersFound=7
+[TICK] Processing 7 player(s) at 2026-…
+[TICK] player[0]=<id> turns: X→Y gold: A→B(+N) freePop: C→D
+[TICK] world_state OK: sent=2026-…Z confirmed=2026-…+00:00 diffSec=60
+[TICK] Completed: 7 player(s) in Xms — next tick at 2026-…
+[DEV CRON] Tick OK (HTTP 200): {"data":{"processed":7,…}}
+```
+
+If `playersFound=0`, the log immediately after diagnoses it:
+```
+[TICK] Raw players table count (no joins): N
+# If N > 0: a player is missing army/development/hero/bank/or resources row (!inner join excluded them)
+# If N = 0: players table is empty
+```
+
+**API verification:**
+```bash
+curl http://localhost:3000/api/tick-status
+# Expected: { "server_now": "…Z", "next_tick_at": "…+00:00" }
+# next_tick_at must be AFTER server_now
+```
+
+**Browser console verification (open any game page):**
+```
+[TickCountdown] server_now  2026-…Z
+[TickCountdown] next_tick_at  2026-…+00:00
+[TickCountdown] parsed toString()  Thu Mar 05 2026 …
+[TickCountdown] isNaN?  false
+[TickCountdown] diff ms  57234  FUTURE ✓
+```
+
+**To revert to 30-minute production cadence:**
+1. In `.env`: set `TICK_INTERVAL_MINUTES=30` (or delete the line)
+2. In `vercel.json`: set cron schedule back to `*/30 * * * *`
 
 ---
 
