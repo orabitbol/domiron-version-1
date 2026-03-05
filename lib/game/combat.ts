@@ -452,7 +452,7 @@ export function calculateSoldierLosses(
  * all zero out defenderLosses, which automatically zeros captives too).
  *
  * Captives are added to attacker army.slaves and recorded as `slaves_taken`
- * in the attacks table by the attack_multi_turn_apply RPC.
+ * in the attacks table by the attack_resolve_apply RPC.
  */
 export function calculateCaptives(defenderLosses: number): number {
   return Math.floor(defenderLosses * BALANCE.combat.CAPTURE_RATE)

@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — City Promotion made atomic via `city_promote_apply()` RPC (FOR UPDATE row locks, server-side re-validation, single transaction). Prior: promotion feature + system audit.
+**Last updated:** 2026-03-05 — Attack mutation made canonical via `attack_resolve_apply()` RPC (renamed from `attack_multi_turn_apply`; structural tests added). Prior: city promotion atomic RPC, system audit.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -673,12 +673,20 @@ finalECP = floor(baseECP × tribeMultiplier)
     - `lootTotal = loot × turnsUsed` (per resource, capped at defender's available resource)
     - `attLosses = min(attackerLosses × turnsUsed, attArmy.soldiers)`
     - `defLosses = min(defenderLosses × turnsUsed, defArmy.soldiers)`
-22. **Atomic DB write** via `supabase.rpc('attack_multi_turn_apply', preComputedDeltas)`:
-    - Acquires row-level locks (`SELECT … FOR UPDATE`) on `players + army + resources` for both players in **ascending UUID order** to prevent A↔B deadlocks
-    - Re-validates turns / food / soldiers / same-city **under lock** (race-condition safety)
-    - All mutations + `attacks` INSERT in one Postgres transaction; returns `{ ok, error? }`
-    - Source: `supabase/migrations/0006_attack_rpc.sql` — `attack_multi_turn_apply()`
-23. Recalculate stored power for both players (non-fatal — failure self-corrects on next tick)
+22. **Atomic DB write** — single `supabase.rpc('attack_resolve_apply', preComputedDeltas)` call:
+    - Locks `players + army + resources` for **both** players with `SELECT … FOR UPDATE` in **ascending UUID order** (prevents A↔B deadlocks)
+    - Re-validates turns / food / soldiers / same-city **after acquiring locks** (TOCTTOU-safe)
+    - Applies in one Postgres transaction (all-or-nothing, no partial state):
+      - `players.turns -= turnsUsed` (attacker)
+      - `army.soldiers -= losses`, `army.slaves += captives` (attacker)
+      - `resources` loot credited to attacker; food cost deducted
+      - `army.soldiers -= losses` (defender)
+      - `resources` loot debited from defender
+      - `attacks` row inserted
+    - Returns `{ ok: true }` or `{ ok: false, error: <code> }`
+    - **File:** `supabase/migrations/0013_attack_resolve_rpc.sql`
+    - **No direct `.update()` calls remain in the route** — structural test enforces this
+23. Recalculate stored power for both players via `recalculatePower()` (non-fatal — failure self-corrects on next tick)
 
 > **Food cost** in the route: `foodCost = turnsUsed × BALANCE.combat.foodCostPerTurn` (= turns × 1). `calculateFoodCost(deployedSoldiers)` has been **removed** from `combat.ts` (was dead code).
 
@@ -862,7 +870,7 @@ attLossesTotal       = attackerLosses  × turnsUsed   (clamped to attArmy.soldie
 defLossesTotal       = defenderLosses  × turnsUsed   (clamped to defArmy.soldiers)
 ```
 
-These pre-computed deltas are passed as parameters to `attack_multi_turn_apply()` (one `supabase.rpc()` call). The Postgres function re-validates everything under lock and applies all mutations atomically. There is **no loop** over turns and **no partial writes** — either the entire attack commits or nothing changes.
+These pre-computed deltas are passed as parameters to `attack_resolve_apply()` (migration `0013_attack_resolve_rpc.sql`) via one `supabase.rpc()` call. The Postgres function acquires `FOR UPDATE` row locks in ascending UUID order, re-validates all conditions under lock, and applies all mutations atomically. There is **no loop** over turns and **no partial writes** — either the entire attack commits or nothing changes.
 
 ### Slaves from Combat (Captives)
 
@@ -876,7 +884,7 @@ captives = 0  when defenderLossesTotal = 0
 
 - **Function:** `calculateCaptives(defenderLosses)` — `lib/game/combat.ts`
 - **Balance key:** `BALANCE.combat.CAPTURE_RATE = 0.10`
-- **RPC:** `attack_multi_turn_apply` (migration `0011_attack_rpc_captives.sql`) accepts `p_slaves_taken INT`
+- **RPC:** `attack_resolve_apply` (migration `0013_attack_resolve_rpc.sql`) accepts `p_slaves_taken INT`
   and atomically sets `army.slaves = slaves + p_slaves_taken` for the attacker.
 - **DB column:** `attacks.slaves_taken` — records actual captives per attack.
 - **API:** `app/api/attack/route.ts` computes `captives = calculateCaptives(safeDefLosses)` and passes it to the RPC.
@@ -1637,13 +1645,24 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 
 | # | Issue | Recommendation |
 |---|---|---|
-| R1 | ~~6 separate Supabase calls in attack route. No transaction.~~ | ✅ **Resolved** — `attack_multi_turn_apply()` RPC (`0006_attack_rpc.sql`) is now the sole write path; row-level locks + single Postgres transaction guarantee atomicity |
+| R1 | ~~6 separate Supabase calls in attack route. No transaction.~~ | ✅ **Resolved** — `attack_resolve_apply()` RPC (`0013_attack_resolve_rpc.sql`) is the sole write path; row-level locks + single Postgres transaction guarantee atomicity |
 | R2 | **Power recalc on every tick for every player.** `N × 5` queries per tick. | Debounce or compute lazily on read |
 | R3 | ~~Diagnostic logging in attack route. 20+ `console.log` lines.~~ | ✅ **Resolved** — all `[ATK_DIAG]` blocks removed |
 
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Attack: Canonical Atomic RPC (`attack_resolve_apply`)
+
+**Renamed** `attack_multi_turn_apply` → `attack_resolve_apply` as the sole atomic write path for all attack mutations.
+- `supabase/migrations/0013_attack_resolve_rpc.sql`: drops `attack_multi_turn_apply`; creates `attack_resolve_apply` with same 15-param signature + identical locking/re-validation/write logic; GRANTs updated
+- `app/api/attack/route.ts`: updated RPC name + comment to reference migration 0013
+- `lib/game/combat.ts`: updated JSDoc comment
+- `lib/game/attack-resolve.test.ts`: 22 new tests — structural contract (1 rpc call, no direct .update), RPC error-code→HTTP mapping, pre-RPC invariant safety clamps for 10 combat scenarios
+- `docs/GameMechanics-SingleSourceOfTruth.md`: all `attack_multi_turn_apply` references replaced; atomic write step expanded; migration ref updated
+
+**341 tests passing, 0 TypeScript errors.**
 
 ### 2026-03-05 — City Promotion: Atomic RPC
 

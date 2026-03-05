@@ -17,7 +17,7 @@ import { recalculatePower } from '@/lib/game/power'
 import type { BattleReport, BattleReportReason } from '@/types/game'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
-/** Response shape returned by the attack_multi_turn_apply Postgres RPC. */
+/** Response shape returned by the attack_resolve_apply Postgres RPC. */
 interface AttackRpcResult {
   ok:     boolean
   error?: string
@@ -330,13 +330,14 @@ export async function POST(request: NextRequest) {
     if (newAttFood     < 0) throw new Error('Attack invariant: newAttFood < 0')
 
     // ── Atomic DB write via RPC ───────────────────────────────────────────────
-    // Passes pre-computed deltas to a Postgres stored function that:
+    // Passes pre-computed deltas to attack_resolve_apply() which:
     //   1. Acquires FOR UPDATE row locks in ascending UUID order (no deadlocks)
-    //   2. Re-validates turns / food / soldiers under lock (race-condition safety)
-    //   3. Applies all mutations + inserts one attacks row in one transaction
-    // See: supabase/migrations/0006_attack_rpc.sql
+    //   2. Re-validates turns / food / soldiers / same-city under lock (TOCTTOU-safe)
+    //   3. Applies ALL mutations + inserts one attacks row in one transaction:
+    //      players.turns, army (soldiers, slaves), resources (both sides), attacks INSERT
+    // See: supabase/migrations/0013_attack_resolve_rpc.sql
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'attack_multi_turn_apply',
+      'attack_resolve_apply',
       {
         p_attacker_id:     playerId,
         p_defender_id:     defender_id,
