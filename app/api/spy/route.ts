@@ -226,8 +226,6 @@ export async function POST(request: NextRequest) {
       spiesCaught     = Math.min(rawCatch, Math.floor(spies_sent * BALANCE.spy.MAX_CATCH_RATE))
     }
 
-    const nowIso = new Date().toISOString()
-
     const seasonId = activeSeason.id
 
     // ── Build revealed data (only on success) ─────────────────────────────
@@ -251,28 +249,53 @@ export async function POST(request: NextRequest) {
       resource_shield: defHero.resourceShieldActive,
     } : null
 
-    // ── Apply changes ─────────────────────────────────────────────────────
-    const newSpies = Math.max(0, attArmy.spies - spiesCaught)
-    const newTurns = attPlayer.turns - turnCost
+    // ── Atomic DB write via RPC ───────────────────────────────────────────────
+    // spy_resolve_apply() acquires FOR UPDATE locks on attacker's players + army,
+    // re-validates turns and spies count under lock (TOCTTOU-safe), then applies
+    // all three writes in one Postgres transaction:
+    //   players.turns -= turnCost
+    //   army.spies -= spiesCaught  (only if caught > 0)
+    //   spy_history INSERT
+    // See: supabase/migrations/0014_spy_resolve_rpc.sql
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('spy_resolve_apply', {
+      p_spy_owner_id:  playerId,
+      p_target_id:     target_id,
+      p_spies_sent:    spies_sent,
+      p_turn_cost:     turnCost,
+      p_spies_caught:  spiesCaught,
+      p_success:       success,
+      p_data_revealed: revealed,
+      p_season_id:     seasonId,
+    })
 
-    await Promise.all([
-      supabase.from('players').update({ turns: newTurns }).eq('id', playerId),
-      ...(spiesCaught > 0
-        ? [supabase.from('army').update({ spies: newSpies, updated_at: nowIso }).eq('player_id', playerId)]
-        : []),
-      supabase.from('spy_history').insert({
-        spy_owner_id:  playerId,
-        target_id,
-        success,
-        spies_caught:  spiesCaught,
-        data_revealed: revealed,
-        season_id:     seasonId,
-      }),
-    ])
+    if (rpcError) {
+      console.error('[spy] RPC error:', rpcError.code, rpcError.message)
+      return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    }
 
-    // Recalculate attacker power if spies were lost
+    // RPC re-validated constraints under lock — map error codes to HTTP 400.
+    if (!rpcResult?.ok) {
+      const code = rpcResult?.error ?? 'unknown'
+      const SPY_RPC_ERROR_MAP: Record<string, string> = {
+        not_enough_turns: `Not enough turns (need ${turnCost})`,
+        not_enough_spies: `Cannot send more spies than you have (${attArmy.spies} available)`,
+      }
+      return NextResponse.json(
+        { error: SPY_RPC_ERROR_MAP[code] ?? 'Spy mission failed' },
+        { status: 400 },
+      )
+    }
+
+    const newTurns = rpcResult.new_turns as number
+    const newSpies = rpcResult.new_spies as number
+
+    // Recalculate attacker power if spies were lost (non-fatal, self-corrects on next tick)
     if (spiesCaught > 0) {
-      await recalculatePower(playerId, supabase)
+      try {
+        await recalculatePower(playerId, supabase)
+      } catch (powerErr) {
+        console.error('[spy] Power recalculation failed (non-fatal):', powerErr)
+      }
     }
 
     return NextResponse.json({
@@ -285,6 +308,7 @@ export async function POST(request: NextRequest) {
         revealed,
       },
       turns: newTurns,
+      spies: newSpies,
     })
   } catch (err) {
     console.error('Spy error:', err)

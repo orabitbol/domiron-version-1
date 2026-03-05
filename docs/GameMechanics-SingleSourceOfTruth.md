@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Attack mutation made canonical via `attack_resolve_apply()` RPC (renamed from `attack_multi_turn_apply`; structural tests added). Prior: city promotion atomic RPC, system audit.
+**Last updated:** 2026-03-05 — Spy mutation made atomic via `spy_resolve_apply()` RPC. Prior: attack RPC rename, city promotion RPC, system audit.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -966,11 +966,27 @@ if failure:
 
 Shield active state is revealed — expiration time is NOT.
 
-### DB Writes (spy route)
+### DB Writes (spy route) — Atomic via RPC
 
-1. `players.update({turns: turns − turnCost})`
-2. `army.update({spies: spies − spiesCaught})` (only if caught > 0)
-3. `spy_history.insert({spy_owner_id, target_id, success, spies_caught, data_revealed, season_id})`
+All three writes happen in **one Postgres transaction** via `spy_resolve_apply()` (migration `0014_spy_resolve_rpc.sql`):
+
+1. `players.turns -= turnCost`
+2. `army.spies -= spiesCaught` (only if caught > 0)
+3. `spy_history` INSERT
+
+**Route calls:** `supabase.rpc('spy_resolve_apply', { p_spy_owner_id, p_target_id, p_spies_sent, p_turn_cost, p_spies_caught, p_success, p_data_revealed, p_season_id })`
+
+**Row locks:** `SELECT … FOR UPDATE` on attacker's `players + army` rows (single JOIN). Defender rows are read-only — not locked.
+
+**Post-lock re-validation (TOCTTOU-safe):**
+- `turns ≥ turnCost` (re-checked under lock)
+- `spies ≥ spies_sent` (re-checked under lock)
+
+**RPC returns:** `{ ok: true, new_turns, new_spies }` or `{ ok: false, error: "not_enough_turns" | "not_enough_spies" }`
+
+**No partial state:** If anything fails inside the RPC, Postgres rolls back all three writes automatically.
+
+**File:** `supabase/migrations/0014_spy_resolve_rpc.sql`
 
 ---
 
@@ -1652,6 +1668,15 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Spy: Atomic RPC (`spy_resolve_apply`)
+
+Made all spy mission DB writes atomic via `spy_resolve_apply()`.
+- `supabase/migrations/0014_spy_resolve_rpc.sql`: new RPC — FOR UPDATE lock on attacker's players + army; post-lock re-validation (turns, spies count); all three writes in one transaction (turns deduction, spies deduction, spy_history INSERT); GRANT to service_role
+- `app/api/spy/route.ts`: replaced `Promise.all([players.update, army.update, spy_history.insert])` with single `supabase.rpc('spy_resolve_apply', …)`; RPC error codes mapped via SPY_RPC_ERROR_MAP; response now includes `spies` field; removed unused `nowIso` variable
+- `lib/game/spy-resolve.test.ts`: 21 new tests — structural contract (1 rpc call, no direct .update/.insert), error-code mapping, spy power formula invariants, atomicity contract
+
+**362 tests passing, 0 TypeScript errors.**
 
 ### 2026-03-05 — Attack: Canonical Atomic RPC (`attack_resolve_apply`)
 
