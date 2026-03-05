@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Security hardening: server authority for food cost documented; GROUP 6 tests added confirming attack route gate. Prior: Attack page UX (AttackDialog).
+**Last updated:** 2026-03-05 — BIGINT fix: food formula now uses `Math.ceil`; GROUP 7 rounding tests added. Prior: rate limiting 1 s cooldown on attack/spy.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -58,6 +58,7 @@
 23. [Recent Changes](#23-recent-changes)
 24. [Missing From Documentation](#24-missing-from-documentation)
 25. [UI Update Rules (Immediate vs Tick-only)](#25-ui-update-rules-immediate-vs-tick-only)
+26. [Rate Limiting](#26-rate-limiting)
 
 ---
 
@@ -655,7 +656,7 @@ finalECP = floor(baseECP × tribeMultiplier)
 4. Season freeze → 423
 5. Fetch attacker data (player, army, weapons, training, development, resources, tribe)
 6. Attacker has enough turns → 400
-7. Attacker has enough food (`soldiers × FOOD_PER_SOLDIER × turns`) → 400
+7. Attacker has enough food (`ceil(soldiers × FOOD_PER_SOLDIER × turns)`) → 400
 8. Attacker has soldiers > 0 → 400
 9. Fetch defender data
 10. Defender exists → 404
@@ -688,7 +689,7 @@ finalECP = floor(baseECP × tribeMultiplier)
     - **No direct `.update()` calls remain in the route** — structural test enforces this
 23. Recalculate stored power for both players via `recalculatePower()` (non-fatal — failure self-corrects on next tick)
 
-> **Food cost** in the route: `foodCost = attArmy.soldiers × BALANCE.combat.FOOD_PER_SOLDIER × turnsUsed` (e.g. 100 soldiers × 0.05 × 3 turns = 15 food). `foodCostPerTurn` has been **removed** — `FOOD_PER_SOLDIER` is now the sole formula constant.
+> **Food cost** in the route: `foodCost = Math.ceil(attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed)` (e.g. 100 soldiers × 0.05 × 3 turns = 15 food). `Math.ceil` is required because food is stored as Postgres `BIGINT` — fractional values such as `0.2` would cause a `22P02` error. `foodCostPerTurn` has been **removed** — `FOOD_PER_SOLDIER` is now the sole formula constant.
 
 > **Deployed soldiers:** The route always passes `attArmy.soldiers` as `deployedSoldiers` — meaning **all soldiers are always deployed**. There is no partial deployment mechanic.
 
@@ -855,8 +856,11 @@ Source: `app/(game)/attack/AttackClient.tsx` → `BattleReportModal`
 ### Food Consumption Formula
 
 ```
-foodCost = soldiers × FOOD_PER_SOLDIER × turns
+foodCost = ceil(soldiers × FOOD_PER_SOLDIER × turns)
 ```
+
+> **Why `ceil`?** Food is stored as a Postgres `BIGINT` parameter in `attack_resolve_apply`. Postgres rejects any fractional JS number passed to a `BIGINT` column with error `22P02: invalid input syntax for type bigint`. `Math.ceil` ensures the value is always a non-negative integer, favouring the server (rounds up, never down).
+
 
 | Symbol | Meaning |
 |---|---|
@@ -864,12 +868,15 @@ foodCost = soldiers × FOOD_PER_SOLDIER × turns
 | `FOOD_PER_SOLDIER` | `BALANCE.combat.FOOD_PER_SOLDIER = 0.05` — food consumed per soldier per turn |
 | `turns` | `turnsUsed` — number of turns spent on the attack (1–10) |
 
-**Example:** 100 soldiers, 3 turns → `100 × 0.05 × 3 = 15 food`
+**Examples:**
+- 100 soldiers, 3 turns → `ceil(100 × 0.05 × 3) = ceil(15) = 15`
+- 4 soldiers, 1 turn → `ceil(4 × 0.05 × 1) = ceil(0.2) = 1` ← BIGINT-safe
+- 21 soldiers, 1 turn → `ceil(21 × 0.05 × 1) = ceil(1.05) = 2`
 
-- **Route:** `app/api/attack/route.ts` — `const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed`
-- **UI preview:** `components/game/AttackDialog.tsx` — `armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns`
+- **Route:** `app/api/attack/route.ts` — `const foodCostRaw = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed; const foodCost = Math.ceil(foodCostRaw)`
+- **UI preview:** `components/game/AttackDialog.tsx` — `Math.ceil(armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns)`
 - **Balance key:** `BALANCE.combat.FOOD_PER_SOLDIER` — `lib/game/balance-validate.ts` enforces it is `finite ≥ 0`
-- **Tests:** `lib/game/food-formula.test.ts` — 24 tests (constant invariants, canonical examples, linear scaling, structural contracts for route + dialog)
+- **Tests:** `lib/game/food-formula.test.ts` — 32 tests (constant invariants, canonical examples, linear scaling, structural contracts for route + dialog, explicit rounding cases)
 - `foodCostPerTurn` has been **removed** from `BALANCE.combat` and all code paths.
 
 ### UI Consistency Rule
@@ -877,14 +884,15 @@ foodCost = soldiers × FOOD_PER_SOLDIER × turns
 All UI elements displaying food consumption **must** use the same formula as the backend:
 
 ```
-foodCost = soldiers × FOOD_PER_SOLDIER × turns
+foodCost = Math.ceil(soldiers × FOOD_PER_SOLDIER × turns)
 ```
 
 Requirements:
 - **Must** reference `BALANCE.combat.FOOD_PER_SOLDIER` — never hardcode food values
+- **Must** wrap the multiplication in `Math.ceil(...)` — food is a Postgres `BIGINT`; fractional values cause `22P02` errors
 - **Must not** use legacy logic such as `foodCostPerTurn`
-- UI preview must match backend calculation exactly (same formula, same constant)
-- Structural tests enforce this contract automatically (see GROUP 5 in `food-formula.test.ts`)
+- UI preview must match backend calculation exactly (same formula, same rounding, same constant)
+- Structural tests enforce this contract automatically (see GROUP 5 + GROUP 7 in `food-formula.test.ts`)
 
 **UI locations subject to this rule:**
 | Location | File |
@@ -899,7 +907,8 @@ Requirements:
 The food cost gate is enforced server-side in `app/api/attack/route.ts` before any DB write:
 
 ```typescript
-const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+const foodCostRaw = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+const foodCost    = Math.ceil(foodCostRaw)  // BIGINT-safe: always an integer
 if (attResources.food < foodCost) {
   return NextResponse.json({ error: 'Not enough food' }, { status: 400 })
 }
@@ -913,7 +922,7 @@ Rules:
 **Routes enforcing food validation:**
 | Route | Validated | Formula |
 |---|---|---|
-| `POST /api/attack` | ✅ server-side + RPC re-check | `soldiers × FOOD_PER_SOLDIER × turns` |
+| `POST /api/attack` | ✅ server-side + RPC re-check | `ceil(soldiers × FOOD_PER_SOLDIER × turns)` |
 | `POST /api/spy` | N/A — spy has no food cost | turns only (`BALANCE.spy.turnCost`) |
 
 **Test coverage:** GROUP 6 in `lib/game/food-formula.test.ts` — structural + rejection/acceptance scenarios.
@@ -1812,6 +1821,28 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 
 ## 23. Recent Changes
 
+### 2026-03-05 — Rate Limiting: Attack / Spy 1 s Cooldown
+
+Added server-side 1 s cooldown for attack and spy actions to prevent spam and unnecessary DB load.
+
+- `supabase/migrations/0016_rate_limiting.sql`: adds `last_attack_at TIMESTAMPTZ` and `last_spy_at TIMESTAMPTZ` columns to `players` (DEFAULT NULL); recreates `attack_resolve_apply` and `spy_resolve_apply` with `last_attack_at = now()` / `last_spy_at = now()` merged into the existing `UPDATE players SET turns = ...` statement (same transaction, no extra DML)
+- `app/api/attack/route.ts`: moved `const now = new Date()` to top of handler; added 429 cooldown check before gate checks (`now - last_attack_at < 1_000 ms`)
+- `app/api/spy/route.ts`: added `const now = new Date()`; added `last_spy_at` to player SELECT; added 429 cooldown check (`now - last_spy_at < 1_000 ms`)
+- `types/game.ts`: added `last_attack_at: string | null` and `last_spy_at: string | null` to `Player` interface
+- `lib/game/rate-limiting.test.ts`: **new** — 23 tests (attack structural ×5, spy structural ×5, migration structural ×5, pure-logic gate scenarios ×8)
+- `docs/GameMechanics-SingleSourceOfTruth.md`: §26 "Rate Limiting" added
+
+### 2026-03-05 — BIGINT Fix: Math.ceil for Food Formula
+
+Fixed Postgres error `22P02: invalid input syntax for type bigint` caused by fractional food costs (e.g. 4 soldiers × 0.05 × 1 turn = 0.2). Canonical rounding rule: `foodCost = Math.ceil(soldiers × FOOD_PER_SOLDIER × turns)`.
+
+- `app/api/attack/route.ts`: `const foodCostRaw = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed; const foodCost = Math.ceil(foodCostRaw)`
+- `components/game/AttackDialog.tsx`: `const foodCost = Math.ceil(armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns)`
+- `lib/game/food-formula.test.ts`: `calcFoodCost` helper now uses `Math.ceil`; GROUP 2 expected values wrapped in `Math.ceil`; GROUP 3 monotonicity changed to `toBeGreaterThanOrEqual`; GROUP 5/6 pure-logic updated; GROUP 7 added (8 tests: explicit rounding cases 4s/1t→1, 20s/1t→1, 21s/1t→2; always-integer invariant; structural `Math.ceil` checks in route + dialog)
+- `docs/GameMechanics-SingleSourceOfTruth.md`: Food Consumption Formula updated with `ceil(...)` + BIGINT rationale; UI Consistency Rule + Server Authority Rule updated to mandate `Math.ceil`; test count 24→32
+
+**Test delta: +8 tests (GROUP 7). 0 TypeScript errors.**
+
 ### 2026-03-05 — Security Hardening: Server Authority for Food Cost
 
 Confirmed attack route enforces canonical food formula server-side; added GROUP 6 structural + logic tests; documented Server Authority Rule in SSOT.
@@ -2222,3 +2253,56 @@ Pages only fetch data that is **not** already in `PlayerContext`:
 3. If the mutation changes something only the server can recompute (city, tribe, rankings), also call `refresh()`.
 4. Never call `router.refresh()` for gameplay mutations.
 5. Never manually update `rank_global` or `rank_city` in client state.
+
+---
+
+## 26. Rate Limiting
+
+**Added:** 2026-03-05
+**Migration:** `supabase/migrations/0016_rate_limiting.sql`
+
+### Overview
+
+Attack and spy actions are rate-limited server-side to prevent spam and unnecessary DB load. The limit is enforced in the TypeScript route before the RPC call is issued.
+
+### Cooldown Values
+
+| Action | Cooldown | HTTP status on violation |
+|---|---|---|
+| Attack (`POST /api/attack`) | 1 000 ms | 429 |
+| Spy (`POST /api/spy`) | 1 000 ms | 429 |
+
+### Implementation
+
+**DB columns** (added by migration `0016_rate_limiting.sql`):
+
+```sql
+players.last_attack_at  TIMESTAMPTZ  DEFAULT NULL
+players.last_spy_at     TIMESTAMPTZ  DEFAULT NULL
+```
+
+Both columns are `NULL` until the player's first committed action.
+
+**Check in route (TypeScript):**
+
+```typescript
+// Attack route (app/api/attack/route.ts)
+if (attPlayer.last_attack_at &&
+    now.getTime() - new Date(attPlayer.last_attack_at).getTime() < 1_000) {
+  return NextResponse.json({ error: 'Attack cooldown active' }, { status: 429 })
+}
+
+// Spy route (app/api/spy/route.ts)
+if (attPlayer.last_spy_at &&
+    now.getTime() - new Date(attPlayer.last_spy_at).getTime() < 1_000) {
+  return NextResponse.json({ error: 'Spy cooldown active' }, { status: 429 })
+}
+```
+
+**Timestamp written in the RPC** — `attack_resolve_apply` and `spy_resolve_apply` both set the timestamp atomically inside the existing `UPDATE players SET turns = ..., last_*_at = now()` statement. This means:
+- The timestamp is always consistent with a committed action.
+- No separate `players.update` call exists in the TypeScript route (structural tests in `attack-resolve.test.ts` / `spy-resolve.test.ts` enforce this).
+
+**Types:** `Player.last_attack_at: string | null` and `Player.last_spy_at: string | null` in `types/game.ts`.
+
+**Tests:** `lib/game/rate-limiting.test.ts` — 23 tests across 4 groups: attack structural, spy structural, migration structural, pure-logic gate scenarios.

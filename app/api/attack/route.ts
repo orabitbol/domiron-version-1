@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient()
+    const now = new Date()
 
     // Fetch active season — also acts as freeze guard (returns null if ended/expired)
     const activeSeason = await getActiveSeason(supabase)
@@ -90,7 +91,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Attacker data not found' }, { status: 404 })
     }
 
-    const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+    const foodCostRaw = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+    const foodCost    = Math.ceil(foodCostRaw)  // BIGINT-safe: always an integer
+
+    // Rate limiting — 1 s cooldown between attacks (server authority)
+    if (attPlayer.last_attack_at &&
+        now.getTime() - new Date(attPlayer.last_attack_at).getTime() < 1_000) {
+      return NextResponse.json({ error: 'Attack cooldown active' }, { status: 429 })
+    }
 
     if (attPlayer.turns < turnsUsed) {
       return NextResponse.json({ error: 'Not enough turns' }, { status: 400 })
@@ -128,8 +136,6 @@ export async function POST(request: NextRequest) {
     if (defPlayer.city !== attPlayer.city) {
       return NextResponse.json({ error: 'Target is in a different city' }, { status: 400 })
     }
-
-    const now = new Date()
 
     // Fetch tribe data for ClanContext (power_total + level)
     const tribeIds = [attTribeMember?.tribe_id, defTribeMember?.tribe_id].filter(Boolean) as string[]

@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient()
+    const now = new Date()
 
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
       { data: attWeapons },
       { data: attTraining },
     ] = await Promise.all([
-      supabase.from('players').select('turns, city, race').eq('id', playerId).single(),
+      supabase.from('players').select('turns, city, race, last_spy_at').eq('id', playerId).single(),
       supabase.from('army').select('spies, slaves').eq('player_id', playerId).single(),
       supabase.from('weapons').select('shadow_cloak, dark_mask, elven_gear').eq('player_id', playerId).single(),
       supabase.from('training').select('spy_level').eq('player_id', playerId).single(),
@@ -159,6 +160,12 @@ export async function POST(request: NextRequest) {
 
     if (!attPlayer || !attArmy || !attWeapons || !attTraining) {
       return NextResponse.json({ error: 'Attacker data not found' }, { status: 404 })
+    }
+
+    // Rate limiting — 1 s cooldown between spy missions (server authority)
+    if (attPlayer.last_spy_at &&
+        now.getTime() - new Date(attPlayer.last_spy_at).getTime() < 1_000) {
+      return NextResponse.json({ error: 'Spy cooldown active' }, { status: 429 })
     }
 
     const turnCost = BALANCE.spy.turnCost

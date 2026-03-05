@@ -64,8 +64,10 @@ export function AttackDialog({
     }
   }, [target?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Attack cost (canonical formula: soldiers × FOOD_PER_SOLDIER × turns) ──
-  const foodCost = armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns
+  // ── Attack cost (canonical formula: ceil(soldiers × FOOD_PER_SOLDIER × turns)) ──
+  // Must match the server exactly — food is stored as BIGINT so fractional values
+  // are rejected by Postgres. Math.ceil keeps the result integer and favours the server.
+  const foodCost = Math.ceil(armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns)
 
   // ── Attack validations ────────────────────────────────────────────────────
   const noSoldiers     = armySoldiers <= 0

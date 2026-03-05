@@ -116,6 +116,10 @@ export interface Player {
   joined_at: string
   last_seen_at: string
   created_at: string
+  /** Set to the timestamp of the last committed attack. NULL until first attack. */
+  last_attack_at: string | null
+  /** Set to the timestamp of the last committed spy mission. NULL until first mission. */
+  last_spy_at: string | null
 }
 
 // ─── resources ─────────────────────────────────────────────────────────────
