@@ -9,29 +9,24 @@ import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
-import type { Bank, Resources } from '@/types/game'
 
-interface Props {
-  bank: Bank
-  resources: Resources
-}
-
-export function BankClient({ bank: initialBank, resources: initialResources }: Props) {
-  const { refresh } = usePlayer()
+export function BankClient() {
+  const { bank, resources, refresh, applyPatch } = usePlayer()
   const isFrozen = useFreeze()
-  const [bank, setBank] = useState(initialBank)
-  const [resources, setResources] = useState(initialResources)
   const [depositAmt, setDepositAmt] = useState('')
   const [withdrawAmt, setWithdrawAmt] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
-  const interestRate = (BALANCE.bank.INTEREST_RATE_BY_LEVEL[bank.interest_level] ?? 0) * 100
-  const maxDeposit = Math.floor(resources.gold * BALANCE.bank.maxDepositPercent)
-  const upgradeLevel = bank.interest_level + 1
+  const currentBank = bank ?? { balance: 0, interest_level: 0, deposits_today: 0 }
+  const currentResources = resources ?? { gold: 0, iron: 0, wood: 0, food: 0 }
+
+  const interestRate = (BALANCE.bank.INTEREST_RATE_BY_LEVEL[currentBank.interest_level] ?? 0) * 100
+  const maxDeposit = Math.floor(currentResources.gold * BALANCE.bank.maxDepositPercent)
+  const upgradeLevel = currentBank.interest_level + 1
   const upgradeCost = BALANCE.bank.upgradeBaseCost * upgradeLevel
-  const canUpgrade = resources.gold >= upgradeCost
-  const depositsRemaining = BALANCE.bank.depositsPerDay - bank.deposits_today
+  const canUpgrade = currentResources.gold >= upgradeCost
+  const depositsRemaining = BALANCE.bank.depositsPerDay - currentBank.deposits_today
 
   async function handleDeposit() {
     const amt = parseInt(depositAmt)
@@ -50,8 +45,8 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       } else {
         setMessage({ text: `Deposited ${formatNumber(amt)} Gold`, type: 'success' })
         setDepositAmt('')
-        if (data.bank) setBank(data.bank)
-        if (data.resources) setResources(data.resources)
+        if (data.bank)      applyPatch({ bank: data.bank })
+        if (data.resources) applyPatch({ resources: data.resources })
         refresh()
       }
     } catch {
@@ -78,8 +73,8 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       } else {
         setMessage({ text: `Withdrew ${formatNumber(amt)} Gold`, type: 'success' })
         setWithdrawAmt('')
-        if (data.bank) setBank(data.bank)
-        if (data.resources) setResources(data.resources)
+        if (data.bank)      applyPatch({ bank: data.bank })
+        if (data.resources) applyPatch({ resources: data.resources })
         refresh()
       }
     } catch {
@@ -99,8 +94,8 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
         setMessage({ text: data.error ?? 'Upgrade failed', type: 'error' })
       } else {
         setMessage({ text: 'Interest rate upgraded!', type: 'success' })
-        if (data.bank) setBank(data.bank)
-        if (data.resources) setResources(data.resources)
+        if (data.bank)      applyPatch({ bank: data.bank })
+        if (data.resources) applyPatch({ resources: data.resources })
         refresh()
       }
     } catch {
@@ -139,13 +134,9 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       <div className="panel-ornate rounded-game-lg p-6 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">
-              Bank Balance
-            </p>
-            <p className="font-display text-game-3xl text-game-gold mt-1">
-              {formatNumber(bank.balance)}
-            </p>
-            <ResourceBadge type="gold" amount={bank.balance} />
+            <p className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">Bank Balance</p>
+            <p className="font-display text-game-3xl text-game-gold mt-1">{formatNumber(currentBank.balance)}</p>
+            <ResourceBadge type="gold" amount={currentBank.balance} />
           </div>
           <Badge variant="green">
             {(BALANCE.bank.theftProtection * 100).toFixed(0)}% Theft Proof
@@ -159,19 +150,19 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
             <p className="text-game-base text-game-gold font-body font-semibold">
               {interestRate.toFixed(3)}%/tick
             </p>
-            <p className="text-game-xs text-game-text-muted font-body">Level {bank.interest_level}</p>
+            <p className="text-game-xs text-game-text-muted font-body">Level {currentBank.interest_level}</p>
           </div>
           <div>
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Deposits Today</p>
             <p className="text-game-base text-game-text-white font-body font-semibold">
-              {bank.deposits_today} / {BALANCE.bank.depositsPerDay}
+              {currentBank.deposits_today} / {BALANCE.bank.depositsPerDay}
             </p>
             <p className="text-game-xs text-game-text-muted font-body">{depositsRemaining} remaining</p>
           </div>
           <div>
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Gold on Hand</p>
             <p className="text-game-base text-game-gold font-body font-semibold">
-              {formatNumber(resources.gold)}
+              {formatNumber(currentResources.gold)}
             </p>
           </div>
         </div>
@@ -182,9 +173,7 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
         {/* Deposit */}
         <div className="card-game rounded-game-lg p-4 space-y-3">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-              Deposit Gold
-            </h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Deposit Gold</h2>
           </div>
           <p className="text-game-xs text-game-text-muted font-body">
             Max deposit: {formatNumber(maxDeposit)} ({(BALANCE.bank.maxDepositPercent * 100).toFixed(0)}% of gold on hand).
@@ -203,22 +192,12 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
             suffix="Gold"
           />
           <div className="flex gap-2">
-            <Button
-              variant="success"
-              size="sm"
-              onClick={() => setDepositAmt(String(maxDeposit))}
-            >
-              Max
-            </Button>
+            <Button variant="success" size="sm" onClick={() => setDepositAmt(String(maxDeposit))}>Max</Button>
             <Button
               variant="primary"
               disabled={
-                isFrozen ||
-                !depositAmt ||
-                parseInt(depositAmt) <= 0 ||
-                parseInt(depositAmt) > maxDeposit ||
-                depositsRemaining <= 0 ||
-                !!loading
+                isFrozen || !depositAmt || parseInt(depositAmt) <= 0 ||
+                parseInt(depositAmt) > maxDeposit || depositsRemaining <= 0 || !!loading
               }
               loading={loading === 'deposit'}
               onClick={handleDeposit}
@@ -231,12 +210,10 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
         {/* Withdraw */}
         <div className="card-game rounded-game-lg p-4 space-y-3">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-              Withdraw Gold
-            </h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Withdraw Gold</h2>
           </div>
           <p className="text-game-xs text-game-text-muted font-body">
-            Available to withdraw: {formatNumber(bank.balance)} Gold
+            Available to withdraw: {formatNumber(currentBank.balance)} Gold
           </p>
           <Input
             type="number"
@@ -244,26 +221,17 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
             placeholder="Enter amount"
             value={withdrawAmt}
             min={1}
-            max={bank.balance}
+            max={currentBank.balance}
             onChange={(e) => setWithdrawAmt(e.target.value)}
             suffix="Gold"
           />
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setWithdrawAmt(String(bank.balance))}
-            >
-              All
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setWithdrawAmt(String(currentBank.balance))}>All</Button>
             <Button
               variant="ghost"
               disabled={
-                isFrozen ||
-                !withdrawAmt ||
-                parseInt(withdrawAmt) <= 0 ||
-                parseInt(withdrawAmt) > bank.balance ||
-                !!loading
+                isFrozen || !withdrawAmt || parseInt(withdrawAmt) <= 0 ||
+                parseInt(withdrawAmt) > currentBank.balance || !!loading
               }
               loading={loading === 'withdraw'}
               onClick={handleWithdraw}
@@ -278,19 +246,17 @@ export function BankClient({ bank: initialBank, resources: initialResources }: P
       <div className="card-game rounded-game-lg p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">
-              Upgrade Interest Rate
-            </h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Upgrade Interest Rate</h2>
             <p className="text-game-sm text-game-text-secondary font-body mt-1">
-              Next level rate: {((BALANCE.bank.INTEREST_RATE_BY_LEVEL[bank.interest_level + 1] ?? 0) * 100).toFixed(1)}%.
-              Current: Level {bank.interest_level} ({interestRate.toFixed(1)}%/tick)
+              Next level rate: {((BALANCE.bank.INTEREST_RATE_BY_LEVEL[currentBank.interest_level + 1] ?? 0) * 100).toFixed(1)}%.
+              Current: Level {currentBank.interest_level} ({interestRate.toFixed(1)}%/tick)
             </p>
             <div className="mt-2 flex items-center gap-2">
               <span className="text-game-xs text-game-text-muted font-body">Cost:</span>
               <ResourceBadge type="gold" amount={upgradeCost} />
             </div>
             <p className="text-game-xs text-game-text-muted font-body mt-1">
-              You have: {formatNumber(resources.gold)} Gold
+              You have: {formatNumber(currentResources.gold)} Gold
             </p>
           </div>
           <Button

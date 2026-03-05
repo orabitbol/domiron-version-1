@@ -11,14 +11,7 @@ import { Tabs } from '@/components/ui/tabs'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
-import type { Player, Army, Training, Resources } from '@/types/game'
-
-interface Props {
-  player: Player
-  army: Army
-  training: Training
-  resources: Resources
-}
+import type { Training } from '@/types/game'
 
 type BasicUnit = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry'
 type UntrainUnit = 'soldier' | 'spy' | 'scout'
@@ -51,22 +44,9 @@ const TRAIN_TABS = [
   { key: 'advanced', label: 'Advanced Training' },
 ]
 
-export function TrainingClient({
-  player:    initialPlayer,
-  army:      initialArmy,
-  training:  initialTraining,
-  resources: initialResources,
-}: Props) {
-  const { player: ctxPlayer, army: ctxArmy, training: ctxTraining, resources: ctxResources, refresh } = usePlayer()
+export function TrainingClient() {
+  const { player, army, training, resources, refresh, applyPatch } = usePlayer()
   const isFrozen = useFreeze()
-
-  // Prefer context (kept fresh by refresh()) but fall back to SSR props on first render
-  const player   = ctxPlayer   ?? initialPlayer
-  const training = ctxTraining ?? initialTraining
-
-  // Local army/resources state that we update immediately from API responses
-  const [army,      setArmy]      = useState<Army>(ctxArmy      ?? initialArmy)
-  const [resources, setResources] = useState<Resources>(ctxResources ?? initialResources)
 
   const [activeTab,   setActiveTab]   = useState('train')
   const [trainAmts,   setTrainAmts]   = useState<Record<BasicUnit, string>>({
@@ -78,8 +58,6 @@ export function TrainingClient({
   const [loadingUnit, setLoadingUnit] = useState<string | null>(null)
   const [loadingAdv,  setLoadingAdv]  = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-
-  // No capacity cap — training is gated only by gold, free_population, and (for cavalry) soldier count.
 
   // ── Train ─────────────────────────────────────────────────────────────────
 
@@ -100,9 +78,9 @@ export function TrainingClient({
       } else {
         setMessage({ text: `Trained ${formatNumber(amt)} ${UNIT_LABELS[unit]}(s)`, type: 'success' })
         setTrainAmts((prev) => ({ ...prev, [unit]: '' }))
-        // Immediate state update from API response — no wait for refresh()
-        if (data.data?.army)      setArmy(data.data.army)
-        if (data.data?.resources) setResources(data.data.resources)
+        // Immediate store update — UI reflects change before refresh() resolves
+        if (data.data?.army)      applyPatch({ army: data.data.army })
+        if (data.data?.resources) applyPatch({ resources: data.data.resources })
         refresh()
       }
     } catch {
@@ -134,7 +112,7 @@ export function TrainingClient({
           type: 'success',
         })
         setUntrainAmts((prev) => ({ ...prev, [unit]: '' }))
-        if (data.data?.army) setArmy(data.data.army)
+        if (data.data?.army) applyPatch({ army: data.data.army })
         refresh()
       }
     } catch {
@@ -160,7 +138,8 @@ export function TrainingClient({
         setMessage({ text: data.error ?? 'Upgrade failed', type: 'error' })
       } else {
         setMessage({ text: `${ADVANCED_LABELS[type]} upgraded!`, type: 'success' })
-        if (data.data?.resources) setResources(data.data.resources)
+        if (data.data?.resources) applyPatch({ resources: data.data.resources })
+        // training levels updated in DB — refresh() to get the updated level
         refresh()
       }
     } catch {
@@ -180,26 +159,25 @@ export function TrainingClient({
     const amt = parseInt(trainAmts[unit] || '0')
     if (!amt) return false
     const goldCost = unitCost(unit).gold * amt
-    if (resources.gold < goldCost) return false
-    // Cavalry: requires soldiers, no free pop
+    if ((resources?.gold ?? 0) < goldCost) return false
     if (unit === 'cavalry') {
       const cavCfg = unitCost(unit) as { gold: number; capacityCost: number; soldierRatio: number }
-      return army.soldiers >= amt * cavCfg.soldierRatio
+      return (army?.soldiers ?? 0) >= amt * cavCfg.soldierRatio
     }
-    // All others: requires free population
-    return army.free_population >= amt
+    return (army?.free_population ?? 0) >= amt
   }
 
   function canAffordAdv(type: AdvancedType) {
-    const level = training[`${type}_level` as keyof Training] as number
+    const level = (training?.[`${type}_level` as keyof Training] as number) ?? 0
     const cost = BALANCE.training.advancedCost
-    return resources.gold >= cost.gold * (level + 1) && resources.food >= cost.food * (level + 1)
+    return (resources?.gold ?? 0) >= cost.gold * (level + 1) &&
+           (resources?.food ?? 0) >= cost.food * (level + 1)
   }
 
   function untrainableCount(unit: UntrainUnit): number {
-    if (unit === 'spy')   return army.spies
-    if (unit === 'scout') return army.scouts
-    return army.soldiers
+    if (unit === 'spy')   return army?.spies   ?? 0
+    if (unit === 'scout') return army?.scouts  ?? 0
+    return army?.soldiers ?? 0
   }
 
   function canUntrain(unit: UntrainUnit): boolean {
@@ -241,24 +219,22 @@ export function TrainingClient({
           title="Current Army"
           color="red"
           stats={[
-            { label: 'Soldiers',          value: army.soldiers },
-            { label: 'Cavalry',           value: army.cavalry },
-            { label: 'Spies',             value: army.spies },
-            { label: 'Scouts',            value: army.scouts },
-            { label: 'Slaves (workers)',  value: army.slaves },
-            { label: 'Free Population',   value: army.free_population },
+            { label: 'Soldiers',          value: army?.soldiers         ?? 0 },
+            { label: 'Cavalry',           value: army?.cavalry          ?? 0 },
+            { label: 'Spies',             value: army?.spies            ?? 0 },
+            { label: 'Scouts',            value: army?.scouts           ?? 0 },
+            { label: 'Slaves (workers)',  value: army?.slaves           ?? 0 },
+            { label: 'Free Population',   value: army?.free_population  ?? 0 },
           ]}
         />
         <div className="space-y-4">
           {/* Available Population + Slaves panel */}
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 space-y-2 shadow-emboss">
-            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">
-              Workforce
-            </h3>
+            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">Workforce</h3>
             <div className="space-y-1 text-game-sm font-body">
               <div className="flex justify-between">
                 <span className="text-game-text-secondary">Free Population</span>
-                <span className="text-game-text-white font-semibold">{formatNumber(army.free_population)}</span>
+                <span className="text-game-text-white font-semibold">{formatNumber(army?.free_population ?? 0)}</span>
               </div>
               <p className="text-game-xs text-game-text-muted">
                 Each unit trained costs 1 free population (except cavalry).
@@ -266,7 +242,7 @@ export function TrainingClient({
               <div className="divider-ornate my-1" />
               <div className="flex justify-between pt-1">
                 <span className="text-game-text-secondary">Slaves</span>
-                <span className="text-game-text-white font-semibold">{formatNumber(army.slaves)}</span>
+                <span className="text-game-text-white font-semibold">{formatNumber(army?.slaves ?? 0)}</span>
               </div>
               <p className="text-game-xs text-game-text-muted">
                 Slaves work mines and produce resources per tick.
@@ -279,12 +255,12 @@ export function TrainingClient({
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 space-y-2 shadow-engrave">
             <div className="flex justify-between text-game-sm font-body">
               <span className="text-game-text-secondary font-heading">Gold</span>
-              <ResourceBadge type="gold" amount={resources.gold} />
+              <ResourceBadge type="gold" amount={resources?.gold ?? 0} />
             </div>
             <div className="divider-ornate" />
             <div className="flex justify-between text-game-sm font-body">
               <span className="text-game-text-secondary font-heading">Food</span>
-              <ResourceBadge type="food" amount={resources.food} />
+              <ResourceBadge type="food" amount={resources?.food ?? 0} />
             </div>
           </div>
         </div>
@@ -297,9 +273,7 @@ export function TrainingClient({
       {activeTab === 'train' && (
         <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">
-              Basic Training
-            </h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">Basic Training</h2>
           </div>
           <div className="divider-gold mb-4" />
           <div className="space-y-3">
@@ -344,11 +318,11 @@ export function TrainingClient({
                     {amt > 0 && (
                       <p className="text-game-xs font-body mt-1">
                         <span className="text-game-text-secondary">Total: </span>
-                        <span className={resources.gold >= goldTotal ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                        <span className={(resources?.gold ?? 0) >= goldTotal ? 'text-game-green-bright' : 'text-game-red-bright'}>
                           {formatNumber(goldTotal)} Gold
                         </span>
                         {!isCavalry && (
-                          <span className={army.free_population >= amt ? ' text-game-green-bright' : ' text-game-red-bright'}>
+                          <span className={(army?.free_population ?? 0) >= amt ? ' text-game-green-bright' : ' text-game-red-bright'}>
                             {' · '}{formatNumber(amt)} Pop
                           </span>
                         )}
@@ -385,9 +359,7 @@ export function TrainingClient({
       {activeTab === 'untrain' && (
         <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-2">
-              Untrain Units
-            </h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-2">Untrain Units</h2>
           </div>
           <div className="divider-gold mb-4" />
           <div className="mb-4 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1 shadow-emboss">
@@ -446,9 +418,7 @@ export function TrainingClient({
       {activeTab === 'advanced' && (
         <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">
-              Advanced Training
-            </h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">Advanced Training</h2>
           </div>
           <p className="text-game-sm text-game-text-muted font-body mb-2">
             Each level costs {formatNumber(advCost.gold)} Gold + {formatNumber(advCost.food)} Food × (current level + 1).
@@ -457,7 +427,7 @@ export function TrainingClient({
           <div className="divider-gold mb-4" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(['attack', 'defense', 'spy', 'scout'] as AdvancedType[]).map((type) => {
-              const level = training[`${type}_level` as keyof Training] as number
+              const level = (training?.[`${type}_level` as keyof Training] as number) ?? 0
               const nextGold = advCost.gold * (level + 1)
               const nextFood = advCost.food * (level + 1)
               const multiplier = (1 + level * BALANCE.training.advancedMultiplierPerLevel).toFixed(2)

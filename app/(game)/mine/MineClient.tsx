@@ -7,13 +7,7 @@ import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
-import type { Player, Army, Development } from '@/types/game'
-
-interface Props {
-  player:      Player
-  army:        Army
-  development: Development
-}
+import type { Development } from '@/types/game'
 
 type JobKey = 'gold' | 'iron' | 'wood' | 'food'
 
@@ -35,15 +29,10 @@ const JOBS: JobConfig[] = [
 
 const MAX_DEV_LEVEL = 10
 
-/**
- * Per-slave production range at a given dev level.
- * Mirrors calcSlaveProduction from lib/game/tick.ts (without VIP/race/slave bonus —
- * those are tick-side bonuses not shown in UI preview).
- */
 function calcProdRange(slaves: number, devLevel: number, city: number): { min: number; max: number } {
   const { baseMin, baseMax } = BALANCE.production
   const cityMult  = BALANCE.cities.CITY_PRODUCTION_MULT[city] ?? 1
-  const level     = Math.max(1, devLevel || 1)   // guard against 0 / undefined
+  const level     = Math.max(1, devLevel || 1)
   const devOffset = (level - 1) * 0.5
   return {
     min: Math.floor(slaves * (baseMin + devOffset) * cityMult),
@@ -51,7 +40,6 @@ function calcProdRange(slaves: number, devLevel: number, city: number): { min: n
   }
 }
 
-/** Per-slave rate display string for a given dev level: "1.0–3.0" */
 function perSlaveRateAt(devLevel: number, city: number): string {
   const { baseMin, baseMax } = BALANCE.production
   const cityMult  = BALANCE.cities.CITY_PRODUCTION_MULT[city] ?? 1
@@ -62,18 +50,24 @@ function perSlaveRateAt(devLevel: number, city: number): string {
   return `${lo}–${hi}`
 }
 
-export function MineClient({ player, army: initialArmy, development }: Props) {
-  const { refresh } = usePlayer()
+export function MineClient() {
+  const { player, army: ctxArmy, development, refresh, applyPatch } = usePlayer()
   const isFrozen = useFreeze()
 
-  const [army, setArmy] = useState<Army>(initialArmy)
+  // Normalize slave assignment columns (INT NOT NULL DEFAULT 0 in DB, but guard against nulls)
+  const army = {
+    ...(ctxArmy ?? { slaves: 0, slaves_gold: 0, slaves_iron: 0, slaves_wood: 0, slaves_food: 0 }),
+    slaves_gold: ctxArmy?.slaves_gold ?? 0,
+    slaves_iron: ctxArmy?.slaves_iron ?? 0,
+    slaves_wood: ctxArmy?.slaves_wood ?? 0,
+    slaves_food: ctxArmy?.slaves_food ?? 0,
+  }
 
-  // Local assignment state — all values are guaranteed integers (page.tsx normalises null → 0)
   const [assignments, setAssignments] = useState<Record<JobKey, number>>({
-    gold: initialArmy.slaves_gold,
-    iron: initialArmy.slaves_iron,
-    wood: initialArmy.slaves_wood,
-    food: initialArmy.slaves_food,
+    gold: army.slaves_gold,
+    iron: army.slaves_iron,
+    wood: army.slaves_wood,
+    food: army.slaves_food,
   })
 
   const [loading, setLoading] = useState(false)
@@ -83,7 +77,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
   const totalAssigned = assignments.gold + assignments.iron + assignments.wood + assignments.food
   const idleSlaves    = totalSlaves - totalAssigned
 
-  /** Increment/decrement a job's assignment. Clamps so we never exceed totalSlaves or go below 0. */
   const adjust = useCallback((job: JobKey, delta: number) => {
     setAssignments(prev => {
       const prevTotal = prev.gold + prev.iron + prev.wood + prev.food
@@ -94,7 +87,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
     })
   }, [totalSlaves])
 
-  /** Direct text-input change — clamped against remaining capacity. */
   const handleInput = useCallback((job: JobKey, raw: string) => {
     const parsed = parseInt(raw, 10)
     const val    = Number.isNaN(parsed) ? 0 : Math.max(0, parsed)
@@ -117,14 +109,13 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        // In dev, `data.details` will contain the raw Supabase error (e.g. missing column)
         const msg = data.details ? `${data.error}: ${data.details}` : (data.error ?? 'Allocation failed')
         setMessage({ text: msg, type: 'error' })
       } else {
         setMessage({ text: 'Slave assignment saved!', type: 'success' })
         if (data.data?.army) {
           const a = data.data.army
-          setArmy(a)
+          applyPatch({ army: a })
           setAssignments({
             gold: typeof a.slaves_gold === 'number' ? a.slaves_gold : 0,
             iron: typeof a.slaves_iron === 'number' ? a.slaves_iron : 0,
@@ -141,12 +132,13 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
     }
   }
 
-  // Grand total production across all assigned slaves
+  const city = player?.city ?? 1
+
   let grandMin = 0
   let grandMax = 0
   for (const job of JOBS) {
-    const devLevel = (development[job.devLevelField] as number) || 1
-    const { min, max } = calcProdRange(assignments[job.key], devLevel, player.city)
+    const devLevel = ((development?.[job.devLevelField] as number) || 1)
+    const { min, max } = calcProdRange(assignments[job.key], devLevel, city)
     grandMin += min
     grandMax += max
   }
@@ -199,7 +191,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
         <h2 className="panel-header text-game-gold">Job Assignment</h2>
         <div className="divider-gold" />
 
-        {/* Column headers */}
         <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-4 px-1 text-game-xs font-heading uppercase tracking-wider text-game-text-muted">
           <span>Job</span>
           <span className="text-center w-32">Assigned</span>
@@ -208,20 +199,19 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
         </div>
 
         {JOBS.map((job) => {
-          const devLevel  = (development[job.devLevelField] as number) || 1
+          const devLevel  = ((development?.[job.devLevelField] as number) || 1)
           const assigned  = assignments[job.key]
-          const { min, max } = calcProdRange(assigned, devLevel, player.city)
+          const { min, max } = calcProdRange(assigned, devLevel, city)
 
-          const currentRate = perSlaveRateAt(devLevel, player.city)
+          const currentRate = perSlaveRateAt(devLevel, city)
           const atMax       = devLevel >= MAX_DEV_LEVEL
-          const nextRate    = atMax ? null : perSlaveRateAt(devLevel + 1, player.city)
+          const nextRate    = atMax ? null : perSlaveRateAt(devLevel + 1, city)
 
           return (
             <div
               key={job.key}
               className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-3 sm:gap-4 items-center p-3 rounded-game-lg card-game"
             >
-              {/* Job label + next-level benefit */}
               <div>
                 <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
                   {job.icon} {job.label}
@@ -242,7 +232,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
                 )}
               </div>
 
-              {/* +/- input — fully controlled: value is always a number from state */}
               <div className="flex items-center gap-1.5 w-36">
                 <button
                   className="w-7 h-7 rounded-game border border-game-border bg-game-elevated text-game-text-white font-bold text-game-sm hover:border-game-gold hover:text-game-gold transition-colors disabled:opacity-40"
@@ -270,13 +259,11 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
                 </button>
               </div>
 
-              {/* Rate per slave (current level) */}
               <div className="text-game-sm font-body text-right w-36">
                 <span className="text-game-text-muted">Rate: </span>
                 <span className="text-game-gold-bright font-semibold">{currentRate}</span>
               </div>
 
-              {/* Total production this tick */}
               <div className="text-game-sm font-body text-right w-36">
                 {assigned === 0 ? (
                   <span className="text-game-text-muted">—</span>
@@ -292,7 +279,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
 
         <div className="divider-gold" />
 
-        {/* Grand total + idle warning */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-1">
             <p className="text-game-sm font-heading text-game-text-white uppercase tracking-wide">
@@ -310,21 +296,14 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
           )}
         </div>
 
-        <Button
-          variant="primary"
-          disabled={isFrozen || loading}
-          loading={loading}
-          onClick={handleSave}
-        >
+        <Button variant="primary" disabled={isFrozen || loading} loading={loading} onClick={handleSave}>
           Save Assignment
         </Button>
       </div>
 
       {/* Production reference */}
       <div className="panel-ornate p-4">
-        <h2 className="panel-header text-game-gold mb-3">
-          Production Reference
-        </h2>
+        <h2 className="panel-header text-game-gold mb-3">Production Reference</h2>
         <div className="space-y-2 text-game-sm font-body text-game-text-secondary">
           <p>
             Each assigned slave produces <strong className="text-game-text-white">one resource</strong> per tick. Idle slaves produce nothing.

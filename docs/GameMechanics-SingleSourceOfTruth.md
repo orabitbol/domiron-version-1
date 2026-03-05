@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — (1) Tick/countdown system root-cause analysis and all fixes; (2) Farmer unit removed, full formula audit, gap analysis added
+**Last updated:** 2026-03-05 — (1) Tick/countdown system root-cause analysis and all fixes; (2) Farmer unit removed, full formula audit, gap analysis added; (3) UI Update Rules (immediate vs tick-only) added as §25
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -57,6 +57,7 @@
 22. [Known Gaps / Inconsistencies / Missing / Tuning Needed](#22-known-gaps--inconsistencies--missing--tuning-needed)
 23. [Recent Changes](#23-recent-changes)
 24. [Missing From Documentation](#24-missing-from-documentation)
+25. [UI Update Rules (Immediate vs Tick-only)](#25-ui-update-rules-immediate-vs-tick-only)
 
 ---
 
@@ -1631,3 +1632,104 @@ At `fortification_level = 1`: stored `fortMult = 1.00` (neutral); combat DevScor
 At `fortification_level = 5`: stored `fortMult = 1.40`; combat DevScore += 500.
 
 The two systems scale differently. A player's visible `power_defense` ranking does not exactly predict their combat defensive ECP.
+
+---
+
+## 25. UI Update Rules (Immediate vs Tick-only)
+
+**Added:** 2026-03-05
+**Files:** `lib/context/PlayerContext.tsx`, all `app/(game)/*/` pages and `*Client.tsx` files
+
+### Principle
+
+All player-visible state is held in a single client-side store: `PlayerContext` (`lib/context/PlayerContext.tsx`). After every gameplay mutation the client updates the store **immediately** from the API response — no page reload, no router.refresh(), no re-fetch from Supabase. Two hard exceptions are **tick-only** fields that must never update mid-round.
+
+---
+
+### Mechanism
+
+#### `applyPatch(patch: Partial<PlayerData>)` — synchronous immediate update
+
+Defined in `PlayerContext.tsx`. Called by every `*Client.tsx` immediately after a successful mutation, passing the updated slice(s) returned by the API:
+
+```typescript
+applyPatch({ resources: data.resources })
+applyPatch({ army: data.army, resources: data.resources })
+applyPatch({ player: { ...player, turns: data.turns } })
+```
+
+`applyPatch` shallow-merges `patch.player` into the existing player object and replaces all other top-level slices wholesale. It enforces tick-only protection at the context level (see below).
+
+#### `refresh()` — async background sync
+
+Also from `PlayerContext`. Calls `GET /api/player` and overwrites the full store. Used after mutations whose full effect cannot be computed client-side (e.g. city change, training level upgrade). Does **not** need to be awaited — the UI is already updated by `applyPatch`.
+
+#### `export const dynamic = 'force-dynamic'` on every page
+
+All game pages set this to prevent Next.js router cache from serving stale SSR snapshots when the user navigates back to a page.
+
+---
+
+### Tick-only fields — NEVER update immediately
+
+| Field | Reason |
+|---|---|
+| `player.rank_global` | Recomputed by tick across all players; client cannot know the correct new value |
+| `player.rank_city` | Same — depends on all players in the city |
+| Attack Table / Attack History | Target list (soldiers, gold, shields) reflects live enemy state; only updated by tick |
+
+**Enforcement in `applyPatch`:**
+
+```typescript
+if (patch.player) {
+  const { rank_global, rank_city, ...safePlayerPatch } = patch.player
+  // rank_global and rank_city are silently dropped — tick is the only writer
+  next.player = { ...prev.player, ...safePlayerPatch }
+}
+```
+
+**`router.refresh()` is absent from `AttackClient.tsx`** intentionally. Adding it would re-run the SSR page and re-fetch the target list after every attack, which violates the tick-only rule.
+
+---
+
+### Per-page update contract
+
+| Page / Client | After mutation | applyPatch slices | Also calls refresh()? |
+|---|---|---|---|
+| `BaseClient` | (display only — reads context) | — | — |
+| `TrainingClient` | train/untrain | `army`, `resources` | After advanced upgrade (training levels change) |
+| `BankClient` | deposit/withdraw/upgrade | `bank`, `resources` | No |
+| `MineClient` | save allocations | `army` | No |
+| `DevelopClient` | upgrade | `development`, `resources` | After city move (player.city changed in DB) |
+| `ShopClient` | buy/sell | `weapons`, `resources` | No |
+| `SpyClient` | spy mission | `player` (turns), `army` (scouts after catch) | No |
+| `AttackClient` | attack | `player` (turns), `resources`, `army` (soldiers) | No |
+| `HeroClient` | buy spell / activate shield | `hero` (spell_points or mana) | No |
+
+---
+
+### SSR data fetching rules (pages)
+
+Pages only fetch data that is **not** already in `PlayerContext`:
+
+| Page | What it still fetches server-side | What it no longer fetches |
+|---|---|---|
+| `base/page.tsx` | Nothing | Everything (pure context) |
+| `training/page.tsx` | Nothing | player, army, training, resources |
+| `bank/page.tsx` | Nothing | player, bank, resources |
+| `mine/page.tsx` | Nothing | player, army, development |
+| `develop/page.tsx` | Nothing | player, development, resources |
+| `shop/page.tsx` | Nothing | player, weapons, resources |
+| `spy/page.tsx` | Target list (other players in city) | player, army, training |
+| `attack/page.tsx` | Target list + tribe/shield data | player, resources |
+| `hero/page.tsx` | `hero_spells`, `player_hero_effects` | hero row (now in context) |
+
+---
+
+### Adding a new mutation — checklist
+
+1. API route returns the updated slice(s) in the response body.
+2. `*Client.tsx` calls `applyPatch({ slice: data.slice })` immediately after success.
+3. If the mutation changes something only the server can recompute (city, tribe, rankings), also call `refresh()`.
+4. Never call `router.refresh()` for gameplay mutations.
+5. Never manually update `rank_global` or `rank_city` in client state.

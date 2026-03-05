@@ -3,6 +3,9 @@ import { authOptions } from '@/lib/auth/options'
 import { createClient } from '@/lib/supabase/server'
 import { SpyClient } from './SpyClient'
 
+// Always fetch fresh targets list — page is not cacheable.
+export const dynamic = 'force-dynamic'
+
 export default async function SpyPage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -10,19 +13,16 @@ export default async function SpyPage() {
   const supabase = createClient()
   const playerId = session.user.id
 
-  const [
-    { data: player },
-    { data: army },
-    { data: training },
-  ] = await Promise.all([
-    supabase.from('players').select('id, army_name, city, turns, max_turns, race').eq('id', playerId).single(),
-    supabase.from('army').select('spies, scouts').eq('player_id', playerId).single(),
-    supabase.from('training').select('spy_level, scout_level').eq('player_id', playerId).single(),
-  ])
+  // Fetch city from player row — needed to filter targets by city
+  const { data: player } = await supabase
+    .from('players')
+    .select('city')
+    .eq('id', playerId)
+    .single()
 
-  if (!player || !army || !training) return null
+  if (!player) return null
 
-  // Fetch all players in same city (potential spy targets)
+  // Fetch all players in same city (potential spy targets), excluding self
   const { data: cityPlayers } = await supabase
     .from('players')
     .select('id, army_name, rank_city, is_vacation')
@@ -50,12 +50,5 @@ export default async function SpyPage() {
     is_vacation: p.is_vacation,
   }))
 
-  return (
-    <SpyClient
-      player={player as Parameters<typeof SpyClient>[0]['player']}
-      army={army}
-      training={training}
-      targets={targets}
-    />
-  )
+  return <SpyClient targets={targets} />
 }

@@ -4,6 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { AttackClient } from './AttackClient'
 
+// Always fetch a fresh targets list — page is not cacheable.
+export const dynamic = 'force-dynamic'
+
 export default async function AttackPage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -12,9 +15,10 @@ export default async function AttackPage() {
   const admin    = createAdminClient()
   const playerId = session.user.id
 
+  // Fetch player's city — needed to scope the target list. Player state comes from context.
   const { data: player } = await supabase
     .from('players')
-    .select('*')
+    .select('id, city')
     .eq('id', playerId)
     .single()
 
@@ -30,13 +34,11 @@ export default async function AttackPage() {
 
   const playerIds = cityPlayers?.map((p) => p.id) ?? []
 
-  // Parallel: tribe names, army counts, hero shields
   let playerTribes: Record<string, string> = {}
   let resourceShields: Set<string> = new Set()
   let soldierShields: Set<string>  = new Set()
 
   await Promise.all([
-    // Tribe names
     (async () => {
       if (playerIds.length === 0) return
       const { data: memberships } = await supabase
@@ -58,7 +60,6 @@ export default async function AttackPage() {
       }
     })(),
 
-    // Shield status — admin client needed (RLS: players can only read own effects)
     (async () => {
       if (playerIds.length === 0) return
       const now = new Date().toISOString()
@@ -76,7 +77,6 @@ export default async function AttackPage() {
     })(),
   ])
 
-  // Fetch army counts and unbanked gold in parallel
   const [armyResult, resourcesResult] = await Promise.all([
     playerIds.length > 0
       ? supabase.from('army').select('player_id, soldiers').in('player_id', playerIds)
@@ -101,17 +101,6 @@ export default async function AttackPage() {
     soldier_shield_active:  soldierShields.has(p.id),
   }))
 
-  const { data: resources } = await supabase
-    .from('resources')
-    .select('*')
-    .eq('player_id', playerId)
-    .single()
-
-  return (
-    <AttackClient
-      player={player}
-      targets={targetList}
-      resources={resources ?? null}
-    />
-  )
+  // Player state (turns, resources, army) comes from PlayerContext in AttackClient.
+  return <AttackClient targets={targetList} />
 }

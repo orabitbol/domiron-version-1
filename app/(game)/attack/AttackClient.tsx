@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +12,7 @@ import { EmptyState } from '@/components/ui/game-table'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
-import type { Player, Resources, BattleReport, BattleReportReason } from '@/types/game'
+import type { BattleReport, BattleReportReason } from '@/types/game'
 
 interface Target {
   id: string
@@ -21,7 +20,6 @@ interface Target {
   rank_city: number | null
   tribe_name: string | null
   soldiers: number
-  /** Unbanked gold visible to all players in the same city — mirrors reference game. */
   gold: number
   is_vacation: boolean
   resource_shield_active: boolean
@@ -29,9 +27,7 @@ interface Target {
 }
 
 interface Props {
-  player: Player
   targets: Target[]
-  resources: Resources | null
 }
 
 const OUTCOME_COLORS: Record<string, string> = {
@@ -46,7 +42,6 @@ const OUTCOME_LABELS: Record<string, string> = {
   LOSS:    'Defeat',
 }
 
-/** Human-readable labels for each reason code. i18n-ready: replace values with t() calls. */
 const REASON_LABELS: Record<BattleReportReason, string> = {
   OUTCOME_LOSS_NO_LOOT:         'You lost the battle — no loot is gained on defeat',
   DEFENDER_PROTECTED:           'Target has New Player Protection (24h) — no loot, no soldier losses',
@@ -57,10 +52,6 @@ const REASON_LABELS: Record<BattleReportReason, string> = {
   SOLDIER_SHIELD_NO_LOSSES:     'Enemy Soldier Shield was active — their soldiers were protected',
   LOOT_DECAY_REDUCED:           'Repeated attacks on same target reduce plunder (anti-farm)',
 }
-
-// ─────────────────────────────────────────
-// BATTLE REPORT MODAL — renders from BattleReport type only, no guessing
-// ─────────────────────────────────────────
 
 function BattleReportModal({ report, onClose }: { report: BattleReport; onClose: () => void }) {
   const allGainsZero =
@@ -74,12 +65,8 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
 
   return (
     <div className="space-y-4">
-
-      {/* ── A: Outcome header ──────────────────────────────────────── */}
       <div className="text-center space-y-1">
-        <p className={`font-display text-game-4xl uppercase tracking-wide text-title-glow ${outcomeColor}`}>
-          {outcomeLabel}
-        </p>
+        <p className={`font-display text-game-4xl uppercase tracking-wide text-title-glow ${outcomeColor}`}>{outcomeLabel}</p>
         <p className="text-game-text-muted font-body text-game-xs">
           Power Ratio: <span className="font-semibold text-game-text-white">{report.ratio.toFixed(2)}×</span>
         </p>
@@ -95,7 +82,6 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         </div>
       </div>
 
-      {/* ── B: You Spent ───────────────────────────────────────────── */}
       <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Spent</p>
         <div className="flex gap-4 font-body text-game-sm">
@@ -110,14 +96,11 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         </div>
       </div>
 
-      {/* ── C: Combat Results ──────────────────────────────────────── */}
       <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Combat Results</p>
         <div className="font-body text-game-sm">
           <div className="grid grid-cols-3 gap-2 text-game-xs text-game-text-muted font-heading uppercase pb-1 mb-2">
-            <span>Unit</span>
-            <span>You Lost</span>
-            <span>Enemy Lost</span>
+            <span>Unit</span><span>You Lost</span><span>Enemy Lost</span>
           </div>
           <div className="divider-ornate mb-2" />
           <div className="grid grid-cols-3 gap-2 py-1">
@@ -132,7 +115,6 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         </div>
       </div>
 
-      {/* ── D: You Gained — always shown, even when all zeros ─────── */}
       <div className={`border rounded-game-lg p-3 shadow-engrave ${allGainsZero ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Gained</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
@@ -152,12 +134,9 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         )}
       </div>
 
-      {/* ── WHY box — shown prominently BELOW the gains section whenever nothing was gained ── */}
       {allGainsZero && (
         <div className="border border-amber-900/60 bg-amber-950/20 rounded-game-lg p-3 shadow-engrave">
-          <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-bright mb-2">
-            Why Nothing Was Gained
-          </p>
+          <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-bright mb-2">Why Nothing Was Gained</p>
           {report.reasons.length > 0 ? (
             <ul className="space-y-2">
               {report.reasons.map((reason) => (
@@ -168,9 +147,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
               ))}
             </ul>
           ) : (
-            <p className="font-body text-game-sm text-game-text-secondary">
-              The enemy had no resources available to plunder.
-            </p>
+            <p className="font-body text-game-sm text-game-text-secondary">The enemy had no resources available to plunder.</p>
           )}
         </div>
       )}
@@ -180,49 +157,40 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
   )
 }
 
-/** Two small dots: resource shield (gold) + soldier shield (blue) */
 function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: boolean }) {
   return (
     <div className="flex gap-1.5 items-center">
       <span
         title="Resource Shield"
-        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${
-          resource
-            ? 'bg-game-gold-bright border-game-gold-bright'
-            : 'bg-transparent border-game-border'
-        }`}
+        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${resource ? 'bg-game-gold-bright border-game-gold-bright' : 'bg-transparent border-game-border'}`}
       />
       <span
         title="Soldier Shield"
-        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${
-          soldier
-            ? 'bg-blue-400 border-blue-400'
-            : 'bg-transparent border-game-border'
-        }`}
+        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${soldier ? 'bg-blue-400 border-blue-400' : 'bg-transparent border-game-border'}`}
       />
     </div>
   )
 }
 
-export function AttackClient({ player, targets, resources }: Props) {
-  const { refresh } = usePlayer()
-  const router = useRouter()
+export function AttackClient({ targets }: Props) {
+  const { player, resources, army, refresh, applyPatch } = usePlayer()
   const isFrozen = useFreeze()
+
   const [search, setSearch] = useState('')
+  // localTargets: updated optimistically after battle to reflect fight result (soldiers/gold).
+  // Does NOT re-fetch from server — attack table ranking only updates on tick.
   const [localTargets, setLocalTargets] = useState<Target[]>(targets)
   const [turns, setTurns] = useState<Record<string, string>>({})
   const [confirmTarget, setConfirmTarget] = useState<Target | null>(null)
   const [battleReport, setBattleReport] = useState<BattleReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-  const [playerTurns, setPlayerTurns] = useState(player.turns)
-  const [playerResources, setPlayerResources] = useState(resources)
+
+  const playerTurns = player?.turns ?? 0
+  const playerResources = resources
 
   const filtered = useMemo(
-    () =>
-      localTargets.filter((t) =>
-        t.army_name.toLowerCase().includes(search.toLowerCase())
-      ),
+    () => localTargets.filter((t) => t.army_name.toLowerCase().includes(search.toLowerCase())),
     [localTargets, search]
   )
 
@@ -235,7 +203,7 @@ export function AttackClient({ player, targets, resources }: Props) {
   }
 
   async function executeAttack() {
-    if (!confirmTarget) return
+    if (!confirmTarget || !player || !army || !resources) return
     if (confirmTarget.id === player.id) return
     const t = getTargetTurns(confirmTarget.id)
     setLoading(true)
@@ -254,18 +222,27 @@ export function AttackClient({ player, targets, resources }: Props) {
         const report = data.battleReport
         setBattleReport(report)
         setConfirmTarget(null)
-        if (data.turns !== undefined) setPlayerTurns(data.turns)
-        if (data.resources) setPlayerResources(data.resources)
+
+        // Immediate context update — turns, resources, soldiers
+        applyPatch({
+          player: { ...player, turns: data.turns },
+          resources: { ...resources, ...data.resources },
+          army: { ...army, soldiers: report.attacker.after.soldiers },
+        })
+
+        // Optimistically update defender's visible stats in the target list
+        // (Ranking column stays unchanged — only updates on tick)
         setLocalTargets((prev) =>
-          prev.map((t) => {
-            if (t.id === player.id)
-              return { ...t, soldiers: report.attacker.after.soldiers }
-            if (t.id === confirmTarget.id)
-              return { ...t, soldiers: report.defender.after.soldiers, gold: report.defender.after.gold }
-            return t
+          prev.map((tgt) => {
+            if (tgt.id === confirmTarget.id)
+              return { ...tgt, soldiers: report.defender.after.soldiers, gold: report.defender.after.gold }
+            return tgt
           })
         )
-        router.refresh()
+
+        // Background sync — DO NOT call router.refresh() here.
+        // Attack table (targets list) is tick-only; router.refresh() would re-fetch
+        // and potentially show mid-tick stale ranking data.
         refresh()
       }
     } catch {
@@ -284,7 +261,7 @@ export function AttackClient({ player, targets, resources }: Props) {
             Attack
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
-            City {player.city} — {filtered.filter((t) => t.id !== player.id).length} targets available
+            City {player?.city ?? '—'} — {filtered.filter((t) => t.id !== player?.id).length} targets available
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -312,42 +289,32 @@ export function AttackClient({ player, targets, resources }: Props) {
       )}
 
       {/* Search */}
-      <Input
-        placeholder="Search by army name..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <Input placeholder="Search by army name..." value={search} onChange={(e) => setSearch(e.target.value)} />
 
       {/* Shield legend */}
       <div className="flex gap-4 text-game-xs font-body text-game-text-muted">
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-3 h-3 rounded-full bg-game-gold-bright shadow-emboss" />
-          Resource Shield
+          <span className="inline-block w-3 h-3 rounded-full bg-game-gold-bright shadow-emboss" /> Resource Shield
         </span>
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-3 h-3 rounded-full bg-blue-400 shadow-emboss" />
-          Soldier Shield
+          <span className="inline-block w-3 h-3 rounded-full bg-blue-400 shadow-emboss" /> Soldier Shield
         </span>
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-3 h-3 rounded-full border border-game-border" />
-          Inactive
+          <span className="inline-block w-3 h-3 rounded-full border border-game-border" /> Inactive
         </span>
       </div>
 
       {/* Targets table */}
       <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
         {filtered.length === 0 ? (
-          <EmptyState
-            title="No Targets Found"
-            description="No enemies match your search or are available to attack."
-          />
+          <EmptyState title="No Targets Found" description="No enemies match your search or are available to attack." />
         ) : (
           <GameTable
             headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Shields', 'Turns', 'Food Cost', 'Action']}
             striped
             hoverable
             rows={filtered.map((target) => {
-              const isSelf = target.id === player.id
+              const isSelf = target.id === player?.id
               const t = getTargetTurns(target.id)
               const cost = foodCost(t)
               const canAttack =
@@ -361,60 +328,28 @@ export function AttackClient({ player, targets, resources }: Props) {
                   {target.rank_city ? `#${target.rank_city}` : '—'}
                 </span>,
                 <div key="army">
-                  <span className="font-heading text-game-sm uppercase text-game-text-white">
-                    {target.army_name}
-                  </span>
-                  {target.is_vacation && (
-                    <Badge variant="blue" className="ml-2">Vacation</Badge>
-                  )}
-                  {isSelf && (
-                    <Badge variant="green" className="ml-2">You</Badge>
-                  )}
+                  <span className="font-heading text-game-sm uppercase text-game-text-white">{target.army_name}</span>
+                  {target.is_vacation && <Badge variant="blue" className="ml-2">Vacation</Badge>}
+                  {isSelf && <Badge variant="green" className="ml-2">You</Badge>}
                 </div>,
-                <span key="tribe" className="text-game-sm font-body text-game-text-muted">
-                  {target.tribe_name ?? '—'}
-                </span>,
-                <span key="soldiers" className="text-game-sm font-body tabular-nums">
-                  {formatNumber(target.soldiers)}
-                </span>,
+                <span key="tribe" className="text-game-sm font-body text-game-text-muted">{target.tribe_name ?? '—'}</span>,
+                <span key="soldiers" className="text-game-sm font-body tabular-nums">{formatNumber(target.soldiers)}</span>,
                 <span key="gold" className="text-game-sm font-body tabular-nums text-res-gold">
                   {isSelf ? '—' : formatNumber(target.gold)}
                 </span>,
-                <ShieldIndicators
-                  key="shields"
-                  resource={target.resource_shield_active}
-                  soldier={target.soldier_shield_active}
-                />,
-                isSelf ? (
-                  <span key="turns" />
-                ) : (
+                <ShieldIndicators key="shields" resource={target.resource_shield_active} soldier={target.soldier_shield_active} />,
+                isSelf ? <span key="turns" /> : (
                   <Input
-                    key="turns"
-                    type="number"
-                    value={turns[target.id] ?? '1'}
-                    min={1}
-                    max={10}
-                    onChange={(e) =>
-                      setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))
-                    }
+                    key="turns" type="number" value={turns[target.id] ?? '1'} min={1} max={10}
+                    onChange={(e) => setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))}
                     className="w-16"
                   />
                 ),
-                isSelf ? (
-                  <span key="cost" />
-                ) : (
-                  <ResourceBadge key="cost" type="food" amount={cost} />
-                ),
+                isSelf ? <span key="cost" /> : <ResourceBadge key="cost" type="food" amount={cost} />,
                 isSelf ? (
                   <span key="action" className="text-game-xs text-game-text-muted font-body">—</span>
                 ) : (
-                  <Button
-                    key="attack"
-                    variant="danger"
-                    size="sm"
-                    disabled={isFrozen || !canAttack}
-                    onClick={() => setConfirmTarget(target)}
-                  >
+                  <Button key="attack" variant="danger" size="sm" disabled={isFrozen || !canAttack} onClick={() => setConfirmTarget(target)}>
                     Attack
                   </Button>
                 ),
@@ -425,12 +360,7 @@ export function AttackClient({ player, targets, resources }: Props) {
       </div>
 
       {/* Attack confirmation modal */}
-      <Modal
-        isOpen={!!confirmTarget}
-        onClose={() => setConfirmTarget(null)}
-        title="Confirm Attack"
-        size="sm"
-      >
+      <Modal isOpen={!!confirmTarget} onClose={() => setConfirmTarget(null)} title="Confirm Attack" size="sm">
         {confirmTarget && (
           <div className="space-y-4">
             <div className="space-y-2 text-game-sm font-body">
@@ -440,10 +370,7 @@ export function AttackClient({ player, targets, resources }: Props) {
               </div>
               <div className="flex justify-between">
                 <span className="text-game-text-secondary">Shields</span>
-                <ShieldIndicators
-                  resource={confirmTarget.resource_shield_active}
-                  soldier={confirmTarget.soldier_shield_active}
-                />
+                <ShieldIndicators resource={confirmTarget.resource_shield_active} soldier={confirmTarget.soldier_shield_active} />
               </div>
               <div className="divider-ornate my-1" />
               <div className="flex justify-between">
@@ -463,33 +390,15 @@ export function AttackClient({ player, targets, resources }: Props) {
               Victory grants resources and slaves. Defeat costs soldiers. Choose wisely.
             </p>
             <div className="flex gap-3 pt-2">
-              <Button
-                variant="danger"
-                loading={loading}
-                disabled={isFrozen}
-                onClick={executeAttack}
-              >
-                Attack!
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={loading}
-                onClick={() => setConfirmTarget(null)}
-              >
-                Cancel
-              </Button>
+              <Button variant="danger" loading={loading} disabled={isFrozen} onClick={executeAttack}>Attack!</Button>
+              <Button variant="ghost" disabled={loading} onClick={() => setConfirmTarget(null)}>Cancel</Button>
             </div>
           </div>
         )}
       </Modal>
 
       {/* Battle result modal */}
-      <Modal
-        isOpen={!!battleReport}
-        onClose={() => setBattleReport(null)}
-        title="Battle Report"
-        size="md"
-      >
+      <Modal isOpen={!!battleReport} onClose={() => setBattleReport(null)} title="Battle Report" size="md">
         {battleReport && <BattleReportModal report={battleReport} onClose={() => setBattleReport(null)} />}
       </Modal>
     </div>

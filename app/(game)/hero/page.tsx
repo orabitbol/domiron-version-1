@@ -3,6 +3,9 @@ import { authOptions } from '@/lib/auth/options'
 import { createClient } from '@/lib/supabase/server'
 import { HeroClient } from './HeroClient'
 
+// Hero row comes from PlayerContext — only fetch spells and active effects here.
+export const dynamic = 'force-dynamic'
+
 export default async function HeroPage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -13,11 +16,9 @@ export default async function HeroPage() {
   const now = new Date().toISOString()
 
   const [
-    { data: hero },
     { data: heroSpells },
     { data: activeEffects },
   ] = await Promise.all([
-    supabase.from('hero').select('*').eq('player_id', playerId).single(),
     supabase.from('hero_spells').select('*').eq('player_id', playerId),
     // Players can read their own effects (RLS policy: player read own)
     supabase
@@ -27,11 +28,8 @@ export default async function HeroPage() {
       .gt('cooldown_ends_at', now),  // include cooling-down effects so UI can show cooldown
   ])
 
-  if (!hero) return null
-
   return (
     <HeroClient
-      hero={hero}
       heroSpells={heroSpells ?? []}
       activeEffects={activeEffects ?? []}
     />

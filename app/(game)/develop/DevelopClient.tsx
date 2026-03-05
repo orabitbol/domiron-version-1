@@ -9,14 +9,7 @@ import { GameTable } from '@/components/ui/game-table'
 import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
-import type { Player, Development, Resources, Army } from '@/types/game'
-
-interface Props {
-  player: Player
-  development: Development
-  resources: Resources
-  army: Army
-}
+import type { Development, Resources } from '@/types/game'
 
 type DevField = 'gold_level' | 'food_level' | 'wood_level' | 'iron_level' | 'population_level' | 'fortification_level'
 
@@ -107,8 +100,6 @@ function getUpgradeCost(field: DevField, currentLevel: number): { gold: number; 
   }
 }
 
-// ─── Population stat box ──────────────────────────────────────────────────────
-
 function PopStat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="flex-1 min-w-[120px] bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 shadow-engrave text-center">
@@ -119,13 +110,11 @@ function PopStat({ label, value, sub }: { label: string; value: string | number;
   )
 }
 
-export function DevelopClient({ player, development, resources, army }: Props) {
-  const { refresh } = usePlayer()
+export function DevelopClient() {
+  const { player, development, resources, army, refresh, applyPatch } = usePlayer()
   const [loading, setLoading] = useState<string | null>(null)
   const [loadingCity, setLoadingCity] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-  const [devState, setDevState] = useState(development)
-  const [localResources, setLocalResources] = useState(resources)
 
   async function handleUpgrade(field: DevField) {
     setLoading(field)
@@ -141,8 +130,13 @@ export function DevelopClient({ player, development, resources, army }: Props) {
         setMessage({ text: data.error ?? 'Upgrade failed', type: 'error' })
       } else {
         setMessage({ text: 'Upgrade successful!', type: 'success' })
-        setDevState((prev) => ({ ...prev, [field]: (prev[field] as number) + 1 }))
-        if (data.data?.resources) setLocalResources(data.data.resources)
+        // Apply development level increment + resource deduction immediately
+        if (development) {
+          applyPatch({
+            development: { ...development, [field]: (development[field] as number) + 1 },
+          })
+        }
+        if (data.data?.resources) applyPatch({ resources: data.data.resources })
         refresh()
       }
     } catch {
@@ -162,6 +156,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
         setMessage({ text: data.error ?? 'Failed to move city', type: 'error' })
       } else {
         setMessage({ text: `Moved to ${data.cityName}!`, type: 'success' })
+        // Player city changed — refresh() to get the updated player.city
         refresh()
       }
     } catch {
@@ -171,28 +166,26 @@ export function DevelopClient({ player, development, resources, army }: Props) {
     }
   }
 
-  const currentCityName = BALANCE.cities.names[player.city] ?? `City ${player.city}`
-  const currentCityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city] ?? 1
-  const hasNextCity = player.city < BALANCE.cities.total
-  const nextCityNum  = player.city + 1
+  const currentCityName = BALANCE.cities.names[player?.city ?? 1] ?? `City ${player?.city ?? 1}`
+  const currentCityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player?.city ?? 1] ?? 1
+  const hasNextCity = (player?.city ?? 1) < BALANCE.cities.total
+  const nextCityNum  = (player?.city ?? 1) + 1
   const nextCityThreshold = hasNextCity ? BALANCE.cities.promotionPowerThreshold[nextCityNum] : null
   const nextCityName = hasNextCity ? (BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`) : null
 
-  const meetsPower  = nextCityThreshold != null ? player.power_total >= nextCityThreshold : false
+  const meetsPower  = nextCityThreshold != null ? (player?.power_total ?? 0) >= nextCityThreshold : false
   const canMoveCity = meetsPower && hasNextCity
 
-  // Population data
-  const popLevel    = devState.population_level
+  const popLevel    = (development?.population_level ?? 0)
   const popPerTick  = BALANCE.training.populationPerTick[popLevel] ?? 1
   const maxPopLevel = 10
   const popIsMaxed  = popLevel >= maxPopLevel
   const popCost     = getUpgradeCost('population_level', popLevel)
   const popCanAfford =
     !popIsMaxed &&
-    localResources.gold >= popCost.gold &&
-    localResources.food >= popCost.resource
+    (resources?.gold ?? 0) >= popCost.gold &&
+    (resources?.food ?? 0) >= popCost.resource
 
-  // Population per tick table
   const popPerTickEntries = Object.entries(BALANCE.training.populationPerTick) as [string, number][]
 
   return (
@@ -222,28 +215,18 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       {/* Resources */}
       <div className="flex flex-wrap gap-4 card-game p-4">
-        <ResourceBadge type="gold" amount={localResources.gold} showLabel />
-        <ResourceBadge type="iron" amount={localResources.iron} showLabel />
-        <ResourceBadge type="wood" amount={localResources.wood} showLabel />
-        <ResourceBadge type="food" amount={localResources.food} showLabel />
+        <ResourceBadge type="gold" amount={resources?.gold ?? 0} showLabel />
+        <ResourceBadge type="iron" amount={resources?.iron ?? 0} showLabel />
+        <ResourceBadge type="wood" amount={resources?.wood ?? 0} showLabel />
+        <ResourceBadge type="food" amount={resources?.food ?? 0} showLabel />
       </div>
 
       {/* ── Population Overview ─────────────────────────────────────────────────── */}
       <div className="panel-ornate p-4 space-y-4">
         <h2 className="panel-header text-game-gold">Population Overview</h2>
-
-        {/* Three summary stats */}
         <div className="flex flex-wrap gap-3">
-          <PopStat
-            label="Untrained Population"
-            value={formatNumber(army.free_population)}
-            sub="available to train"
-          />
-          <PopStat
-            label="Population / Tick"
-            value={`+${popPerTick}`}
-            sub="every 30 minutes"
-          />
+          <PopStat label="Untrained Population" value={formatNumber(army?.free_population ?? 0)} sub="available to train" />
+          <PopStat label="Population / Tick" value={`+${popPerTick}`} sub="every 30 minutes" />
           <PopStat
             label="Growth Level"
             value={popLevel}
@@ -253,7 +236,6 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
         <div className="divider-gold" />
 
-        {/* Upgrade row */}
         {popIsMaxed ? (
           <div className="flex items-center gap-3">
             <Badge variant="gold">MAX</Badge>
@@ -293,24 +275,22 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       {/* ── Infrastructure Upgrades ─────────────────────────────────────────────── */}
       <div>
-        <h2 className="panel-header text-game-gold mb-3">
-          Infrastructure Upgrades
-        </h2>
+        <h2 className="panel-header text-game-gold mb-3">Infrastructure Upgrades</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {DEV_CARDS.map((card) => {
-            const currentLevel = devState[card.field] as number
+            const currentLevel = (development?.[card.field] as number) ?? 0
             const cost = getUpgradeCost(card.field, currentLevel)
             const isMaxed = currentLevel >= card.maxLevel
 
             let canAfford = false
             if (!isMaxed) {
-              const resAmt = localResources[cost.resourceType as keyof Resources] as number
-              canAfford = localResources.gold >= cost.gold && (cost.resourceType === 'gold' || resAmt >= cost.resource)
+              const resAmt = (resources as Resources | null)?.[cost.resourceType as keyof Resources] as number ?? 0
+              canAfford = (resources?.gold ?? 0) >= cost.gold && (cost.resourceType === 'gold' || resAmt >= cost.resource)
             }
 
             const prodMin = BALANCE.production.baseMin
             const prodMax = BALANCE.production.baseMax
-            const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player.city] ?? 1
+            const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player?.city ?? 1] ?? 1
             const description = `${card.description} Base: ${prodMin}–${prodMax} × City ×${cityMult}`
 
             return (
@@ -340,9 +320,7 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       {/* ── Population Growth Rate Table ─────────────────────────────────────────── */}
       <div className="panel-ornate p-4">
-        <h2 className="panel-header text-game-gold mb-3">
-          Population Growth Rate (by Level)
-        </h2>
+        <h2 className="panel-header text-game-gold mb-3">Population Growth Rate (by Level)</h2>
         <GameTable
           headers={['Level', 'Population / Tick']}
           striped
@@ -363,18 +341,12 @@ export function DevelopClient({ player, development, resources, army }: Props) {
 
       {/* ── City Progression ─────────────────────────────────────────────────────── */}
       <div className="panel-ornate p-4">
-        <h2 className="panel-header text-game-gold mb-3">
-          City Progression
-        </h2>
+        <h2 className="panel-header text-game-gold mb-3">City Progression</h2>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Badge variant="gold">City {player.city}</Badge>
-            <span className="font-heading text-game-base text-game-text-white uppercase">
-              {currentCityName}
-            </span>
-            <span className="text-game-text-muted text-game-sm font-body">
-              ×{currentCityMult} production
-            </span>
+            <Badge variant="gold">City {player?.city ?? 1}</Badge>
+            <span className="font-heading text-game-base text-game-text-white uppercase">{currentCityName}</span>
+            <span className="text-game-text-muted text-game-sm font-body">×{currentCityMult} production</span>
           </div>
 
           <div className="divider-gold" />
@@ -388,17 +360,12 @@ export function DevelopClient({ player, development, resources, army }: Props) {
                 <div className="flex items-center justify-between">
                   <span className="text-game-text-secondary">Power required</span>
                   <span className={meetsPower ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                    {formatNumber(player.power_total)} / {nextCityThreshold != null ? formatNumber(nextCityThreshold) : '—'}
+                    {formatNumber(player?.power_total ?? 0)} / {nextCityThreshold != null ? formatNumber(nextCityThreshold) : '—'}
                     {meetsPower ? ' ✓' : ''}
                   </span>
                 </div>
               </div>
-              <Button
-                variant="primary"
-                disabled={!canMoveCity}
-                loading={loadingCity}
-                onClick={handleMoveCity}
-              >
+              <Button variant="primary" disabled={!canMoveCity} loading={loadingCity} onClick={handleMoveCity}>
                 Move to {nextCityName}
               </Button>
             </div>

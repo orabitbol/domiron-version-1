@@ -12,11 +12,6 @@ import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Weapons, Resources } from '@/types/game'
 
-interface Props {
-  weapons: Weapons
-  resources: Resources
-}
-
 type TabKey = 'attack' | 'defense' | 'spy' | 'scout'
 
 const TABS = [
@@ -58,7 +53,6 @@ const SCOUT_WEAPONS = [
   { key: 'elven_boots', label: 'Elven Boots' },
 ] as const
 
-// Spy/Scout weapons mirror defense: max 1 each, cost gold
 const SPY_PRICES: Record<string, number> = {
   shadow_cloak: 5000,
   dark_mask: 20000,
@@ -70,15 +64,17 @@ const SCOUT_PRICES: Record<string, number> = {
   elven_boots: 80000,
 }
 
-export function ShopClient({ weapons, resources }: Props) {
-  const { refresh } = usePlayer()
+export function ShopClient() {
+  const { weapons, resources, refresh, applyPatch } = usePlayer()
   const isFrozen = useFreeze()
   const [activeTab, setActiveTab] = useState<TabKey>('attack')
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-  const [weaponState, setWeaponState] = useState(weapons)
-  const [resourceState, setResourceState] = useState(resources)
+
+  // Fallback empty objects so reads never throw
+  const weaponState = weapons ?? {} as Weapons
+  const resourceState = resources ?? { gold: 0, iron: 0, wood: 0, food: 0 } as Resources
 
   async function handleBuy(weaponKey: string, category: string) {
     const amt = parseInt(amounts[weaponKey] || '1') || 1
@@ -95,8 +91,8 @@ export function ShopClient({ weapons, resources }: Props) {
         setMessage({ text: data.error ?? 'Purchase failed', type: 'error' })
       } else {
         setMessage({ text: `Purchased ${amt}x ${weaponKey.replace(/_/g, ' ')}`, type: 'success' })
-        if (data.weapons) setWeaponState(data.weapons)
-        if (data.resources) setResourceState(data.resources)
+        if (data.weapons)   applyPatch({ weapons: data.weapons })
+        if (data.resources) applyPatch({ resources: data.resources })
         refresh()
       }
     } catch {
@@ -121,8 +117,8 @@ export function ShopClient({ weapons, resources }: Props) {
         setMessage({ text: data.error ?? 'Sale failed', type: 'error' })
       } else {
         setMessage({ text: `Sold ${amt}x ${weaponKey.replace(/_/g, ' ')}`, type: 'success' })
-        if (data.weapons) setWeaponState(data.weapons)
-        if (data.resources) setResourceState(data.resources)
+        if (data.weapons)   applyPatch({ weapons: data.weapons })
+        if (data.resources) applyPatch({ resources: data.resources })
         refresh()
       }
     } catch {
@@ -169,11 +165,7 @@ export function ShopClient({ weapons, resources }: Props) {
       </div>
 
       {/* Tabs */}
-      <Tabs
-        tabs={TABS}
-        activeTab={activeTab}
-        onChange={(k) => setActiveTab(k as TabKey)}
-      />
+      <Tabs tabs={TABS} activeTab={activeTab} onChange={(k) => setActiveTab(k as TabKey)} />
 
       {/* Attack Weapons */}
       {activeTab === 'attack' && (
@@ -182,7 +174,7 @@ export function ShopClient({ weapons, resources }: Props) {
           <div className="divider-gold" />
           {ATTACK_WEAPONS.map(({ key, label }) => {
             const cfg = BALANCE.weapons.attack[key]
-            const owned = weaponState[key] as number
+            const owned = (weaponState[key] as number) ?? 0
             const costIron = cfg.costIron
             const refund = Math.floor(costIron * BALANCE.weapons.sellRefundPercent)
             const amt = parseInt(amounts[key] || '1') || 1
@@ -190,58 +182,26 @@ export function ShopClient({ weapons, resources }: Props) {
             const canSell = owned >= amt
 
             return (
-              <div
-                key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
-              >
+              <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                      {label}
-                    </p>
+                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">{label}</p>
                     <Badge variant="red">+{cfg.power} ATK power</Badge>
                     <Badge variant="default">Max {cfg.maxPerPlayer}</Badge>
                   </div>
                   <div className="flex flex-wrap gap-3 text-game-xs font-body text-game-text-muted">
-                    <span>
-                      Cost: <span className="text-res-iron font-semibold">{formatNumber(costIron)} Iron</span>
-                    </span>
-                    <span>
-                      Sell: <span className="text-res-iron font-semibold">{formatNumber(refund)} Iron</span>
-                    </span>
-                    <span>
-                      Owned: <span className="text-game-gold font-semibold">{owned}</span>
-                    </span>
+                    <span>Cost: <span className="text-res-iron font-semibold">{formatNumber(costIron)} Iron</span></span>
+                    <span>Sell: <span className="text-res-iron font-semibold">{formatNumber(refund)} Iron</span></span>
+                    <span>Owned: <span className="text-game-gold font-semibold">{owned}</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
-                    type="number"
-                    placeholder="Qty"
-                    value={amounts[key] ?? ''}
-                    min={1}
-                    max={cfg.maxPerPlayer}
-                    onChange={(e) => setAmounts((p) => ({ ...p, [key]: e.target.value }))}
-                    className="w-20"
+                    type="number" placeholder="Qty" value={amounts[key] ?? ''} min={1} max={cfg.maxPerPlayer}
+                    onChange={(e) => setAmounts((p) => ({ ...p, [key]: e.target.value }))} className="w-20"
                   />
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, 'attack')}
-                  >
-                    Buy
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, 'attack')}
-                  >
-                    Sell
-                  </Button>
+                  <Button variant="primary" size="sm" disabled={isFrozen || !canBuy || !!loading} loading={loading === `buy-${key}`} onClick={() => handleBuy(key, 'attack')}>Buy</Button>
+                  <Button variant="ghost" size="sm" disabled={isFrozen || !canSell || !!loading} loading={loading === `sell-${key}`} onClick={() => handleSell(key, 'attack')}>Sell</Button>
                 </div>
               </div>
             )
@@ -256,7 +216,7 @@ export function ShopClient({ weapons, resources }: Props) {
           <div className="divider-gold" />
           {DEFENSE_WEAPONS.map(({ key, label }) => {
             const cfg = BALANCE.weapons.defense[key]
-            const owned = weaponState[key] as number
+            const owned = (weaponState[key] as number) ?? 0
             const costGold = cfg.costGold
             const refund = Math.floor(costGold * BALANCE.weapons.sellRefundPercent)
             const isGodsArmor = key === 'gods_armor'
@@ -265,52 +225,29 @@ export function ShopClient({ weapons, resources }: Props) {
             const canSell = owned > 0
 
             return (
-              <div
-                key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
-              >
+              <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                      {label}
-                    </p>
+                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">{label}</p>
                     <Badge variant="gold">×{cfg.multiplier} DEF</Badge>
                     {owned > 0 && <Badge variant="green">Owned</Badge>}
                   </div>
                   <div className="flex flex-wrap gap-3 text-game-xs font-body text-game-text-muted">
-                    <span>
-                      Cost: <span className="text-res-gold font-semibold">{formatNumber(costGold)} Gold</span>
-                    </span>
+                    <span>Cost: <span className="text-res-gold font-semibold">{formatNumber(costGold)} Gold</span></span>
                     {isGodsArmor && (
                       <>
                         <span className="text-res-iron font-semibold">+ 500K Iron</span>
                         <span className="text-res-wood font-semibold">+ 300K Wood</span>
                       </>
                     )}
-                    <span>
-                      Sell: <span className="text-res-gold font-semibold">{formatNumber(refund)} Gold</span>
-                    </span>
+                    <span>Sell: <span className="text-res-gold font-semibold">{formatNumber(refund)} Gold</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, 'defense')}
-                  >
+                  <Button variant="primary" size="sm" disabled={isFrozen || !canBuy || !!loading} loading={loading === `buy-${key}`} onClick={() => handleBuy(key, 'defense')}>
                     {owned > 0 ? 'Owned' : 'Buy'}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, 'defense')}
-                  >
-                    Sell
-                  </Button>
+                  <Button variant="ghost" size="sm" disabled={isFrozen || !canSell || !!loading} loading={loading === `sell-${key}`} onClick={() => handleSell(key, 'defense')}>Sell</Button>
                 </div>
               </div>
             )
@@ -324,53 +261,30 @@ export function ShopClient({ weapons, resources }: Props) {
           <p className="text-game-xs text-game-text-muted font-body">Spy gear — max 1 each. Enhances spy power.</p>
           <div className="divider-gold" />
           {SPY_WEAPONS.map(({ key, label }) => {
-            const owned = weaponState[key] as number
+            const owned = (weaponState[key] as number) ?? 0
             const costGold = SPY_PRICES[key] ?? 0
             const refund = Math.floor(costGold * BALANCE.weapons.sellRefundPercent)
             const canBuy = !owned && resourceState.gold >= costGold
             const canSell = owned > 0
 
             return (
-              <div
-                key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
-              >
+              <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                      {label}
-                    </p>
+                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">{label}</p>
                     <Badge variant="purple">Spy Gear</Badge>
                     {owned > 0 && <Badge variant="green">Owned</Badge>}
                   </div>
                   <div className="flex flex-wrap gap-3 text-game-xs font-body text-game-text-muted">
-                    <span>
-                      Cost: <span className="text-res-gold font-semibold">{formatNumber(costGold)} Gold</span>
-                    </span>
-                    <span>
-                      Sell: <span className="text-res-gold font-semibold">{formatNumber(refund)} Gold</span>
-                    </span>
+                    <span>Cost: <span className="text-res-gold font-semibold">{formatNumber(costGold)} Gold</span></span>
+                    <span>Sell: <span className="text-res-gold font-semibold">{formatNumber(refund)} Gold</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="magic"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, 'spy')}
-                  >
+                  <Button variant="magic" size="sm" disabled={isFrozen || !canBuy || !!loading} loading={loading === `buy-${key}`} onClick={() => handleBuy(key, 'spy')}>
                     {owned > 0 ? 'Owned' : 'Buy'}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, 'spy')}
-                  >
-                    Sell
-                  </Button>
+                  <Button variant="ghost" size="sm" disabled={isFrozen || !canSell || !!loading} loading={loading === `sell-${key}`} onClick={() => handleSell(key, 'spy')}>Sell</Button>
                 </div>
               </div>
             )
@@ -384,53 +298,30 @@ export function ShopClient({ weapons, resources }: Props) {
           <p className="text-game-xs text-game-text-muted font-body">Scout gear — max 1 each. Enhances scout power.</p>
           <div className="divider-gold" />
           {SCOUT_WEAPONS.map(({ key, label }) => {
-            const owned = weaponState[key] as number
+            const owned = (weaponState[key] as number) ?? 0
             const costGold = SCOUT_PRICES[key] ?? 0
             const refund = Math.floor(costGold * BALANCE.weapons.sellRefundPercent)
             const canBuy = !owned && resourceState.gold >= costGold
             const canSell = owned > 0
 
             return (
-              <div
-                key={key}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game"
-              >
+              <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-game-lg card-game">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                      {label}
-                    </p>
+                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">{label}</p>
                     <Badge variant="blue">Scout Gear</Badge>
                     {owned > 0 && <Badge variant="green">Owned</Badge>}
                   </div>
                   <div className="flex flex-wrap gap-3 text-game-xs font-body text-game-text-muted">
-                    <span>
-                      Cost: <span className="text-res-gold font-semibold">{formatNumber(costGold)} Gold</span>
-                    </span>
-                    <span>
-                      Sell: <span className="text-res-gold font-semibold">{formatNumber(refund)} Gold</span>
-                    </span>
+                    <span>Cost: <span className="text-res-gold font-semibold">{formatNumber(costGold)} Gold</span></span>
+                    <span>Sell: <span className="text-res-gold font-semibold">{formatNumber(refund)} Gold</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, 'scout')}
-                  >
+                  <Button variant="primary" size="sm" disabled={isFrozen || !canBuy || !!loading} loading={loading === `buy-${key}`} onClick={() => handleBuy(key, 'scout')}>
                     {owned > 0 ? 'Owned' : 'Buy'}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, 'scout')}
-                  >
-                    Sell
-                  </Button>
+                  <Button variant="ghost" size="sm" disabled={isFrozen || !canSell || !!loading} loading={loading === `sell-${key}`} onClick={() => handleSell(key, 'scout')}>Sell</Button>
                 </div>
               </div>
             )

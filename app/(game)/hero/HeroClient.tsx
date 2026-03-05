@@ -7,12 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
-import type { Hero, HeroSpell } from '@/types/game'
+import type { HeroSpell } from '@/types/game'
 import type { PlayerHeroEffect } from '@/lib/game/hero-effects'
 
-// ─────────────────────────────────────────
-// DEFENSIVE CONFIG READ — never crash if config key changes
-// ─────────────────────────────────────────
 const CFG = {
   SOLDIER_MANA:  BALANCE.hero.SOLDIER_SHIELD_MANA  ?? 10,
   RESOURCE_MANA: BALANCE.hero.RESOURCE_SHIELD_MANA ?? 10,
@@ -20,9 +17,6 @@ const CFG = {
   XP_PER_LEVEL:  BALANCE.hero.xpPerLevel            ?? 100,
 } as const
 
-// ─────────────────────────────────────────
-// SPELL TREE CONFIG
-// ─────────────────────────────────────────
 const SPELL_CATEGORIES = [
   { key: 'combat',     label: 'Combat',     color: 'text-game-red-bright' },
   { key: 'defense',    label: 'Defense',    color: 'text-game-gold-bright' },
@@ -36,11 +30,6 @@ function buildSpellKey(category: string, col: number, row: number) {
   return `${category}_${col}_${row}`
 }
 
-// ─────────────────────────────────────────
-// SHIELD STATUS HELPERS
-// ─────────────────────────────────────────
-
-/** Returns remaining time as a human-readable string. Null if expired. */
 function timeRemaining(endsAt: string): string | null {
   const ms = new Date(endsAt).getTime() - Date.now()
   if (ms <= 0) return null
@@ -62,7 +51,6 @@ function getShieldStatus(
   const matching = effects.filter((e) => e.type === type)
   if (matching.length === 0) return { state: 'available' }
 
-  // Sort most recent first
   const sorted = [...matching].sort(
     (a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime()
   )
@@ -77,30 +65,24 @@ function getShieldStatus(
   return { state: 'available' }
 }
 
-// ─────────────────────────────────────────
-// PROPS
-// ─────────────────────────────────────────
-
 interface Props {
-  hero:          Hero
   heroSpells:    HeroSpell[]
-  activeEffects: PlayerHeroEffect[]  // owner's own effects — allows shield status + countdown
+  activeEffects: PlayerHeroEffect[]
 }
 
-// ─────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────
+export function HeroClient({ heroSpells, activeEffects }: Props) {
+  const { hero, refresh, applyPatch } = usePlayer()
 
-export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activeEffects }: Props) {
-  const { refresh } = usePlayer()
-  const [hero, setHero] = useState(initialHero)
+  // purchasedSpells and localEffects are ephemeral UI state not tracked in PlayerContext
   const [purchasedSpells, setPurchasedSpells] = useState<Set<string>>(
-    new Set<string>(initialSpells.map((s) => s.spell_key))
+    new Set<string>(heroSpells.map((s) => s.spell_key))
   )
   const [localEffects, setLocalEffects] = useState<PlayerHeroEffect[]>(activeEffects)
   const [loading, setLoading]           = useState<string | null>(null)
   const [shieldLoading, setShieldLoading] = useState<string | null>(null)
   const [message, setMessage]           = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  if (!hero) return null
 
   const xpForNextLevel = hero.level * CFG.XP_PER_LEVEL
   const xpPct          = Math.min(100, Math.round((hero.xp / xpForNextLevel) * 100))
@@ -111,11 +93,9 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
     (hero.level >= 10 ? (BALANCE.hero.manaPerTick?.level10bonus ?? 0) : 0) +
     (hero.level >= 50 ? (BALANCE.hero.manaPerTick?.level50bonus ?? 0) : 0)
 
-  // Current shield statuses from local effects (updated optimistically on activation)
   const soldierStatus   = getShieldStatus(localEffects, 'SOLDIER_SHIELD')
   const resourceStatus  = getShieldStatus(localEffects, 'RESOURCE_SHIELD')
 
-  // ── Spell purchase ─────────────────────────────────────────────────────────
   async function handlePurchaseSpell(spellKey: string) {
     if (hero.spell_points <= 0) return
     setLoading(spellKey)
@@ -132,7 +112,8 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       } else {
         setMessage({ text: 'Spell learned!', type: 'success' })
         setPurchasedSpells((prev) => new Set<string>([...Array.from(prev), spellKey]))
-        setHero((prev) => ({ ...prev, spell_points: prev.spell_points - 1 }))
+        // Immediately deduct spell point from context
+        applyPatch({ hero: { ...hero, spell_points: hero.spell_points - 1 } })
         refresh()
       }
     } catch {
@@ -142,15 +123,12 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
     }
   }
 
-  // ── Shield activation ──────────────────────────────────────────────────────
   async function handleActivateShield(shieldType: 'soldier_shield' | 'resource_shield') {
     const manaCost = shieldType === 'soldier_shield' ? CFG.SOLDIER_MANA : CFG.RESOURCE_MANA
     if (hero.mana < manaCost) return
     setShieldLoading(shieldType)
     setMessage(null)
     try {
-      // Canonical endpoint: POST /api/hero/activate-shield
-      // shield_type must be 'soldier_shield' | 'resource_shield' (matches route schema)
       const res = await fetch('/api/hero/activate-shield', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,8 +140,9 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       } else {
         const label = shieldType === 'soldier_shield' ? 'Soldier Shield' : 'Resource Shield'
         setMessage({ text: `${label} activated for ${CFG.SHIELD_HOURS}h!`, type: 'success' })
-        setHero((prev) => ({ ...prev, mana: prev.mana - manaCost }))
-        // Immediately reflect new shield in local effects so status badge updates without waiting for refresh
+        // Immediately deduct mana from context
+        applyPatch({ hero: { ...hero, mana: hero.mana - manaCost } })
+        // Immediately reflect new shield in local effects so status badge updates
         const effectType = shieldType === 'soldier_shield' ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD' as const
         setLocalEffects((prev) => [
           ...prev,
@@ -236,10 +215,7 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
             <span>{formatNumber(hero.xp)} / {formatNumber(xpForNextLevel)}</span>
           </div>
           <div className="progress-bar">
-            <div
-              className="progress-fill progress-fill-purple"
-              style={{ width: `${xpPct}%` }}
-            />
+            <div className="progress-fill progress-fill-purple" style={{ width: `${xpPct}%` }} />
           </div>
           <p className="text-game-xs text-game-text-muted font-body mt-1">{xpPct}% to level {hero.level + 1}</p>
         </div>
@@ -251,31 +227,18 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
             <span>{hero.mana} / 100</span>
           </div>
           <div className="progress-bar">
-            <div
-              className="progress-fill progress-fill-blue"
-              style={{ width: `${manaPct}%` }}
-            />
+            <div className="progress-fill progress-fill-blue" style={{ width: `${manaPct}%` }} />
           </div>
         </div>
 
-        {/* Mana regen info */}
         <div className="divider-ornate" />
         <div className="grid grid-cols-3 gap-3 text-game-xs font-body text-game-text-muted">
-          <div>
-            <span className="font-semibold text-game-text">Base: </span>
-            +{BALANCE.hero.manaPerTick?.base ?? 1}/tick
-          </div>
+          <div><span className="font-semibold text-game-text">Base: </span>+{BALANCE.hero.manaPerTick?.base ?? 1}/tick</div>
           {hero.level >= 10 && (
-            <div>
-              <span className="font-semibold text-game-text">Lvl 10+: </span>
-              +{BALANCE.hero.manaPerTick?.level10bonus ?? 0}/tick
-            </div>
+            <div><span className="font-semibold text-game-text">Lvl 10+: </span>+{BALANCE.hero.manaPerTick?.level10bonus ?? 0}/tick</div>
           )}
           {hero.level >= 50 && (
-            <div>
-              <span className="font-semibold text-game-text">Lvl 50+: </span>
-              +{BALANCE.hero.manaPerTick?.level50bonus ?? 0}/tick
-            </div>
+            <div><span className="font-semibold text-game-text">Lvl 50+: </span>+{BALANCE.hero.manaPerTick?.level50bonus ?? 0}/tick</div>
           )}
         </div>
       </div>
@@ -283,13 +246,9 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       {/* Shields */}
       <div className="card-game rounded-game-lg p-4">
         <div className="panel-header mb-3">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-            Active Shields
-          </h2>
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Active Shields</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-          {/* Soldier Shield */}
           <ShieldCard
             label="Soldier Shield"
             description={`Protects soldiers from attack losses for ${CFG.SHIELD_HOURS}h`}
@@ -301,8 +260,6 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
             onActivate={() => handleActivateShield('soldier_shield')}
             buttonVariant="danger"
           />
-
-          {/* Resource Shield */}
           <ShieldCard
             label="Resource Shield"
             description={`Protects resources from theft for ${CFG.SHIELD_HOURS}h`}
@@ -314,7 +271,6 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
             onActivate={() => handleActivateShield('resource_shield')}
             buttonVariant="primary"
           />
-
         </div>
         <p className="text-game-xs text-game-text-muted font-body mt-3">
           Shield duration: {CFG.SHIELD_HOURS}h active + {BALANCE.hero.SHIELD_COOLDOWN_HOURS ?? 1}h cooldown.
@@ -325,12 +281,8 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
       {/* Spell Tree */}
       <div className="card-game rounded-game-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">
-            Spell Tree
-          </h2>
-          <Badge variant={hero.spell_points > 0 ? 'gold' : 'default'}>
-            {hero.spell_points} Points
-          </Badge>
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Spell Tree</h2>
+          <Badge variant={hero.spell_points > 0 ? 'gold' : 'default'}>{hero.spell_points} Points</Badge>
         </div>
 
         <div className="space-y-6">
@@ -383,10 +335,6 @@ export function HeroClient({ hero: initialHero, heroSpells: initialSpells, activ
   )
 }
 
-// ─────────────────────────────────────────
-// SHIELD CARD — extracted to keep JSX readable
-// ─────────────────────────────────────────
-
 interface ShieldCardProps {
   label:         string
   description:   string
@@ -411,24 +359,17 @@ function ShieldCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className={`font-heading text-game-sm uppercase tracking-wide ${accentClass}`}>
-              {label}
-            </p>
-            {/* Status badge — owner sees active/cooldown/available */}
+            <p className={`font-heading text-game-sm uppercase tracking-wide ${accentClass}`}>{label}</p>
             {status.state === 'active' && (
               <span className="inline-flex items-center gap-1 text-game-xs text-game-green-bright font-body">
-                <span className="inline-block w-2 h-2 rounded-full bg-game-green-bright" />
-                Active
+                <span className="inline-block w-2 h-2 rounded-full bg-game-green-bright" /> Active
               </span>
             )}
             {status.state === 'cooldown' && (
               <span className="text-game-xs text-game-text-muted font-body">Cooldown</span>
             )}
           </div>
-
           <p className="text-game-xs text-game-text-muted font-body mt-0.5">{description}</p>
-
-          {/* Countdown — visible only to shield owner */}
           {status.state === 'active' && (
             <p className="text-game-xs text-game-green-bright font-body mt-1">
               Expires in {timeRemaining(status.endsAt) ?? 'soon'}
@@ -439,12 +380,10 @@ function ShieldCard({
               Available in {timeRemaining(status.cooldownEndsAt) ?? 'soon'}
             </p>
           )}
-
           <div className="mt-2">
             <ResourceBadge type="mana" amount={manaCost} showLabel />
           </div>
         </div>
-
         <Button
           variant={buttonVariant}
           size="sm"
