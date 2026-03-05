@@ -90,7 +90,8 @@ describe('Immediate update contract (no-refresh pattern)', () => {
           after:  { ...snapshot, gold: 300, soldiers: 50 },
         },
         gained: {
-          loot: { gold: 200, iron: 50, wood: 30, food: 0 },
+          loot:     { gold: 200, iron: 50, wood: 30, food: 0 },
+          captives: 0,
         },
         flags: {
           defender_protected: false,

@@ -29,6 +29,7 @@ import {
   getLootDecayMultiplier,
   calculateSoldierLosses,
   calculateLoot,
+  calculateCaptives,
 } from '@/lib/game/combat'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,7 +63,8 @@ function computeAttAfter(
     wood:     attBefore.wood + clamps.woodStolen,
     food:     Math.max(0, attBefore.food - foodCost + clamps.foodStolen),
     soldiers: Math.max(0, attBefore.soldiers - attackerLosses),
-    slaves:   attBefore.slaves,  // attack does not change attacker slaves
+    // Captives: 10% of killed defender soldiers are added to attacker army.slaves
+    slaves:   attBefore.slaves + calculateCaptives(clamps.safeDefLosses),
   }
 }
 
@@ -179,12 +181,15 @@ describe('Attack integrity: base WIN scenario', () => {
     expect(ATT_BEFORE.soldiers - attAfter.soldiers).toBe(expectedLoss)
   })
 
-  // ── Slave count unchanged (combat never affects slaves) ───────────────────
-  it('attacker slaves unchanged by combat', () => {
-    expect(attAfter.slaves).toBe(ATT_BEFORE.slaves)
+  // ── Captives (attacker gains slaves = 10% of killed defender soldiers) ─────
+  it('attacker.after.slaves = attacker.before.slaves + captives', () => {
+    const captives = calculateCaptives(clamps.safeDefLosses)
+    expect(attAfter.slaves).toBe(ATT_BEFORE.slaves + captives)
+    // Dominant attacker, no flags → def losses > 0 → captives > 0
+    expect(captives).toBeGreaterThan(0)
   })
 
-  it('defender slaves unchanged by combat', () => {
+  it('defender slaves unchanged by combat (combat never reduces defender slaves)', () => {
     expect(defAfter.slaves).toBe(DEF_BEFORE.slaves)
   })
 

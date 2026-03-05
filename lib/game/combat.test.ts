@@ -26,6 +26,7 @@ import {
   isNewPlayerProtected,
   getLootDecayMultiplier,
   calculateLoot,
+  calculateCaptives,
   calcTurnsAfterRegen,
   resolveCombat,
 } from '@/lib/game/combat'
@@ -336,26 +337,32 @@ describe('calculateCombatRatio', () => {
 
 describe('determineCombatOutcome', () => {
 
-  it('returns win when R >= WIN_THRESHOLD', () => {
-    expect(determineCombatOutcome(BALANCE.combat.WIN_THRESHOLD)).toBe('win')
+  it('returns win when R >= WIN_THRESHOLD (1.0)', () => {
+    expect(determineCombatOutcome(BALANCE.combat.WIN_THRESHOLD)).toBe('win')      // exactly 1.0
+    expect(determineCombatOutcome(BALANCE.combat.WIN_THRESHOLD + 0.001)).toBe('win')
     expect(determineCombatOutcome(BALANCE.combat.WIN_THRESHOLD + 1)).toBe('win')
+    expect(determineCombatOutcome(100)).toBe('win')
   })
 
-  it('returns loss when R < LOSS_THRESHOLD', () => {
-    expect(determineCombatOutcome(BALANCE.combat.LOSS_THRESHOLD - 0.01)).toBe('loss')
+  it('returns loss when R < WIN_THRESHOLD (1.0)', () => {
+    expect(determineCombatOutcome(BALANCE.combat.WIN_THRESHOLD - 0.001)).toBe('loss')
+    expect(determineCombatOutcome(0.99)).toBe('loss')
+    expect(determineCombatOutcome(0.75)).toBe('loss')
     expect(determineCombatOutcome(0)).toBe('loss')
   })
 
-  it('returns partial in the zone between thresholds', () => {
-    const mid = (BALANCE.combat.WIN_THRESHOLD + BALANCE.combat.LOSS_THRESHOLD) / 2
-    expect(determineCombatOutcome(mid)).toBe('partial')
+  it('never returns partial — only win or loss (no draw)', () => {
+    const ratios = [0, 0.5, 0.75, 0.99, 1.0, 1.04, 1.30, 2.0, 10.0]
+    for (const r of ratios) {
+      const outcome = determineCombatOutcome(r)
+      expect(outcome).not.toBe('partial')
+      expect(['win', 'loss']).toContain(outcome)
+    }
   })
 
-  it('partial zone boundaries are exclusive of win and loss', () => {
-    // Exactly at LOSS_THRESHOLD → partial (not loss)
-    expect(determineCombatOutcome(BALANCE.combat.LOSS_THRESHOLD)).toBe('partial')
-    // Just below WIN_THRESHOLD → partial (not win)
-    expect(determineCombatOutcome(BALANCE.combat.WIN_THRESHOLD - 0.001)).toBe('partial')
+  it('boundary: ratio exactly 1.0 is win, 0.999 is loss', () => {
+    expect(determineCombatOutcome(1.0)).toBe('win')
+    expect(determineCombatOutcome(0.999)).toBe('loss')
   })
 
 })
@@ -503,10 +510,9 @@ describe('calculateLoot', () => {
     expect(loot.food).toBe(expected)
   })
 
-  it('partial loot = 50% of win loot', () => {
-    const winLoot     = calculateLoot(UNBANKED_1000, 'win',     1, false)
-    const partialLoot = calculateLoot(UNBANKED_1000, 'partial', 1, false)
-    expect(partialLoot.gold).toBe(Math.floor(winLoot.gold * 0.5))
+  it('win loot = full BASE_LOOT_RATE (no partial/draw bucket)', () => {
+    const winLoot = calculateLoot(UNBANKED_1000, 'win', 1, false)
+    expect(winLoot.gold).toBe(Math.floor(UNBANKED_1000.gold * BALANCE.combat.BASE_LOOT_RATE))
   })
 
   it('loot decays on repeat attacks: 2nd attack is less than 1st', () => {
@@ -540,6 +546,46 @@ describe('calculateLoot', () => {
       expect(value).toBeGreaterThanOrEqual(0)
       expect(Number.isInteger(value)).toBe(true)
     }
+  })
+
+})
+
+// ─────────────────────────────────────────
+// 7. CAPTIVES
+// ─────────────────────────────────────────
+
+describe('calculateCaptives', () => {
+
+  it('returns 0 when defenderLosses is 0 (kill cooldown / shields / protection)', () => {
+    expect(calculateCaptives(0)).toBe(0)
+  })
+
+  it('returns floor(defenderLosses × CAPTURE_RATE)', () => {
+    const losses = 100
+    const expected = Math.floor(losses * BALANCE.combat.CAPTURE_RATE)
+    expect(calculateCaptives(losses)).toBe(expected)
+  })
+
+  it('result is always a non-negative integer', () => {
+    for (const n of [0, 1, 7, 50, 300, 1000]) {
+      const result = calculateCaptives(n)
+      expect(result).toBeGreaterThanOrEqual(0)
+      expect(Number.isInteger(result)).toBe(true)
+    }
+  })
+
+  it('result is always <= defenderLosses (can never capture more than killed)', () => {
+    for (const n of [1, 10, 100, 1000]) {
+      expect(calculateCaptives(n)).toBeLessThanOrEqual(n)
+    }
+  })
+
+  it('captives scale linearly with losses', () => {
+    const c100  = calculateCaptives(100)
+    const c200  = calculateCaptives(200)
+    // 200 losses should yield exactly 2× captives (floor may cause ±1 at odd values)
+    expect(c200).toBeGreaterThanOrEqual(c100 * 2 - 1)
+    expect(c200).toBeLessThanOrEqual(c100 * 2 + 1)
   })
 
 })
@@ -717,17 +763,27 @@ describe('resolveCombat', () => {
     }
   }
 
-  it('produces a valid outcome (win | partial | loss)', () => {
+  it('produces only win or loss — never partial/draw', () => {
     const result = resolveCombat(makeBaseInputs())
-    expect(['win', 'partial', 'loss']).toContain(result.outcome)
+    expect(['win', 'loss']).toContain(result.outcome)
+    expect(result.outcome).not.toBe('partial')
+  })
+
+  it('attackerECP >= defenderECP always produces win', () => {
+    const result = resolveCombat(makeBaseInputs({ attackerPP: 10_000, defenderPP: 10_000 }))
+    // Equal PP → ratio = 1.0 exactly → win
+    expect(result.outcome).toBe('win')
+  })
+
+  it('attackerECP < defenderECP always produces loss', () => {
+    const result = resolveCombat(makeBaseInputs({ attackerPP: 100, defenderPP: 100_000 }))
+    expect(result.outcome).toBe('loss')
   })
 
   it('produces zero loot when outcome is loss', () => {
-    // Force a loss: attacker PP far below defender
     const result = resolveCombat(makeBaseInputs({ attackerPP: 100, defenderPP: 100_000 }))
-    if (result.outcome === 'loss') {
-      expect(result.loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
-    }
+    expect(result.outcome).toBe('loss')
+    expect(result.loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 
   it('defender losses = 0 when protected, loot also = 0', () => {
@@ -807,6 +863,23 @@ describe('resolveCombat', () => {
     const withTribe = resolveCombat(makeBaseInputs({ defenderPP: 5_000, defenderTribeMultiplier: 1.15 }))
     expect(withTribe.defenderECP).toBe(Math.floor(base.defenderECP * 1.15))
     expect(withTribe.attackerECP).toBe(base.attackerECP)
+  })
+
+  it('dominant attacker win with no protections → defenderLosses > 0 → captives > 0', () => {
+    const result = resolveCombat(makeBaseInputs({
+      attackerPP:          100_000,
+      defenderPP:          1_000,
+      defenderSoldiers:    1_000,
+      killCooldownActive:  false,
+      attackerIsProtected: false,
+      defenderIsProtected: false,
+      soldierShieldActive: false,
+    }))
+    expect(result.outcome).toBe('win')
+    expect(result.defenderLosses).toBeGreaterThan(0)
+    const captives = calculateCaptives(result.defenderLosses)
+    expect(captives).toBeGreaterThan(0)
+    expect(captives).toBe(Math.floor(result.defenderLosses * BALANCE.combat.CAPTURE_RATE))
   })
 
   it('attackerECP matches manual calc with hero + race + tribe all combined', () => {

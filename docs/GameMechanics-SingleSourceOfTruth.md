@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — (1) Tick/countdown system root-cause analysis and all fixes; (2) Farmer unit removed, full formula audit, gap analysis added; (3) UI Update Rules (immediate vs tick-only) added as §25
+**Last updated:** 2026-03-05 — (1) Tick/countdown system root-cause analysis and all fixes; (2) Farmer unit removed, full formula audit, gap analysis added; (3) UI Update Rules (immediate vs tick-only) added as §25; (4) Binary outcome rule (no draw/partial), soldier loss documentation, slaves-from-combat clarification; (5) Kill Cooldown / Protection status exposed in Attack UI + Battle Report; (6) Captives feature implemented (`calculateCaptives`, updated RPC, BattleReport.gained.captives, UI Captives row)
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -711,15 +711,23 @@ Step 6: Resource Shield applied (AFTER Step 5):
             loot = rawLoot
 ```
 
-### Outcome Thresholds
+### Outcome Thresholds — Binary (no draw/partial)
 
 ```
-R ≥ WIN_THRESHOLD  (1.30) → 'win'
-R < LOSS_THRESHOLD (0.75) → 'loss'
-otherwise                  → 'partial'
+R ≥ WIN_THRESHOLD (1.0) → 'win'   (attacker at least as strong as defender)
+R <  WIN_THRESHOLD      → 'loss'
 ```
 
-DB maps `'partial' → 'draw'` on insert (attacks table constraint). Source: `attack/route.ts:262`
+**There is no partial/draw outcome.** The old 3-band model (`partial` for ratio in `[0.75, 1.30)`) has been removed.
+- Source: `lib/game/combat.ts` → `determineCombatOutcome()` — `WIN_THRESHOLD = 1.0` (`config/balance.config.ts:combat.WIN_THRESHOLD`)
+- DB constraint: `attacks.outcome IN ('win', 'loss')` — migration `0010_binary_outcome_constraint.sql`
+- The old `'draw'` and `'crushing_win'`/`'crushing_loss'` DB values have been normalised to `'win'`/`'loss'` by migration `0010`.
+
+**Why ratio = 1.04 previously showed DRAW:**
+- Old `WIN_THRESHOLD = 1.30` → ratio 1.04 fell in the partial band `[0.75, 1.30)` → outcome was `'partial'`
+- Route mapped `partial → 'draw'` for DB storage
+- `AttackClient.tsx` `OUTCOME_LABELS.PARTIAL` was set to `'Draw'`
+- All three are now removed.
 
 ### Soldier Loss Rates
 
@@ -734,6 +742,8 @@ attackerLosses = floor(deployedSoldiers × attackerLossRate)
 defenderLosses = floor(defenderSoldiers × defenderLossRate)
 ```
 
+Source: `lib/game/combat.ts` → `calculateSoldierLosses()` + `resolveCombat()` (Step 4)
+
 | Constant | Value | Annotation |
 |---|---|---|
 | `combat.BASE_LOSS` | 0.15 | [TUNE: placeholder] |
@@ -741,13 +751,25 @@ defenderLosses = floor(defenderSoldiers × defenderLossRate)
 | `combat.DEFENDER_BLEED_FLOOR` | 0.05 | [TUNE] |
 | `combat.ATTACKER_FLOOR` | 0.03 | [TUNE] |
 
+#### Conditions that force defenderLosses = 0 (attacker still loses normally)
+
+| Condition | Flag | Set by |
+|---|---|---|
+| Kill cooldown active | `killCooldownActive = true` | Attacker killed defender soldiers within `KILL_COOLDOWN_HOURS` (6h) — queried as `attacks.defender_losses > 0` in the window |
+| Defender has new-player protection | `defenderIsProtected = true` | Defender account created within `PROTECTION_HOURS` (24h) and season gate passed |
+| Defender has Soldier Shield active | `soldierShieldActive = true` | `player_hero_effects` has unexpired `SOLDIER_SHIELD` for defender |
+
+**In all three cases, attackerLosses resolve normally** (attacker pays turns + food + loses soldiers). The battle report includes `KILL_COOLDOWN_NO_LOSSES`, `DEFENDER_PROTECTED`, or `SOLDIER_SHIELD_NO_LOSSES` in the `reasons` array to explain the zero defender losses.
+
+**Why "enemy lost 0" while "I lost 141":** The most common cause in normal gameplay (both players post-protection, no shields) is an active kill cooldown — the attacker attacked the same target and killed soldiers within the past 6 hours.
+
 ### Loot Formula
 
 ```
 if defenderIsProtected || outcome == 'loss':
     loot = 0 per resource
 
-outcomeMult = { win: 1.0, partial: 0.5, loss: 0.0 }
+outcomeMult = { win: 1.0, loss: 0.0 }    ← no partial bucket
 decayFactor = LOOT_DECAY_STEPS[min(attackCount − 1, 4)]
 totalMult   = BASE_LOOT_RATE × outcomeMult × decayFactor
 loot[r]     = floor(unbanked[r] × totalMult)
@@ -778,10 +800,49 @@ When `attackerIsProtected`: `attackerLosses = 0`.
 
 ### Kill Cooldown
 
-- Window: 6 hours per `(attacker_id, defender_id)` pair
-- Trigger: any attack where `defender_losses > 0`
-- Effect: `defenderLosses = 0` (attacker still loses normally; loot still applies)
-- DB query: counts rows in `attacks` WHERE `attacker_id=$1 AND defender_id=$2 AND defender_losses>0 AND created_at >= (now − 6h)`
+- Window: `KILL_COOLDOWN_HOURS` = 6 hours per `(attacker_id, defender_id)` pair
+- Trigger: any attack where `defender_losses > 0` was recorded in the window
+- Effect: `defenderLosses = 0` for the next attack (attacker still loses normally; loot still applies based on outcome)
+- DB query in route: `attacks WHERE attacker_id=$1 AND defender_id=$2 AND defender_losses>0 AND created_at >= (now − 6h)` — `count > 0` → cooldown active
+- Battle report: `flags.kill_cooldown_active = true`; `reasons` array includes `KILL_COOLDOWN_NO_LOSSES`
+- **UI (Battle Report modal):** When `kill_cooldown_active`, the "Combat Modifiers" section appears with the label: *"Kill Cooldown (6h) — you killed this target's soldiers recently; defender loses no soldiers this attack"*
+- **UI (Attack targets table):** Amber dot (4th indicator) in the Status column signals kill cooldown is active for that target. Source: `app/(game)/attack/AttackClient.tsx` → `StatusIndicators` + `attack/page.tsx` — batch kill-cooldown query with `getActiveSeason`
+
+### Status Column (Attack Targets Table)
+
+Each target row shows 4 status dots in the `Status` column (formerly `Shields`). All dots are rendered by `StatusIndicators` in `AttackClient.tsx`. Inactive dots are empty/outlined.
+
+| Dot | Color | Meaning | Source flag |
+|---|---|---|---|
+| 1 | Gold | Resource Shield active | `resource_shield_active` |
+| 2 | Blue | Soldier Shield active | `soldier_shield_active` |
+| 3 | Green | New Player Protection (24h) | `is_protected` |
+| 4 | Amber | Kill Cooldown active (6h) | `kill_cooldown_active` |
+
+`is_protected` and `kill_cooldown_active` are computed server-side in `app/(game)/attack/page.tsx`:
+- `is_protected`: `isNewPlayerProtected(target.created_at, activeSeason.starts_at, now)` — requires `created_at` on cityPlayers query and active season from `getActiveSeason(admin)`
+- `kill_cooldown_active`: batch query `attacks WHERE attacker_id=$attacker AND defender_id IN ($targets) AND defender_losses>0 AND created_at >= (now − 6h)`
+
+### Battle Report Flags and UI Mapping
+
+`POST /api/attack` returns `battleReport.flags` and `battleReport.reasons`:
+
+| Flag | Type | Shown where |
+|---|---|---|
+| `kill_cooldown_active` | boolean | "Combat Modifiers" section in Battle Report modal (always visible when true, not just when gains=0) |
+| `defender_protected` | boolean | "Combat Modifiers" / "Why Nothing Was Gained" + green dot in targets table |
+| `attacker_protected` | boolean | "Combat Modifiers" / "Why Nothing Was Gained" |
+| `defender_soldier_shield_active` | boolean | "Combat Modifiers" / "Why Nothing Was Gained" + blue dot in targets table |
+| `defender_resource_shield_active` | boolean | "Combat Modifiers" / "Why Nothing Was Gained" + gold dot in targets table |
+| `anti_farm_decay_mult` | number | Inline in "You Gained" card + "Combat Modifiers" / "Why Nothing Was Gained" via `LOOT_DECAY_REDUCED` reason |
+
+**Section title logic in BattleReportModal:**
+- `allGainsZero && reasons.length > 0` → "Why Nothing Was Gained" (amber border)
+- `allGainsZero && reasons.length === 0` → "Why Nothing Was Gained" with fallback text
+- `!allGainsZero && reasons.length > 0` → "Combat Modifiers" (neutral border)
+- `!allGainsZero && reasons.length === 0` → section not shown
+
+Source: `app/(game)/attack/AttackClient.tsx` → `BattleReportModal`
 
 ### Food Cost (actual)
 
@@ -803,9 +864,24 @@ defLossesTotal       = defenderLosses  × turnsUsed   (clamped to defArmy.soldie
 
 These pre-computed deltas are passed as parameters to `attack_multi_turn_apply()` (one `supabase.rpc()` call). The Postgres function re-validates everything under lock and applies all mutations atomically. There is **no loop** over turns and **no partial writes** — either the entire attack commits or nothing changes.
 
-### Slaves from Combat
+### Slaves from Combat (Captives)
 
-**Zero.** `attacks` table has `slaves_taken` column but it is always inserted as `0`. `CAPTURE_RATE` and `convertKilledToSlaves` have been removed from the codebase.
+**Implemented.** Defender soldiers killed in battle may be captured and added to the attacker's `army.slaves`.
+
+```
+captives = floor(defenderLossesTotal × CAPTURE_RATE)   (CAPTURE_RATE = 0.10)
+captives = 0  when defenderLossesTotal = 0
+              (kill cooldown / defender protected / soldier shield all force defenderLosses = 0)
+```
+
+- **Function:** `calculateCaptives(defenderLosses)` — `lib/game/combat.ts`
+- **Balance key:** `BALANCE.combat.CAPTURE_RATE = 0.10`
+- **RPC:** `attack_multi_turn_apply` (migration `0011_attack_rpc_captives.sql`) accepts `p_slaves_taken INT`
+  and atomically sets `army.slaves = slaves + p_slaves_taken` for the attacker.
+- **DB column:** `attacks.slaves_taken` — records actual captives per attack.
+- **API:** `app/api/attack/route.ts` computes `captives = calculateCaptives(safeDefLosses)` and passes it to the RPC.
+- **BattleReport:** `gained.captives: number` — 0 when defenderLosses = 0 (all blockers above).
+- **UI:** Battle Report modal shows a "Captives" row in the "You Gained" section.
 
 ---
 
@@ -1527,6 +1603,84 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Captives feature + Kill Cooldown root-cause investigation
+
+**Root cause of `KILL_COOLDOWN_NO_LOSSES` when `player_hero_effects` appeared empty:**
+Kill cooldown is driven by the `attacks` table (historical records of completed attacks where `defender_losses > 0`), **not** `player_hero_effects` (active hero spell effects). Players checking `player_hero_effects` for rows were looking in the wrong table. The mechanism is correct. Debug logging added to `app/api/attack/route.ts` (`[attack/debug]` prefix) to make this diagnosable via server logs.
+
+**Captives implemented:**
+
+```
+captives = floor(defenderLossesTotal × CAPTURE_RATE)   CAPTURE_RATE = 0.10
+captives = 0  when defenderLossesTotal = 0 (kill cooldown / protection / shield)
+```
+
+**Files changed (10):**
+- `config/balance.config.ts` — added `CAPTURE_RATE: 0.10`
+- `lib/game/balance-validate.ts` — added `CAPTURE_RATE: z.number()` to combat Zod schema
+- `lib/game/combat.ts` — added `calculateCaptives(defenderLosses: number): number`
+- `types/game.ts` — added `captives: number` to `BattleReport.gained`
+- `app/api/attack/route.ts` — computes captives; passes `p_slaves_taken` to RPC; populates `attacker.after.slaves` + `gained.captives` in BattleReport; adds `[attack/debug]` structured log
+- `app/(game)/attack/AttackClient.tsx` — added "Captives" row in "You Gained" section of BattleReportModal
+- `supabase/migrations/0011_attack_rpc_captives.sql` — drops 14-param RPC; new 15-param version writes `army.slaves = slaves + p_slaves_taken` atomically
+- `lib/game/combat.test.ts` — added `calculateCaptives` tests (5 unit + 1 integration)
+- `lib/game/balance.test.ts` — added `CAPTURE_RATE` type check
+- `lib/game/mutation-patterns.test.ts` — added `captives: 0` to BattleReport fixture (TypeScript fix)
+
+---
+
+### 2026-03-05 — Kill Cooldown / Protection status in Attack UI + Battle Report
+
+**Problem:** Kill cooldown and new-player protection were silently applied to combat (defender loses 0 soldiers) with no visible indicator. Players saw "enemy lost 0" with no explanation.
+
+**Changes (3 files + docs):**
+
+**`app/(game)/attack/page.tsx`:**
+- Added `created_at` to `cityPlayers` select (required for protection check)
+- Added `getActiveSeason(admin)` to parallel fetch (required for protection gate)
+- Added kill-cooldown batch query: `attacks WHERE attacker_id=$me AND defender_id IN ($targets) AND defender_losses>0 AND created_at >= (now−6h)`
+- Added `isNewPlayerProtected()` per-target computation using season gate
+- Extended `targetList` with two new fields: `is_protected`, `kill_cooldown_active`
+
+**`app/(game)/attack/AttackClient.tsx`:**
+- `Target` interface: added `is_protected: boolean`, `kill_cooldown_active: boolean`
+- `ShieldIndicators` → `StatusIndicators` (4 dots: resource shield, soldier shield, protection, kill cooldown)
+- Table column renamed `Shields` → `Status`; legend updated for all 4 dot types
+- Confirm modal: `Shields` label → `Status`; passes new fields to `StatusIndicators`
+- **Battle Report modal:** "Why Nothing Was Gained" now also shows as "Combat Modifiers" when any reason is active but gains > 0 (e.g. kill cooldown active + loot gained). This ensures kill cooldown and other modifiers are always explained, not only when gains are zero.
+- `REASON_LABELS` strings updated for clarity (include cooldown hours, shield specifics)
+
+**`docs/GameMechanics-SingleSourceOfTruth.md`:**
+- §7 Kill Cooldown section expanded with UI mapping
+- New §7 subsections: "Status Column (Attack Targets Table)" and "Battle Report Flags and UI Mapping"
+
+---
+
+### 2026-03-05 — Binary combat outcome (no draw/partial)
+
+**Root cause fixed:** Attacker ECP 1,250 vs defender ECP 1,205 (ratio ≈ 1.04) was showing "Draw" because `WIN_THRESHOLD` was 1.30 — ratio 1.04 fell in the old `[0.75, 1.30)` partial band, which mapped to `'draw'` in the DB and "Draw" in the UI.
+
+**Rule change:** Outcome is now strictly binary — `ratio >= 1.0 → 'win'`; `ratio < 1.0 → 'loss'`. No partial/draw exists.
+
+**Files changed (11):**
+- `config/balance.config.ts` — `WIN_THRESHOLD` changed from 1.30 → 1.0; `LOSS_THRESHOLD` removed; `LOOT_OUTCOME_MULTIPLIER.partial` removed
+- `lib/game/balance-validate.ts` — removed `LOSS_THRESHOLD` and `partial` from Zod schema
+- `lib/game/combat.ts` — `CombatOutcome` type narrowed to `'win' | 'loss'`; `determineCombatOutcome()` simplified to single threshold
+- `types/game.ts` — `AttackOutcome` narrowed to `'win' | 'loss'`; `BattleReport.outcome` narrowed to `'WIN' | 'LOSS'`
+- `app/api/attack/route.ts` — removed `partial → draw` DB mapping; removed `PARTIAL` from outcomeMap
+- `app/(game)/attack/AttackClient.tsx` — removed `PARTIAL` from OUTCOME_COLORS/OUTCOME_LABELS; removed "and slaves" from confirm modal
+- `app/(game)/history/HistoryClient.tsx` — removed `partial` from OUTCOME_BADGE; fixed `defOutcome` reversal
+- `supabase/migrations/0010_binary_outcome_constraint.sql` — migrates `draw/crushing_win` → `'win'`, `crushing_loss` → `'loss'`; replaces constraint with `IN ('win', 'loss')`
+- `lib/game/combat.test.ts` — updated outcome tests; removed partial tests; added "never draw" + boundary tests
+- `lib/game/balance.test.ts` — removed `LOSS_THRESHOLD` check
+- `docs/GameMechanics-SingleSourceOfTruth.md` — updated §7 outcome thresholds, soldier loss conditions, slaves section
+
+**Also documented:** defenderLosses=0 while attackerLosses>0 is expected when kill cooldown is active (attacker killed defender soldiers within 6h). The `KILL_COOLDOWN_NO_LOSSES` reason code is included in the battle report. See §7 — "Conditions that force defenderLosses = 0".
+
+**Slaves from combat (at time of this entry):** confirmed always 0 (intentional, reserved column). UI modal updated to not mention slaves. *(Superseded — captives implemented; see entry above.)*
+
+---
 
 ### 2026-03-05 — Farmer unit completely removed
 

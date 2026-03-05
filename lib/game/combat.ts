@@ -45,7 +45,8 @@ import type { Army, Weapons, Training, Development } from '@/types/game'
 // TYPES
 // ─────────────────────────────────────────
 
-export type CombatOutcome = 'win' | 'partial' | 'loss'
+/** Binary outcome — no draw/partial. ratio >= WIN_THRESHOLD → win; else → loss. */
+export type CombatOutcome = 'win' | 'loss'
 
 /** All inputs needed to compute a player's PersonalPower. */
 export interface PersonalPowerInputs {
@@ -381,16 +382,13 @@ export function calculateCombatRatio(attackerECP: number, defenderECP: number): 
 }
 
 /**
- * R ≥ WIN_THRESHOLD  → 'win'
- * R < LOSS_THRESHOLD → 'loss'
- * Otherwise          → 'partial'
- *
- * Tuning target: ~50–60% of same-PP same-city combats produce 'partial'.
+ * Binary outcome — no draw/partial.
+ * R ≥ WIN_THRESHOLD (1.0) → 'win'  (attacker at least as strong as defender)
+ * R <  WIN_THRESHOLD      → 'loss'
  */
 export function determineCombatOutcome(ratio: number): CombatOutcome {
-  if (ratio >= BALANCE.combat.WIN_THRESHOLD)  return 'win'
-  if (ratio <  BALANCE.combat.LOSS_THRESHOLD) return 'loss'
-  return 'partial'
+  if (ratio >= BALANCE.combat.WIN_THRESHOLD) return 'win'
+  return 'loss'
 }
 
 // ─────────────────────────────────────────
@@ -440,6 +438,24 @@ export function calculateSoldierLosses(
     attackerLosses: Math.floor(deployedSoldiers * attackerLossRate),
     defenderLosses: Math.floor(defenderSoldiers * defenderLossRate),
   }
+}
+
+// ─────────────────────────────────────────
+// F2. CAPTIVES
+// ─────────────────────────────────────────
+
+/**
+ * captives = floor(defenderLosses × CAPTURE_RATE)
+ *
+ * Call this AFTER resolving defenderLosses (post-shield/protection/cooldown).
+ * Returns 0 whenever defenderLosses is 0 (kill cooldown / shields / protection
+ * all zero out defenderLosses, which automatically zeros captives too).
+ *
+ * Captives are added to attacker army.slaves and recorded as `slaves_taken`
+ * in the attacks table by the attack_multi_turn_apply RPC.
+ */
+export function calculateCaptives(defenderLosses: number): number {
+  return Math.floor(defenderLosses * BALANCE.combat.CAPTURE_RATE)
 }
 
 // ─────────────────────────────────────────
@@ -520,7 +536,7 @@ export function getLootDecayMultiplier(attackCountInWindow: number): number {
  * BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE      (0.20)
  * FinalLoot[r] = BaseLoot[r] × OutcomeMultiplier × DecayFactor
  *
- * OutcomeMultiplier: win=1.0, partial=0.5, loss=0.0
+ * OutcomeMultiplier: win=1.0, loss=0.0
  * No hard cap. No power-gap block. City restriction is the access limiter.
  *
  * Returns zero loot if outcome is 'loss' or defender is protected.

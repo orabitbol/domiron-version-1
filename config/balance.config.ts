@@ -236,12 +236,11 @@ export const BALANCE = {
   // ECP = (PlayerPP × (1 + HeroBonus)) + ClanBonus
   //   HeroBonus = TotalAttackBonus or TotalDefenseBonus from active hero effects
   //
-  // Outcome:
-  //   R ≥ WIN_THRESHOLD  → win
-  //   R < LOSS_THRESHOLD → loss
-  //   Otherwise          → partial
+  // Outcome (binary — no draw):
+  //   R ≥ WIN_THRESHOLD → win  (attacker gets full loot)
+  //   R <  WIN_THRESHOLD → loss (attacker gets no loot)
   //
-  // Design target: ~50–60% partial for same-PP players within same city.
+  // WIN_THRESHOLD = 1.0: attacker must be at least as strong as defender to win.
   //
   // BEGINNER PROTECTION NOTE:
   //   Attacks on protected players are NEVER blocked.
@@ -251,9 +250,8 @@ export const BALANCE = {
   //   The attacker always pays turns + food regardless of protection.
   // ═══════════════════════════════════════
   combat: {
-    // Outcome thresholds [TUNE]
-    WIN_THRESHOLD:  1.30, // [TUNE]
-    LOSS_THRESHOLD: 0.75, // [TUNE]
+    // Outcome threshold [FIXED] — binary win/loss, no partial/draw
+    WIN_THRESHOLD:  1.0, // [FIXED] R >= 1.0 → win; R < 1.0 → loss
 
     // Soldier loss rates [TUNE]
     BASE_LOSS:            0.15, // [TUNE: placeholder] Loss rate at R = 1.0
@@ -265,9 +263,8 @@ export const BALANCE = {
     BASE_LOOT_RATE: 0.20, // [FIXED] 20% of each unbanked resource
 
     LOOT_OUTCOME_MULTIPLIER: {
-      win:     1.0,
-      partial: 0.5,
-      loss:    0.0,
+      win:  1.0,
+      loss: 0.0,
     } as const,
 
     // Cavalry tier multiplier (Tier 2 relative to Tier 1)
@@ -284,7 +281,13 @@ export const BALANCE = {
     foodCostPerTurn: 1, // [TUNE]
 
     // Kill cooldown — per (attacker_id → target_id) pair
+    // Checked against the `attacks` table (NOT player_hero_effects).
+    // Cooldown fires when attacker has any row with defender_losses > 0 for this target within 6h.
     KILL_COOLDOWN_HOURS: 6, // [FIXED]
+
+    // Captives: fraction of killed defender soldiers that become attacker slaves (army.slaves).
+    // Applied only when defenderLosses > 0 (kill cooldown / shields / protection bypass this).
+    CAPTURE_RATE: 0.10, // [TUNE] 10% of killed defender soldiers become captives
 
     // New player protection window
     // Protection does NOT block attacks — see note above.

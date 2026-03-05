@@ -7,11 +7,12 @@ export type Race = 'orc' | 'human' | 'elf' | 'dwarf'
 export type PlayerRole = 'player' | 'admin'
 
 /**
- * v5 combat outcomes (3-state model).
- * DB migration required: update attacks.outcome column constraint.
- * Old values (crushing_win, draw, crushing_loss) are retired.
+ * v5 combat outcomes (binary — no draw/partial).
+ * ratio >= 1.0 → 'win'; ratio < 1.0 → 'loss'.
+ * DB constraint: attacks.outcome IN ('win', 'loss').
+ * Old values (crushing_win, draw, crushing_loss, partial) are retired.
  */
-export type AttackOutcome = 'win' | 'partial' | 'loss'
+export type AttackOutcome = 'win' | 'loss'
 
 /**
  * Reasons why gains (loot/slaves) or defender losses may be zeroed in a battle.
@@ -49,7 +50,7 @@ export type BattleReportReason =
 
 /** Full structured battle report returned by POST /api/attack */
 export interface BattleReport {
-  outcome: 'WIN' | 'PARTIAL' | 'LOSS'
+  outcome: 'WIN' | 'LOSS'
   ratio:   number
   attacker: {
     name:        string
@@ -68,7 +69,9 @@ export interface BattleReport {
     after:       BattleReportSnapshot
   }
   gained: {
-    loot: { gold: number; iron: number; wood: number; food: number }
+    loot:     { gold: number; iron: number; wood: number; food: number }
+    /** Defender soldiers captured and added to attacker army.slaves. 0 when defenderLosses = 0. */
+    captives: number
   }
   flags: {
     defender_protected:              boolean

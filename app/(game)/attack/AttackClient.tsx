@@ -24,6 +24,10 @@ interface Target {
   is_vacation: boolean
   resource_shield_active: boolean
   soldier_shield_active: boolean
+  /** True if this target is within the new-player protection window. */
+  is_protected: boolean
+  /** True if the logged-in player has an active kill cooldown on this target (6 h). */
+  kill_cooldown_active: boolean
 }
 
 interface Props {
@@ -31,26 +35,24 @@ interface Props {
 }
 
 const OUTCOME_COLORS: Record<string, string> = {
-  WIN:     'text-game-green-bright',
-  PARTIAL: 'text-game-gold-bright',
-  LOSS:    'text-game-red-bright',
+  WIN:  'text-game-green-bright',
+  LOSS: 'text-game-red-bright',
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
-  WIN:     'Victory',
-  PARTIAL: 'Draw',
-  LOSS:    'Defeat',
+  WIN:  'Victory',
+  LOSS: 'Defeat',
 }
 
 const REASON_LABELS: Record<BattleReportReason, string> = {
   OUTCOME_LOSS_NO_LOOT:         'You lost the battle — no loot is gained on defeat',
-  DEFENDER_PROTECTED:           'Target has New Player Protection (24h) — no loot, no soldier losses',
-  RESOURCE_SHIELD_ACTIVE:       'Enemy Resource Shield was active — resources were protected',
+  DEFENDER_PROTECTED:           'Target has New Player Protection (24h) — no loot and no soldier losses to defender',
+  RESOURCE_SHIELD_ACTIVE:       'Enemy Resource Shield active — resources were protected from theft',
   NO_UNBANKED_RESOURCES:        'Enemy had no unbanked resources to steal',
-  KILL_COOLDOWN_NO_LOSSES:      `Kill Cooldown active (${BALANCE.combat.KILL_COOLDOWN_HOURS}h) — defender soldier losses blocked`,
-  ATTACKER_PROTECTED_NO_LOSSES: 'You are under New Player Protection — your soldiers took no losses',
-  SOLDIER_SHIELD_NO_LOSSES:     'Enemy Soldier Shield was active — their soldiers were protected',
-  LOOT_DECAY_REDUCED:           'Repeated attacks on same target reduce plunder (anti-farm)',
+  KILL_COOLDOWN_NO_LOSSES:      `Kill Cooldown (${BALANCE.combat.KILL_COOLDOWN_HOURS}h) — you killed this target's soldiers recently; defender loses no soldiers this attack`,
+  ATTACKER_PROTECTED_NO_LOSSES: 'You are under New Player Protection (24h) — your soldiers took no losses',
+  SOLDIER_SHIELD_NO_LOSSES:     'Enemy Soldier Shield active — their soldiers were protected from losses',
+  LOOT_DECAY_REDUCED:           'Repeated attacks on same target reduce plunder (anti-farm decay active)',
 }
 
 function BattleReportModal({ report, onClose }: { report: BattleReport; onClose: () => void }) {
@@ -115,7 +117,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         </div>
       </div>
 
-      <div className={`border rounded-game-lg p-3 shadow-engrave ${allGainsZero ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
+      <div className={`border rounded-game-lg p-3 shadow-engrave ${allGainsZero && report.gained.captives === 0 ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">You Gained</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
           {(['gold', 'iron', 'wood', 'food'] as const).map((res) => (
@@ -126,6 +128,12 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
               </span>
             </div>
           ))}
+          <div className="flex justify-between col-span-2 border-t border-game-border mt-1 pt-1">
+            <span className="text-game-text-secondary">Captives</span>
+            <span className={report.gained.captives > 0 ? 'text-game-gold-bright font-semibold' : 'text-game-text-muted'}>
+              {formatNumber(report.gained.captives)}
+            </span>
+          </div>
         </div>
         {!allGainsZero && report.flags.anti_farm_decay_mult < 1 && (
           <p className="mt-2 text-game-xs text-game-text-muted font-body italic">
@@ -134,9 +142,17 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         )}
       </div>
 
-      {allGainsZero && (
-        <div className="border border-amber-900/60 bg-amber-950/20 rounded-game-lg p-3 shadow-engrave">
-          <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-bright mb-2">Why Nothing Was Gained</p>
+      {/* Battle notes — shown when gains are zero OR when any modifier is active.
+           Title adapts: "Why Nothing Was Gained" vs "Combat Modifiers". */}
+      {(allGainsZero || report.reasons.length > 0) && (
+        <div className={`border rounded-game-lg p-3 shadow-engrave ${
+          allGainsZero
+            ? 'border-amber-900/60 bg-amber-950/20'
+            : 'border-game-border bg-gradient-to-b from-game-elevated to-game-surface'
+        }`}>
+          <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-bright mb-2">
+            {allGainsZero ? 'Why Nothing Was Gained' : 'Combat Modifiers'}
+          </p>
           {report.reasons.length > 0 ? (
             <ul className="space-y-2">
               {report.reasons.map((reason) => (
@@ -157,17 +173,33 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
   )
 }
 
-function ShieldIndicators({ resource, soldier }: { resource: boolean; soldier: boolean }) {
+interface StatusIndicatorProps {
+  resource: boolean
+  soldier: boolean
+  protected: boolean
+  cooldown: boolean
+}
+
+const STATUS_DOTS = [
+  { key: 'resource',  activeClass: 'bg-game-gold-bright border-game-gold-bright', title: 'Resource Shield active — resources protected'  },
+  { key: 'soldier',   activeClass: 'bg-blue-400 border-blue-400',                 title: 'Soldier Shield active — soldiers protected'     },
+  { key: 'protected', activeClass: 'bg-green-400 border-green-400',               title: 'New Player Protection (24h) — no loot/losses'   },
+  { key: 'cooldown',  activeClass: 'bg-amber-400 border-amber-400',               title: `Kill Cooldown (${BALANCE.combat.KILL_COOLDOWN_HOURS}h) — defender loses no soldiers` },
+] as const
+
+function StatusIndicators({ resource, soldier, protected: isProtected, cooldown }: StatusIndicatorProps) {
+  const values: Record<typeof STATUS_DOTS[number]['key'], boolean> = {
+    resource, soldier, protected: isProtected, cooldown,
+  }
   return (
     <div className="flex gap-1.5 items-center">
-      <span
-        title="Resource Shield"
-        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${resource ? 'bg-game-gold-bright border-game-gold-bright' : 'bg-transparent border-game-border'}`}
-      />
-      <span
-        title="Soldier Shield"
-        className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${soldier ? 'bg-blue-400 border-blue-400' : 'bg-transparent border-game-border'}`}
-      />
+      {STATUS_DOTS.map(({ key, activeClass, title }) => (
+        <span
+          key={key}
+          title={title}
+          className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${values[key] ? activeClass : 'bg-transparent border-game-border'}`}
+        />
+      ))}
     </div>
   )
 }
@@ -291,16 +323,16 @@ export function AttackClient({ targets }: Props) {
       {/* Search */}
       <Input placeholder="Search by army name..." value={search} onChange={(e) => setSearch(e.target.value)} />
 
-      {/* Shield legend */}
-      <div className="flex gap-4 text-game-xs font-body text-game-text-muted">
+      {/* Status legend */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-game-xs font-body text-game-text-muted">
+        {STATUS_DOTS.map(({ key, activeClass, title }) => (
+          <span key={key} className="flex gap-1.5 items-center">
+            <span className={`inline-block w-3 h-3 rounded-full border shadow-emboss ${activeClass}`} />
+            {title.split(' — ')[0]}
+          </span>
+        ))}
         <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-3 h-3 rounded-full bg-game-gold-bright shadow-emboss" /> Resource Shield
-        </span>
-        <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-3 h-3 rounded-full bg-blue-400 shadow-emboss" /> Soldier Shield
-        </span>
-        <span className="flex gap-1.5 items-center">
-          <span className="inline-block w-3 h-3 rounded-full border border-game-border" /> Inactive
+          <span className="inline-block w-3 h-3 rounded-full border border-game-border" /> None
         </span>
       </div>
 
@@ -310,7 +342,7 @@ export function AttackClient({ targets }: Props) {
           <EmptyState title="No Targets Found" description="No enemies match your search or are available to attack." />
         ) : (
           <GameTable
-            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Shields', 'Turns', 'Food Cost', 'Action']}
+            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Status', 'Turns', 'Food Cost', 'Action']}
             striped
             hoverable
             rows={filtered.map((target) => {
@@ -337,7 +369,7 @@ export function AttackClient({ targets }: Props) {
                 <span key="gold" className="text-game-sm font-body tabular-nums text-res-gold">
                   {isSelf ? '—' : formatNumber(target.gold)}
                 </span>,
-                <ShieldIndicators key="shields" resource={target.resource_shield_active} soldier={target.soldier_shield_active} />,
+                <StatusIndicators key="status" resource={target.resource_shield_active} soldier={target.soldier_shield_active} protected={target.is_protected} cooldown={target.kill_cooldown_active} />,
                 isSelf ? <span key="turns" /> : (
                   <Input
                     key="turns" type="number" value={turns[target.id] ?? '1'} min={1} max={10}
@@ -369,8 +401,8 @@ export function AttackClient({ targets }: Props) {
                 <span className="text-game-text-white font-heading uppercase">{confirmTarget.army_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-game-text-secondary">Shields</span>
-                <ShieldIndicators resource={confirmTarget.resource_shield_active} soldier={confirmTarget.soldier_shield_active} />
+                <span className="text-game-text-secondary">Status</span>
+                <StatusIndicators resource={confirmTarget.resource_shield_active} soldier={confirmTarget.soldier_shield_active} protected={confirmTarget.is_protected} cooldown={confirmTarget.kill_cooldown_active} />
               </div>
               <div className="divider-ornate my-1" />
               <div className="flex justify-between">
@@ -387,7 +419,7 @@ export function AttackClient({ targets }: Props) {
               </div>
             </div>
             <p className="text-game-xs text-game-text-muted font-body">
-              Victory grants resources and slaves. Defeat costs soldiers. Choose wisely.
+              Victory grants resources. Defeat costs soldiers. Choose wisely.
             </p>
             <div className="flex gap-3 pt-2">
               <Button variant="danger" loading={loading} disabled={isFrozen} onClick={executeAttack}>Attack!</Button>
