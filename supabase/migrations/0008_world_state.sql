@@ -20,18 +20,25 @@
 --   2. Change vercel.json cron schedule from "* * * * *" back to "*/30 * * * *"
 -- ============================================================
 
-CREATE TABLE world_state (
+CREATE TABLE IF NOT EXISTS world_state (
   id           INT PRIMARY KEY DEFAULT 1,
   next_tick_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT world_state_single_row CHECK (id = 1)
 );
 
 -- Seed the single row.  The first real tick will overwrite next_tick_at.
-INSERT INTO world_state (id, next_tick_at) VALUES (1, now());
+INSERT INTO world_state (id, next_tick_at) VALUES (1, now()) ON CONFLICT (id) DO NOTHING;
 
 -- RLS: enable + public read (anyone can ask when the next tick is)
 ALTER TABLE world_state ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "world_state_select_public"
-  ON world_state FOR SELECT
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'world_state' AND policyname = 'world_state_select_public'
+  ) THEN
+    CREATE POLICY "world_state_select_public"
+      ON world_state FOR SELECT
+      USING (true);
+  END IF;
+END $$;
