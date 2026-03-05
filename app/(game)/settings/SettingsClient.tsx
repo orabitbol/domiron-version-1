@@ -17,7 +17,6 @@ interface Props {
     race: string
     city: number
     turns: number
-    max_turns: number
     power_total: number
     vip_until: string | null
   }

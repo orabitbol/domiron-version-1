@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   const supabase = createAdminClient()
   const { data: player } = await supabase
     .from('players')
-    .select('id,username,email,role,race,city,turns,max_turns,power_total,vip_until')
+    .select('id,username,email,role,race,city,turns,power_total,vip_until')
     .eq('id', session.user.id)
     .single()
 

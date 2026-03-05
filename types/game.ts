@@ -99,6 +99,7 @@ export interface Player {
   army_name: string
   city: number
   turns: number
+  /** @deprecated DB column — legacy, dead for gameplay. Use BALANCE.tick.maxTurns for all turn-cap logic. */
   max_turns: number
   reputation: number
   rank_city: number | null

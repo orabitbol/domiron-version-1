@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const { data: players, error: playersError } = await supabase
       .from('players')
       .select(`
-        id, city, race, turns, max_turns, is_vacation, vip_until,
+        id, city, race, turns, is_vacation, vip_until,
         power_attack, power_defense, power_spy, power_scout,
         army:army!inner(slaves, slaves_gold, slaves_iron, slaves_wood, slaves_food, free_population),
         development:development!inner(

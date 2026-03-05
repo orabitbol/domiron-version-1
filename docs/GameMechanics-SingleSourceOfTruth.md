@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — City promotion threshold formula parameters added to BALANCE with Zod guards. Prior: bank upgrade RPC atomicity, interest table 11 tiers.
+**Last updated:** 2026-03-05 — Audit #4: players.max_turns removed from all SELECT queries; BALANCE.tick.maxTurns confirmed as sole turn-cap SSOT. Prior: city promotion threshold formula, bank upgrade RPC atomicity.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -91,7 +91,7 @@ newTurns = min(currentTurns + toAdd, MAX_TURNS)
 **DB:** `players.turns`, `players.is_vacation`
 **Route:** `app/api/tick/route.ts` line 69
 
-> ⚠️ **[INCONSISTENT]** `players.max_turns` DB column default = 30; `BALANCE.tick.maxTurns` = 200. The DB column is not used in any formula — the BALANCE constant governs all logic. The DB column is dead weight.
+> ✅ **[RESOLVED — Audit #4]** `players.max_turns` DB column is **dead/legacy**. It is never SELECTed in any route or query and must not be used for any gameplay logic. `BALANCE.tick.maxTurns = 200` is the single source of truth for the turn cap, enforced by `calcTurnsToAdd()` in `lib/game/tick.ts`. The DB column is retained in the schema but marked `@deprecated` in `types/game.ts`. Structural regression guard: `lib/game/max-turns-audit.test.ts`.
 
 ### Tick Processing Order
 
@@ -1712,7 +1712,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 | # | Issue | Location |
 |---|---|---|
 | I1 | **`maxLifetimeDeposits` vs `depositsPerDay`.** Both = 5 but `maxLifetimeDeposits` is never referenced in code. The actually enforced limit is `depositsPerDay`. | `balance.config.ts` |
-| I2 | **`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic. | DB schema vs `tick.ts` |
+| ~~I2~~ | ~~**`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic.~~ | **Resolved (Audit #4)** — column removed from all SELECT queries; `@deprecated` in `types/game.ts`; structural guard in `lib/game/max-turns-audit.test.ts`. |
 | ~~I3~~ | ~~`players.capacity` DB default mismatch~~ | **Resolved** — capacity gate removed entirely; `players.capacity` column is legacy (not read or written). |
 | I4 | **`BALANCE.combat.FOOD_PER_SOLDIER`** (dead constant). Documented as `food_cost = soldiers × FOOD_PER_SOLDIER` but no route uses this formula. Actual cost: `turns × foodCostPerTurn`. | `balance.config.ts:278` |
 | I5 | **`calcTurnsAfterRegen`** in `combat.ts` is dead production code — only called from tests. Tick route uses `calcTurnsToAdd(turns, isVacation)` from `tick.ts` (with vacation modifier). | `lib/game/combat.ts:574` |
@@ -1753,6 +1753,18 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Audit #4: Max Turns SSOT (`players.max_turns` → dead/legacy)
+
+Removed `players.max_turns` from all DB SELECT queries and confirmed `BALANCE.tick.maxTurns = 200` is the sole turn-cap authority.
+- `app/api/tick/route.ts`: removed `max_turns` from SELECT string (it was fetched but never used — tick uses `calcTurnsToAdd` which reads `BALANCE.tick.maxTurns`)
+- `app/api/player/route.ts`: removed `max_turns` from SELECT string
+- `app/(game)/layout.tsx`: removed `max_turns` from SELECT string
+- `app/(game)/settings/page.tsx`: removed `max_turns` from SELECT string
+- `app/(game)/settings/SettingsClient.tsx`: removed `max_turns: number` from Props interface
+- `types/game.ts`: added `@deprecated` JSDoc to `max_turns: number` field
+- `lib/game/max-turns-audit.test.ts`: **new** — 14 structural tests: no route SELECTs `max_turns`, tick helper uses BALANCE cap, `calcTurnsToAdd` clamps correctly
+- DB column unchanged — retained in schema, `@deprecated` in TS types, not read anywhere
 
 ### 2026-03-05 — City Promotion Threshold Formula Parameters
 
