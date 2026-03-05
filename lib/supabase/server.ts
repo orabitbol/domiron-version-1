@@ -30,11 +30,18 @@ export function createClient() {
 
 // Admin Supabase client — uses service role key
 // ONLY for API Routes that need to bypass RLS (e.g. tick, register)
+//
+// global.fetch passes cache:'no-store' on every request so Next.js 14's
+// aggressive fetch cache never returns stale DB values from this client.
 export function createAdminClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
+      global: {
+        fetch: (url: RequestInfo | URL, init?: RequestInit) =>
+          fetch(url, { ...init, cache: 'no-store' }),
+      },
       cookies: {
         getAll() { return [] },
         setAll() {},

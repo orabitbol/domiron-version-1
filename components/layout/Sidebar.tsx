@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -91,55 +91,111 @@ function AnimatedNumber({ value }: { value: number }) {
  *   2. On tick_completed window event (dispatched by RealtimeSync from the
  *      realtime broadcast payload): update nextTickAt to the new server value
  *   3. Heartbeat re-sync every 5 minutes to correct any drift
- *   4. Fallback: if fetch fails, getTimeUntilNextTick() is used (local clock)
+ *   4. When timer reaches 0 (tick overdue): poll every 5 s until next_tick_at
+ *      is in the future again (tick ran + world_state updated)
+ *   5. Fallback: if fetch fails, getTimeUntilNextTick() is used (local clock)
+ *
+ * In development (NODE_ENV=development) a debug line is shown below the timer.
  */
 function TickCountdown() {
   const [nextTickAt, setNextTickAt] = useState<string | null>(null);
+  const [serverNow, setServerNow] = useState<string | null>(null);
   const [ms, setMs] = useState<number | null>(null);
+  const overduePollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch server-authoritative next_tick_at
-  const syncFromServer = () => {
+  const syncFromServer = useCallback(() => {
     fetch("/api/tick-status")
       .then((r) => r.json())
-      .then((data: { next_tick_at: string | null }) => {
+      .then((data: { server_now: string; next_tick_at: string | null }) => {
+        if (process.env.NODE_ENV === "development") {
+          const d = data.next_tick_at ? new Date(data.next_tick_at) : null;
+          const diff = d ? d.getTime() - Date.now() : null;
+          console.log("[TickCountdown] server_now", data.server_now);
+          console.log("[TickCountdown] next_tick_at", data.next_tick_at);
+          console.log("[TickCountdown] parsed toString()", d?.toString() ?? "null");
+          console.log("[TickCountdown] isNaN?", d ? isNaN(d.getTime()) : "no date");
+          console.log("[TickCountdown] diff ms", diff, diff !== null ? (diff > 0 ? "FUTURE ✓" : "PAST ✗") : "—");
+        }
         if (data.next_tick_at) setNextTickAt(data.next_tick_at);
+        if (data.server_now) setServerNow(data.server_now);
       })
       .catch(() => {/* fallback to local clock via null nextTickAt */});
-  };
+  }, []);
 
   // Mount: initial fetch + heartbeat every 5 minutes
   useEffect(() => {
     syncFromServer();
     const heartbeat = setInterval(syncFromServer, 5 * 60 * 1000);
     return () => clearInterval(heartbeat);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [syncFromServer]);
 
   // Listen for tick_completed window event dispatched by RealtimeSync
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ next_tick_at: string }>).detail;
-      if (detail?.next_tick_at) setNextTickAt(detail.next_tick_at);
+      if (detail?.next_tick_at) {
+        setNextTickAt(detail.next_tick_at);
+        // Stop any overdue poller — a fresh next_tick_at just arrived
+        if (overduePollerRef.current) {
+          clearInterval(overduePollerRef.current);
+          overduePollerRef.current = null;
+        }
+      }
     };
     window.addEventListener("domiron:tick-completed", handler);
     return () => window.removeEventListener("domiron:tick-completed", handler);
   }, []);
 
-  // Count down every second from nextTickAt (or fallback to local clock)
+  // Count down every second; when overdue, start polling every 5 s
   useEffect(() => {
     const compute = () =>
       nextTickAt
-        ? Math.max(0, new Date(nextTickAt).getTime() - Date.now())
+        ? new Date(nextTickAt).getTime() - Date.now()
         : getTimeUntilNextTick();
-    setMs(compute());
-    const id = setInterval(() => setMs(compute()), 1000);
-    return () => clearInterval(id);
-  }, [nextTickAt]);
+
+    const tick = () => {
+      const raw = compute();
+      setMs(Math.max(0, raw));
+
+      if (raw <= 0 && !overduePollerRef.current) {
+        // Tick is overdue — poll server every 5 s until next_tick_at advances
+        overduePollerRef.current = setInterval(() => {
+          syncFromServer();
+        }, 5_000);
+      } else if (raw > 0 && overduePollerRef.current) {
+        clearInterval(overduePollerRef.current);
+        overduePollerRef.current = null;
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearInterval(id);
+      if (overduePollerRef.current) {
+        clearInterval(overduePollerRef.current);
+        overduePollerRef.current = null;
+      }
+    };
+  }, [nextTickAt, syncFromServer]);
+
+  const isDev = process.env.NODE_ENV === "development";
+  const remainingSec = ms !== null ? Math.round(ms / 1000) : null;
 
   return (
-    <span className="tabular-nums font-semibold text-game-gold-bright">
-      {ms === null ? "--:--" : formatCountdown(ms)}
-    </span>
+    <>
+      <span className="tabular-nums font-semibold text-game-gold-bright">
+        {ms === null ? "--:--" : formatCountdown(ms)}
+      </span>
+      {isDev && nextTickAt && (
+        <span
+          title={`server_now=${serverNow ?? "?"} next_tick_at=${nextTickAt} remaining=${remainingSec}s`}
+          className="ms-1 text-[8px] text-game-text-muted tabular-nums cursor-help"
+        >
+          ({remainingSec}s)
+        </span>
+      )}
+    </>
   );
 }
 

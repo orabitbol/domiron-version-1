@@ -4,8 +4,11 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Vercel Cron jobs are called by Vercel infrastructure
-  // No extra config needed for App Router API routes
+  // Required in Next.js 14.x to activate instrumentation.ts (register() hook).
+  // In Next.js 15+ this flag is no longer needed (hook is unconditionally active).
+  experimental: {
+    instrumentationHook: true,
+  },
 }
 
 export default withNextIntl(nextConfig)

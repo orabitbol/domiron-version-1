@@ -18,9 +18,16 @@ const TICK_DEBUG = process.env.TICK_DEBUG === '1'
 
 // How many minutes until the next tick after this one completes.
 // Production: 30  (match vercel.json "*/30 * * * *")
-// Debug:       1  (match vercel.json "* * * * *" OR set env var)
-// Override: set TICK_INTERVAL_MINUTES=1 in .env without touching balance config.
-const TICK_INTERVAL_MINUTES = Number(process.env.TICK_INTERVAL_MINUTES ?? BALANCE.tick.intervalMinutes)
+// Debug:       1  (match vercel.json "* * * * *" AND set TICK_INTERVAL_MINUTES=1)
+// Switching back: set TICK_INTERVAL_MINUTES=30 (or remove env var) + change vercel.json.
+//
+// NOTE: uses || not ?? so that empty string ("") also falls back to the balance default.
+//       Number("") = 0 which is falsy, so || correctly rejects it.
+const _rawInterval = Number(process.env.TICK_INTERVAL_MINUTES)
+const TICK_INTERVAL_MINUTES =
+  Number.isFinite(_rawInterval) && _rawInterval > 0
+    ? _rawInterval
+    : BALANCE.tick.intervalMinutes
 
 // GET /api/tick — called by Vercel Cron (see vercel.json for schedule)
 // Protected by CRON_SECRET header
@@ -29,6 +36,9 @@ export async function GET(request: NextRequest) {
   if (cronSecret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Always visible — confirms the tick route is actually being called
+  console.log('[TICK] auth=ok — tick starting at', new Date().toISOString())
 
   const startTime = Date.now()
   const supabase = createAdminClient()
@@ -53,14 +63,37 @@ export async function GET(request: NextRequest) {
 
     if (playersError) throw playersError
 
+    // Always log how many players the join returned
+    console.log(`[TICK] playersFound=${players?.length ?? 0}`)
+
     if (!players || players.length === 0) {
-      if (TICK_DEBUG) console.log('[TICK] No players found — nothing to process')
+      // Diagnose why the join returned 0 rows: is the players table actually empty,
+      // or did !inner joins exclude someone missing a related row?
+      const { count: rawCount } = await supabase
+        .from('players')
+        .select('*', { count: 'exact', head: true })
+      console.log(
+        `[TICK] Raw players table count (no joins): ${rawCount}.` +
+        (rawCount && rawCount > 0
+          ? ' A player is missing army/development/hero/bank/or resources row — !inner join excluded them.'
+          : ' Players table is empty.')
+      )
+
+      // Still advance world_state so the UI timer never stays at 00:00
+      const emptyNextTickAt = new Date(Date.now() + TICK_INTERVAL_MINUTES * 60_000).toISOString()
+      const { error: emptyWsErr } = await supabase
+        .from('world_state')
+        .upsert({ id: 1, next_tick_at: emptyNextTickAt })
+      if (emptyWsErr) {
+        console.error('[TICK] world_state upsert FAILED (empty tick):', emptyWsErr)
+      } else {
+        await broadcastTickCompleted(supabase, emptyNextTickAt)
+        console.log('[TICK] world_state next=', emptyNextTickAt)
+      }
       return NextResponse.json({ data: { processed: 0, duration: 0 } })
     }
 
-    if (TICK_DEBUG) {
-      console.log(`[TICK] Starting tick for ${players.length} player(s) at ${new Date().toISOString()}`)
-    }
+    console.log(`[TICK] Processing ${players.length} player(s) at ${new Date().toISOString()}`)
 
     // Process each player
     const now = new Date().toISOString()
@@ -89,6 +122,7 @@ export async function GET(request: NextRequest) {
       activeTribeSpells?.filter(s => s.spell_key === 'production_blessing').map(s => s.tribe_id) ?? []
     )
 
+    let playerIdx = 0
     for (const player of players) {
       const army = player.army as unknown as {
         slaves: number; farmers: number; free_population: number
@@ -111,14 +145,7 @@ export async function GET(request: NextRequest) {
       // 2. Population growth
       const popGrowth = calcPopulationGrowth(dev.population_level, player.vip_until)
 
-      if (TICK_DEBUG) {
-        console.log(
-          `[TICK] player=${player.id.slice(0, 8)}` +
-          ` turns: ${player.turns} → ${newTurns}` +
-          ` untrained: ${army.free_population} → ${army.free_population + popGrowth}` +
-          ` vacation=${player.is_vacation}`
-        )
-      }
+      // Per-player log added below, after goldGained is computed
 
       // 3. Slave production — per-resource assignment (each slave produces one resource)
       // slaves_gold/iron/wood/food are the assigned counts; idle slaves produce nothing.
@@ -152,6 +179,22 @@ export async function GET(request: NextRequest) {
       const woodGained = Math.floor((woodProd.min + Math.random() * (woodProd.max - woodProd.min)) * tribeProdMult)
       const foodGained = Math.floor((foodProd.min + Math.random() * (foodProd.max - foodProd.min)) * tribeProdMult)
 
+      // Always log first 3 players — proof that mutations will happen
+      if (playerIdx < 3) {
+        console.log(
+          `[TICK] player[${playerIdx}]=${player.id.slice(0, 8)}` +
+          ` turns: ${player.turns}→${newTurns}` +
+          ` gold: ${res.gold}→${res.gold + goldGained}(+${goldGained})` +
+          ` freePop: ${army.free_population}→${army.free_population + popGrowth}`
+        )
+      } else if (TICK_DEBUG) {
+        console.log(
+          `[TICK] player=${player.id.slice(0, 8)}` +
+          ` turns: ${player.turns}→${newTurns}` +
+          ` gold+${goldGained} freePop: ${army.free_population}→${army.free_population + popGrowth}`
+        )
+      }
+
       // 4. Hero mana
       const manaGain = calcHeroManaGain(hero.level, player.vip_until)
 
@@ -168,8 +211,8 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Update everything in parallel per player
-      await Promise.all([
+      // Update everything in parallel per player; surface any errors immediately
+      const [turnsRes, resRes, armyRes, heroRes, bankRes] = await Promise.all([
         supabase
           .from('players')
           .update({ turns: newTurns } as Record<string, unknown>)
@@ -198,8 +241,23 @@ export async function GET(request: NextRequest) {
 
         Object.keys(bankUpdate).length > 1
           ? supabase.from('bank').update(bankUpdate).eq('player_id', player.id)
-          : Promise.resolve(),
+          : Promise.resolve({ error: null }),
       ])
+
+      // Log any failed updates so they are never silently swallowed
+      const updateErrs = [
+        turnsRes.error && `players(turns): ${turnsRes.error.message}`,
+        resRes.error   && `resources: ${resRes.error.message}`,
+        armyRes.error  && `army: ${armyRes.error.message}`,
+        heroRes.error  && `hero: ${heroRes.error.message}`,
+        (bankRes as { error: unknown }).error &&
+          `bank: ${((bankRes as { error: { message: string } }).error).message}`,
+      ].filter(Boolean)
+      if (updateErrs.length > 0) {
+        console.error(`[TICK] player=${player.id.slice(0, 8)} UPDATE ERRORS:`, updateErrs)
+      }
+
+      playerIdx++
     }
 
     // 6. Update tribe mana
@@ -284,8 +342,33 @@ export async function GET(request: NextRequest) {
     }
 
     // 9. Compute next_tick_at and persist to world_state (server-authoritative timer)
-    const nextTickAt = new Date(Date.now() + TICK_INTERVAL_MINUTES * 60_000).toISOString()
-    await supabase.from('world_state').update({ next_tick_at: nextTickAt }).eq('id', 1)
+    //
+    // Use UPSERT (not update) so the row is guaranteed to exist even if the
+    // migration was never applied or the seed INSERT failed.
+    // NOTE: Supabase `.update().eq()` returns { error: null } even when 0 rows
+    // match — it silently does nothing.  Upsert avoids this entire class of bug.
+    const tickDoneAt = new Date()
+    const nextTickAt = new Date(tickDoneAt.getTime() + TICK_INTERVAL_MINUTES * 60_000).toISOString()
+
+    const { data: wsData, error: wsError } = await supabase
+      .from('world_state')
+      .upsert({ id: 1, next_tick_at: nextTickAt })
+      .select('next_tick_at')
+
+    if (wsError) {
+      console.error('[TICK] world_state upsert FAILED:', wsError)
+      throw new Error(`world_state upsert failed: ${wsError.message}`)
+    }
+
+    // Verify the value actually landed — log both what we sent and what the DB confirms
+    const confirmedAt = (wsData as { next_tick_at: string }[] | null)?.[0]?.next_tick_at ?? '(no row returned)'
+    const diffSec = Math.round((new Date(nextTickAt).getTime() - tickDoneAt.getTime()) / 1000)
+    console.log(
+      `[TICK] world_state OK: sent=${nextTickAt} confirmed=${confirmedAt} diffSec=${diffSec}`
+    )
+    if (confirmedAt !== nextTickAt) {
+      console.error('[TICK] world_state MISMATCH — upsert did not persist the value!')
+    }
 
     // 10. Broadcast tick event — includes next_tick_at so clients reset their countdown
     await broadcastTickCompleted(supabase, nextTickAt)

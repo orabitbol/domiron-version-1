@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 
 // Force dynamic — this must never be cached; it returns the live next_tick_at.
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic'
  * (i.e. the DB migration ran but no tick has executed yet).
  */
 export async function GET() {
+  noStore() // Belt-and-suspenders: prevent Next.js fetch cache from serving stale data
   const supabase = createAdminClient()
 
   const { data } = await supabase
