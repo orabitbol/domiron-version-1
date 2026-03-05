@@ -464,11 +464,9 @@ Source: `BALANCE.startingResources.startingPopulation = 50`, set in `app/api/aut
 | Train slave | −amount |
 | Train spy | −amount |
 | Train scout | −amount |
-| Train cavalry | **no change** (uses existing soldiers) |
-| Untrain soldier | +amount |
-| Untrain spy | +amount |
-| Untrain scout | +amount |
-| Untrain cavalry | **[MISSING]** not supported — no route |
+| Train cavalry | −(amount × 5) (popCost = 5 per cavalry) |
+| Untrain slave | +amount |
+| Untrain soldier/spy/scout/cavalry | **not supported** — API returns 400 |
 | Combat losses | **no change** (soldiers lost ≠ population returned) |
 
 Source: `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
@@ -488,17 +486,27 @@ Source: `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
 | slave | 0 | 1 free_pop | — |
 | spy | 80 | 1 free_pop | — |
 | scout | 80 | 1 free_pop | — |
-| cavalry | 200 | **0** | amount × 5 existing soldiers |
+| cavalry | 200 | **5 free_pop per cavalry** (`popCost = 5`) | `BALANCE.training.enableCavalry = true` |
 
 Source: `BALANCE.training.unitCost`
+
+### Untrain: Slaves Only
+
+**Only slaves can be untrained.** Soldiers, spies, scouts, and cavalry are permanent assignments.
+
+- `army.slaves -= amount`
+- `army.free_population += amount`
+- Costs nothing (no gold refund)
+- API returns 400 `{ error: 'Untrain not supported for this unit' }` for any other unit
+
+Source: `app/api/training/untrain/route.ts` — schema: `z.literal('slave')`
 
 ### No Unit Cap — Training Gates Only
 
 There is **no capacity cap** on any unit type. The old `players.capacity` DB column is legacy and is not used in any training gate. Training is gated only by:
 
 1. Gold sufficiency
-2. Free population (all units except cavalry consume 1 free_pop per unit)
-3. Cavalry soldier ratio (cavalry requires `amount × 5` existing soldiers)
+2. Free population (all units consume free_pop; cavalry costs 5 free_pop each via `popCost`)
 
 `players.capacity` column remains in DB for historical reference — not read, not written by any route.
 
@@ -508,19 +516,38 @@ There is **no capacity cap** on any unit type. The old `players.capacity` DB col
 2. Season freeze check → 423
 3. Input validation (unit, amount ≥ 1)
 4. Fetch army + resources
-5. Gold sufficiency check
-6. Free population check (if not cavalry)
-7. Cavalry ratio check (if cavalry: `soldiers ≥ amount × 5`)
-8. DB writes: resources (deduct gold), army (add unit, deduct free_pop if applicable)
+5. Cavalry feature-flag check: if `unit='cavalry'` and `!BALANCE.training.enableCavalry` → 400 `'Cavalry is disabled'`
+6. Gold sufficiency check
+7. Population check: cavalry needs `amount × popCost (5)` free_pop; others need `amount` free_pop
+8. DB writes: resources (deduct gold), army (add unit, deduct free_pop)
 9. Recalculate power
 
 ### Gate Order (untrain route)
 
 1. Auth check → 401
 2. Season freeze check → 423
-3. Unit must be soldier/spy/scout (cavalry untrain **[MISSING]**)
-4. Sufficient units exist
-5. DB writes: army (deduct unit, add free_pop)
+3. Unit must be `'slave'` — all others → 400
+4. `army.slaves >= amount` check
+5. DB write: army (decrement slaves, increment free_pop)
+6. Recalculate power
+
+### Cavalry Feature Toggle
+
+```typescript
+BALANCE.training.enableCavalry: boolean  // default: true
+```
+
+**When `true`** (default): cavalry training works normally.
+
+**When `false`**:
+- `POST /api/training/basic` with `unit='cavalry'` → 400 `{ error: 'Cavalry is disabled' }`
+- TrainingClient hides the cavalry row from Train tab and Army overview
+- No crashes for players with existing cavalry in DB — cavalry still counts in power, it's just not trainable
+- No DB migration needed — toggle is purely in-memory config
+
+**To disable cavalry:** set `BALANCE.training.enableCavalry = false` in `config/balance.config.ts`. **Single place, no other changes needed.**
+
+Source: `config/balance.config.ts` → `training.enableCavalry`; validated by `lib/game/balance-validate.ts`
 
 ### Advanced Training (Skills)
 
@@ -589,7 +616,7 @@ SpyScore = spies × 5 + scouts × 5
 ### What Triggers PP Recalculation
 
 PP recalculates (via `recalculatePower()`) after:
-- Soldier/cavalry count changes (train, untrain, combat losses)
+- Soldier count changes (train, untrain, combat losses) or cavalry count changes (train only — cavalry are never lost in combat)
 - Equipment changes (buy, sell)
 - Skill level changes (advanced training)
 - Fortification level changes (development upgrade)
@@ -692,6 +719,8 @@ finalECP = floor(baseECP × tribeMultiplier)
 > **Food cost** in the route: `foodCost = Math.ceil(attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed)` (e.g. 100 soldiers × 0.05 × 3 turns = 15 food). `Math.ceil` is required because food is stored as Postgres `BIGINT` — fractional values such as `0.2` would cause a `22P02` error. `foodCostPerTurn` has been **removed** — `FOOD_PER_SOLDIER` is now the sole formula constant.
 
 > **Deployed soldiers:** The route always passes `attArmy.soldiers` as `deployedSoldiers` — meaning **all soldiers are always deployed**. There is no partial deployment mechanic.
+
+> **Cavalry are permanent:** Cavalry are never lost in combat. `attLosses` and `defLosses` apply to soldiers only. The battle report always shows `cavalry: 0` in `losses` and carries `cavalry: army.cavalry` (unchanged) in the `before`/`after` snapshots. The `attack_resolve_apply` RPC never modifies the `cavalry` column. This rule holds regardless of the `enableCavalry` flag — existing cavalry is always preserved.
 
 ### Combat Resolution Order of Operations
 
@@ -1831,6 +1860,36 @@ Added server-side 1 s cooldown for attack and spy actions to prevent spam and un
 - `types/game.ts`: added `last_attack_at: string | null` and `last_spy_at: string | null` to `Player` interface
 - `lib/game/rate-limiting.test.ts`: **new** — 23 tests (attack structural ×5, spy structural ×5, migration structural ×5, pure-logic gate scenarios ×8)
 - `docs/GameMechanics-SingleSourceOfTruth.md`: §26 "Rate Limiting" added
+
+### 2026-03-05 — Training Rules: Untrain slaves-only, Cavalry popCost, Cavalry permanence, enableCavalry toggle
+
+Four behaviour changes applied together:
+
+**A) Untrain: slaves only**
+- `app/api/training/untrain/route.ts`: schema changed from `z.enum(['soldier','spy','scout'])` to `z.literal('slave')`. Route now only decrements `army.slaves` and increments `army.free_population`. All other units return 400.
+- `app/(game)/training/TrainingClient.tsx`: Untrain tab now shows a single slave row. `untrainUnit(UntrainUnit)` replaced with `untrainSlaves()`.
+
+**B) Cavalry cost: 5 free_population per cavalry (no soldier requirement)**
+- `config/balance.config.ts`: cavalry config changed from `{ soldierRatio: 5 }` to `{ popCost: 5 }`.
+- `lib/game/balance-validate.ts`: cavalry schema updated accordingly.
+- `app/api/training/basic/route.ts`: removed soldier-ratio gate; added population gate (`amount * popCost` free_pop required); cavalry now deducts free_population.
+- `app/(game)/training/TrainingClient.tsx`: `canAffordTrain` updated; cavalry requirements text updated to "Costs 5 free population each".
+
+**C) Cavalry permanent — cannot be killed in combat**
+- Already true: `attack_resolve_apply` RPC never updates `cavalry` column. Attack route always has `cavalry: 0` in losses and carries `attArmy.cavalry` unchanged in snapshots. No changes needed — confirmed and documented.
+
+**D) enableCavalry feature toggle**
+- `config/balance.config.ts`: `BALANCE.training.enableCavalry: true` added (default on).
+- `lib/game/balance-validate.ts`: `enableCavalry: z.boolean()` added to training schema.
+- `app/api/training/basic/route.ts`: early guard — `if (unit === 'cavalry' && !BALANCE.training.enableCavalry) → 400 'Cavalry is disabled'`.
+- `app/(game)/training/TrainingClient.tsx`: cavalry row hidden via `.filter()` when `!enableCavalry`; StatBox cavalry row hidden; population text adapts.
+
+**Tests added:** `lib/game/training-rules.test.ts` — 36 tests (GROUP 1: untrain schema; GROUP 2: untrain pure logic; GROUP 3: cavalry popCost structural; GROUP 4: feature flag structural; GROUP 5: cavalry train pure logic; GROUP 6: combat permanence; GROUP 7: UI toggle).
+**Balance test updated:** `lib/game/balance.test.ts` — `soldierRatio` → `popCost`, `enableCavalry` boolean check added.
+
+**To disable cavalry: set `BALANCE.training.enableCavalry = false` in `config/balance.config.ts`. Single place. No other changes needed.**
+
+**479 → 515 tests passing, 0 TypeScript errors.**
 
 ### 2026-03-05 — BIGINT Fix: Math.ceil for Food Formula
 

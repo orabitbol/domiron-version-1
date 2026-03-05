@@ -365,8 +365,12 @@ export const BALANCE = {
       slave:    { gold: 0,   capacityCost: 0              }, // [FIXED] Free: converts pop → idle slave, no gold cost
       spy:      { gold: 80,  capacityCost: 1              }, // [TUNE]
       scout:    { gold: 80,  capacityCost: 1              }, // [TUNE]
-      cavalry:  { gold: 200, capacityCost: 2, soldierRatio: 5 }, // [TUNE]
+      cavalry:  { gold: 200, capacityCost: 2, popCost: 5 }, // [TUNE] 5 free_population per 1 cavalry
     },
+
+    // Set to false to instantly disable cavalry training across the whole game.
+    // Existing cavalry in DB remains and still contributes to power; only new training is blocked.
+    enableCavalry: true, // [TOGGLE]
 
     populationPerTick: {
       1: 1, 2: 2,  3: 3,  4: 4,  5: 5,
@@ -378,8 +382,8 @@ export const BALANCE = {
     EXPONENTIAL_GROWTH_FLOOR:   10_000,                  // [TUNE]
     // NOTE: There is no capacity cap on combat units.
     // The players.capacity DB column is legacy — not used in any training gate.
-    // Only constraints that remain: gold cost, free_population (consumed per unit),
-    // and cavalry's soldierRatio requirement.
+    // Only constraints that remain: gold cost, free_population (consumed per unit).
+    // Cavalry: costs 5 free_population per unit (popCost) + gold; no soldier requirement.
   },
 
   // ═══════════════════════════════════════

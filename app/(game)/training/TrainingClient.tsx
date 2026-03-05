@@ -14,7 +14,6 @@ import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Training } from '@/types/game'
 
 type BasicUnit = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry'
-type UntrainUnit = 'soldier' | 'spy' | 'scout'
 type AdvancedType = 'attack' | 'defense' | 'spy' | 'scout'
 
 const UNIT_LABELS: Record<BasicUnit, string> = {
@@ -23,12 +22,6 @@ const UNIT_LABELS: Record<BasicUnit, string> = {
   spy:     'Spy',
   scout:   'Scout',
   cavalry: 'Cavalry',
-}
-
-const UNTRAIN_LABELS: Record<UntrainUnit, string> = {
-  soldier: 'Soldiers',
-  spy:     'Spies',
-  scout:   'Scouts',
 }
 
 const ADVANCED_LABELS: Record<AdvancedType, string> = {
@@ -52,9 +45,7 @@ export function TrainingClient() {
   const [trainAmts,   setTrainAmts]   = useState<Record<BasicUnit, string>>({
     soldier: '', slave: '', spy: '', scout: '', cavalry: '',
   })
-  const [untrainAmts, setUntrainAmts] = useState<Record<UntrainUnit, string>>({
-    soldier: '', spy: '', scout: '',
-  })
+  const [untrainAmt, setUntrainAmt] = useState('')
   const [loadingUnit, setLoadingUnit] = useState<string | null>(null)
   const [loadingAdv,  setLoadingAdv]  = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
@@ -90,28 +81,28 @@ export function TrainingClient() {
     }
   }
 
-  // ── Untrain ───────────────────────────────────────────────────────────────
+  // ── Untrain (slaves only) ─────────────────────────────────────────────────
 
-  async function untrainUnit(unit: UntrainUnit) {
-    const amt = parseInt(untrainAmts[unit] || '0')
+  async function untrainSlaves() {
+    const amt = parseInt(untrainAmt || '0')
     if (!amt || amt <= 0) return
-    setLoadingUnit(`untrain_${unit}`)
+    setLoadingUnit('untrain_slave')
     setMessage(null)
     try {
       const res = await fetch('/api/training/untrain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unit, amount: amt }),
+        body: JSON.stringify({ unit: 'slave', amount: amt }),
       })
       const data = await res.json()
       if (!res.ok) {
         setMessage({ text: data.error ?? 'Untrain failed', type: 'error' })
       } else {
         setMessage({
-          text: `${formatNumber(amt)} ${UNTRAIN_LABELS[unit]} returned to free population`,
+          text: `${formatNumber(amt)} Slave(s) returned to free population`,
           type: 'success',
         })
-        setUntrainAmts((prev) => ({ ...prev, [unit]: '' }))
+        setUntrainAmt('')
         if (data.data?.army) applyPatch({ army: data.data.army })
         refresh()
       }
@@ -161,8 +152,8 @@ export function TrainingClient() {
     const goldCost = unitCost(unit).gold * amt
     if ((resources?.gold ?? 0) < goldCost) return false
     if (unit === 'cavalry') {
-      const cavCfg = unitCost(unit) as { gold: number; capacityCost: number; soldierRatio: number }
-      return (army?.soldiers ?? 0) >= amt * cavCfg.soldierRatio
+      const cavCfg = unitCost(unit) as { gold: number; capacityCost: number; popCost: number }
+      return (army?.free_population ?? 0) >= amt * cavCfg.popCost
     }
     return (army?.free_population ?? 0) >= amt
   }
@@ -174,16 +165,10 @@ export function TrainingClient() {
            (resources?.food ?? 0) >= cost.food * (level + 1)
   }
 
-  function untrainableCount(unit: UntrainUnit): number {
-    if (unit === 'spy')   return army?.spies   ?? 0
-    if (unit === 'scout') return army?.scouts  ?? 0
-    return army?.soldiers ?? 0
-  }
-
-  function canUntrain(unit: UntrainUnit): boolean {
-    const amt = parseInt(untrainAmts[unit] || '0')
+  function canUntrainSlaves(): boolean {
+    const amt = parseInt(untrainAmt || '0')
     if (!amt || amt <= 0) return false
-    return untrainableCount(unit) >= amt
+    return (army?.slaves ?? 0) >= amt
   }
 
   const advCost = BALANCE.training.advancedCost
@@ -219,12 +204,14 @@ export function TrainingClient() {
           title="Current Army"
           color="red"
           stats={[
-            { label: 'Soldiers',          value: army?.soldiers         ?? 0 },
-            { label: 'Cavalry',           value: army?.cavalry          ?? 0 },
-            { label: 'Spies',             value: army?.spies            ?? 0 },
-            { label: 'Scouts',            value: army?.scouts           ?? 0 },
-            { label: 'Slaves (workers)',  value: army?.slaves           ?? 0 },
-            { label: 'Free Population',   value: army?.free_population  ?? 0 },
+            { label: 'Soldiers',         value: army?.soldiers        ?? 0 },
+            ...(BALANCE.training.enableCavalry
+              ? [{ label: 'Cavalry', value: army?.cavalry ?? 0 }]
+              : []),
+            { label: 'Spies',            value: army?.spies           ?? 0 },
+            { label: 'Scouts',           value: army?.scouts          ?? 0 },
+            { label: 'Slaves (workers)', value: army?.slaves          ?? 0 },
+            { label: 'Free Population',  value: army?.free_population ?? 0 },
           ]}
         />
         <div className="space-y-4">
@@ -237,7 +224,8 @@ export function TrainingClient() {
                 <span className="text-game-text-white font-semibold">{formatNumber(army?.free_population ?? 0)}</span>
               </div>
               <p className="text-game-xs text-game-text-muted">
-                Each unit trained costs 1 free population (except cavalry).
+                Each unit trained costs 1 free population
+                {BALANCE.training.enableCavalry ? ' (cavalry costs 5 each).' : '.'}
               </p>
               <div className="divider-ornate my-1" />
               <div className="flex justify-between pt-1">
@@ -277,11 +265,17 @@ export function TrainingClient() {
           </div>
           <div className="divider-gold mb-4" />
           <div className="space-y-3">
-            {(['soldier', 'slave', 'spy', 'scout', 'cavalry'] as BasicUnit[]).map((unit) => {
+            {(['soldier', 'slave', 'spy', 'scout', 'cavalry'] as BasicUnit[]).filter((unit) => {
+              // Hide cavalry row entirely when the feature toggle is off
+              if (unit === 'cavalry' && !BALANCE.training.enableCavalry) return false
+              return true
+            }).map((unit) => {
               const cfg = unitCost(unit)
               const amt = parseInt(trainAmts[unit] || '0') || 0
               const goldTotal = cfg.gold * amt
               const isCavalry = unit === 'cavalry'
+              const cavCfg = isCavalry ? (cfg as { gold: number; capacityCost: number; popCost: number }) : null
+              const popRequired = isCavalry && cavCfg ? amt * cavCfg.popCost : amt
 
               return (
                 <div
@@ -306,13 +300,12 @@ export function TrainingClient() {
                           each
                         </span>
                       )}
-                      {isCavalry && 'soldierRatio' in cfg && (
+                      {isCavalry && cavCfg ? (
                         <Badge variant="default">
-                          1 per {(cfg as { gold: number; capacityCost: number; soldierRatio: number }).soldierRatio} soldiers
+                          Costs {cavCfg.popCost} free population each — permanent
                         </Badge>
-                      )}
-                      {!isCavalry && (
-                        <span>Requires 1 free population</span>
+                      ) : (
+                        !isCavalry && <span>Requires 1 free population</span>
                       )}
                     </div>
                     {amt > 0 && (
@@ -321,11 +314,9 @@ export function TrainingClient() {
                         <span className={(resources?.gold ?? 0) >= goldTotal ? 'text-game-green-bright' : 'text-game-red-bright'}>
                           {formatNumber(goldTotal)} Gold
                         </span>
-                        {!isCavalry && (
-                          <span className={(army?.free_population ?? 0) >= amt ? ' text-game-green-bright' : ' text-game-red-bright'}>
-                            {' · '}{formatNumber(amt)} Pop
-                          </span>
-                        )}
+                        <span className={(army?.free_population ?? 0) >= popRequired ? ' text-game-green-bright' : ' text-game-red-bright'}>
+                          {' · '}{formatNumber(popRequired)} Pop
+                        </span>
                       </p>
                     )}
                   </div>
@@ -363,27 +354,20 @@ export function TrainingClient() {
           </div>
           <div className="divider-gold mb-4" />
           <div className="mb-4 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1 shadow-emboss">
-            <p className="font-semibold">Important: Untrained units return to free population.</p>
-            <p>Once a soldier, spy, or scout is untrained they return to your untrained population pool.
-              From there they can be retrained into any unit type, including slaves.
-              Cavalry cannot be untrained.</p>
+            <p className="font-semibold">Slaves only: untrained slaves return to free population.</p>
+            <p>Only slaves can be untrained. Soldiers, spies, scouts, and cavalry are permanent
+              assignments and cannot be returned to the population pool.</p>
           </div>
-          <div className="space-y-3">
-            {(['soldier', 'spy', 'scout'] as UntrainUnit[]).map((unit) => {
-              const current = untrainableCount(unit)
-              const amt = parseInt(untrainAmts[unit] || '0') || 0
-
+          <div>
+            {(() => {
+              const currentSlaves = army?.slaves ?? 0
+              const amt = parseInt(untrainAmt || '0') || 0
               return (
-                <div
-                  key={unit}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss"
-                >
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss">
                   <div className="flex-1 min-w-0">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                      {UNTRAIN_LABELS[unit]}
-                    </p>
+                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">Slaves</p>
                     <p className="text-game-xs text-game-text-muted font-body mt-1">
-                      Available: <span className="text-game-text-white font-semibold">{formatNumber(current)}</span>
+                      Available: <span className="text-game-text-white font-semibold">{formatNumber(currentSlaves)}</span>
                       {' · '}Will return: <span className="text-game-gold font-semibold">{formatNumber(amt)} Free Population</span>
                     </p>
                   </div>
@@ -391,25 +375,25 @@ export function TrainingClient() {
                     <Input
                       type="number"
                       placeholder="Amount"
-                      value={untrainAmts[unit]}
+                      value={untrainAmt}
                       min={1}
-                      max={current}
-                      onChange={(e) => setUntrainAmts((prev) => ({ ...prev, [unit]: e.target.value }))}
+                      max={currentSlaves}
+                      onChange={(e) => setUntrainAmt(e.target.value)}
                       className="w-28"
                     />
                     <Button
                       variant="ghost"
                       size="sm"
-                      loading={loadingUnit === `untrain_${unit}`}
-                      disabled={isFrozen || !canUntrain(unit) || !!loadingUnit}
-                      onClick={() => untrainUnit(unit)}
+                      loading={loadingUnit === 'untrain_slave'}
+                      disabled={isFrozen || !canUntrainSlaves() || !!loadingUnit}
+                      onClick={() => untrainSlaves()}
                     >
                       Untrain
                     </Button>
                   </div>
                 </div>
               )
-            })}
+            })()}
           </div>
         </div>
       )}

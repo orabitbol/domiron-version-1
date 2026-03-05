@@ -42,6 +42,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
     }
 
+    // ── Cavalry feature-flag guard ─────────────────────────────────────────
+    if (unit === 'cavalry' && !BALANCE.training.enableCavalry) {
+      return NextResponse.json({ error: 'Cavalry is disabled' }, { status: 400 })
+    }
+
     const cfg = BALANCE.training.unitCost[unit as keyof typeof BALANCE.training.unitCost]
     const totalGoldCost = cfg.gold * amount
 
@@ -49,9 +54,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
     }
 
-    // ── Free population check (all units except cavalry consume pop) ───────
-    // Cavalry requires existing soldiers — no population consumed.
-    if (unit !== 'cavalry') {
+    // ── Population check ───────────────────────────────────────────────────
+    // All units consume free_population. Cavalry costs popCost pop each.
+    if (unit === 'cavalry') {
+      const cavCfg = cfg as { gold: number; capacityCost: number; popCost: number }
+      const requiredPop = amount * cavCfg.popCost
+      if (army.free_population < requiredPop) {
+        return NextResponse.json({
+          error: `Not enough population (need ${requiredPop}, have ${army.free_population})`,
+        }, { status: 400 })
+      }
+    } else {
       if (army.free_population < amount) {
         return NextResponse.json({
           error: `Not enough free population (need ${amount}, have ${army.free_population})`,
@@ -59,28 +72,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Cavalry requires a minimum number of soldiers ──────────────────────
-    if (unit === 'cavalry') {
-      const cavCfg = cfg as { gold: number; capacityCost: number; soldierRatio: number }
-      const requiredSoldiers = amount * cavCfg.soldierRatio
-      if (army.soldiers < requiredSoldiers) {
-        return NextResponse.json({
-          error: `Need ${requiredSoldiers} soldiers to train ${amount} cavalry`,
-        }, { status: 400 })
-      }
-    }
-
     // ── Build army update ──────────────────────────────────────────────────
     const armyUpdate: Record<string, number> = {}
-    if (unit === 'soldier')  armyUpdate.soldiers        = army.soldiers        + amount
-    if (unit === 'slave')    armyUpdate.slaves           = army.slaves           + amount
-    if (unit === 'spy')      armyUpdate.spies            = army.spies            + amount
-    if (unit === 'scout')    armyUpdate.scouts           = army.scouts           + amount
-    if (unit === 'cavalry')  armyUpdate.cavalry          = army.cavalry          + amount
-
-    // Deduct free population for all non-cavalry units
-    if (unit !== 'cavalry') {
-      armyUpdate.free_population = army.free_population - amount
+    if (unit === 'soldier')  armyUpdate.soldiers        = army.soldiers + amount
+    if (unit === 'slave')    armyUpdate.slaves           = army.slaves   + amount
+    if (unit === 'spy')      armyUpdate.spies            = army.spies    + amount
+    if (unit === 'scout')    armyUpdate.scouts           = army.scouts   + amount
+    if (unit === 'cavalry') {
+      const cavCfg = cfg as { gold: number; capacityCost: number; popCost: number }
+      armyUpdate.cavalry          = army.cavalry + amount
+      armyUpdate.free_population  = army.free_population - (amount * cavCfg.popCost)
+    } else {
+      armyUpdate.free_population  = army.free_population - amount
     }
 
     const now = new Date().toISOString()

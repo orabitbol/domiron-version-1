@@ -1,13 +1,13 @@
 /**
  * POST /api/training/untrain
  *
- * Returns trained units back to free_population.
+ * Returns trained slaves back to free_population.
  *
  * Rules:
- *   - Only soldiers, spies, and scouts can be untrained.
- *   - Cavalry cannot be untrained (they are a permanent tier upgrade).
+ *   - ONLY slaves can be untrained.
+ *   - Soldiers, spies, scouts, and cavalry cannot be untrained.
  *   - Untraining costs nothing (no gold refund).
- *   - Amount deducted from the unit column, added to army.free_population.
+ *   - army.slaves -= amount; army.free_population += amount.
  *   - Power recalculated after change.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -19,7 +19,7 @@ import { recalculatePower } from '@/lib/game/power'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
-  unit: z.enum(['soldier', 'spy', 'scout']),
+  unit: z.literal('slave'),
   amount: z.number().int().min(1),
 })
 
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
     }
 
-    const { unit, amount } = parsed.data
+    const { amount } = parsed.data
     const supabase = createAdminClient()
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
@@ -51,26 +51,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
     }
 
-    // Check enough units to untrain
-    const unitColumn = unit === 'spy' ? 'spies' : unit === 'scout' ? 'scouts' : unit + 's'
-    const currentCount = army[unitColumn as keyof typeof army] as number
-    if (currentCount < amount) {
+    if (army.slaves < amount) {
       return NextResponse.json({
-        error: `Not enough ${unit}s to untrain (have ${currentCount}, requested ${amount})`,
+        error: `Not enough slaves to untrain (have ${army.slaves}, requested ${amount})`,
       }, { status: 400 })
     }
 
     const now = new Date().toISOString()
 
-    const armyUpdate: Record<string, number | string> = {
-      free_population: army.free_population + amount,
-      updated_at: now,
-      [unitColumn]: currentCount - amount,
-    }
-
     await supabase
       .from('army')
-      .update(armyUpdate)
+      .update({
+        slaves:          army.slaves - amount,
+        free_population: army.free_population + amount,
+        updated_at:      now,
+      })
       .eq('player_id', playerId)
 
     // Recalculate power (army changed)
@@ -84,8 +79,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       data: {
-        army: updatedArmy,
-        untrainedCount: amount,
+        army:                updatedArmy,
+        untrainedCount:      amount,
         freePopulationGained: amount,
       },
     })
