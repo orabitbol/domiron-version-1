@@ -331,10 +331,25 @@ export const BALANCE = {
     maxLifetimeDeposits: 5,     // [FIXED] Total deposits across account lifetime
     theftProtection:     1.00,  // [FIXED] 100% of banked gold is safe
 
-    // Interest by level: floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
-    // Level 0 → no interest; levels 1–3 are upgrade-gated.
-    INTEREST_RATE_BY_LEVEL: { 0: 0.0, 1: 0.05, 2: 0.075, 3: 0.10 } as Record<number, number>, // [TUNE]
-    MAX_INTEREST_LEVEL: 3, // [FIXED]
+    // Interest by level: floor(bankedGold × INTEREST_RATE_BY_LEVEL[interest_level])
+    // Applied once per calendar day when the tick crosses midnight.
+    // Level 0 → 0% (default for all new players, no interest until upgraded).
+    // Levels 1–10 are upgrade-gated via POST /api/bank/upgrade.
+    // Must remain monotonically non-decreasing — validated at boot by balance-validate.ts.
+    INTEREST_RATE_BY_LEVEL: {
+       0: 0.000,  // [FIXED] Default — no interest
+       1: 0.050,  // [TUNE]  5.0 %
+       2: 0.075,  // [TUNE]  7.5 %
+       3: 0.100,  // [TUNE] 10.0 %
+       4: 0.125,  // [TUNE] 12.5 %
+       5: 0.150,  // [TUNE] 15.0 %
+       6: 0.175,  // [TUNE] 17.5 %
+       7: 0.200,  // [TUNE] 20.0 %
+       8: 0.225,  // [TUNE] 22.5 %
+       9: 0.250,  // [TUNE] 25.0 %
+      10: 0.300,  // [TUNE] 30.0 % — max tier reward
+    } as Record<number, number>,
+    MAX_INTEREST_LEVEL: 10, // [FIXED] — must equal highest key in INTEREST_RATE_BY_LEVEL
 
     upgradeBaseCost: 2_000, // [TUNE]
 

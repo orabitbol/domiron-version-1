@@ -73,6 +73,25 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
     expect(typeof BALANCE.bank.upgradeBaseCost).toBe('number')
   })
 
+  it('bank.INTEREST_RATE_BY_LEVEL — has level 0, non-negative, monotonically non-decreasing', () => {
+    const rates = BALANCE.bank.INTEREST_RATE_BY_LEVEL
+    // Level 0 must exist (no-interest baseline)
+    expect(rates[0]).toBeDefined()
+    expect(rates[0]).toBeGreaterThanOrEqual(0)
+    // All values non-negative
+    Object.values(rates).forEach(v => expect(v).toBeGreaterThanOrEqual(0))
+    // Sorted keys must be monotonically non-decreasing in value
+    const sorted = Object.keys(rates).map(Number).sort((a, b) => a - b)
+    for (let i = 1; i < sorted.length; i++) {
+      expect(rates[sorted[i]]).toBeGreaterThanOrEqual(rates[sorted[i - 1]])
+    }
+  })
+
+  it('bank.MAX_INTEREST_LEVEL matches highest key in INTEREST_RATE_BY_LEVEL', () => {
+    const maxKey = Math.max(...Object.keys(BALANCE.bank.INTEREST_RATE_BY_LEVEL).map(Number))
+    expect(BALANCE.bank.MAX_INTEREST_LEVEL).toBe(maxKey)
+  })
+
   // ── cities ────────────────────────────────────────────────────────────────
   it('cities paths — names and maxCity', () => {
     expect(BALANCE.cities.total).toBe(5)

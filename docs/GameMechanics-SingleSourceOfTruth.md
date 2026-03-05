@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Spy mutation made atomic via `spy_resolve_apply()` RPC. Prior: attack RPC rename, city promotion RPC, system audit.
+**Last updated:** 2026-03-05 — Bank interest table extended to 11 tiers (levels 0–10) with Zod boot-time invariant guards. Prior: spy/attack/city-promote RPC atomicity.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -1190,12 +1190,25 @@ interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 | Interest Level | Rate | Upgrade cost |
 |---|---|---|
 | 0 (default) | 0% | — |
-| 1 | 5% | 2,000 × 1 = 2,000 gold |
+| 1 | 5.0% | 2,000 × 1 = 2,000 gold |
 | 2 | 7.5% | 2,000 × 2 = 4,000 gold |
-| 3 | 10% | 2,000 × 3 = 6,000 gold |
+| 3 | 10.0% | 2,000 × 3 = 6,000 gold |
+| 4 | 12.5% | 2,000 × 4 = 8,000 gold |
+| 5 | 15.0% | 2,000 × 5 = 10,000 gold |
+| 6 | 17.5% | 2,000 × 6 = 12,000 gold |
+| 7 | 20.0% | 2,000 × 7 = 14,000 gold |
+| 8 | 22.5% | 2,000 × 8 = 16,000 gold |
+| 9 | 25.0% | 2,000 × 9 = 18,000 gold |
+| 10 | 30.0% | 2,000 × 10 = 20,000 gold |
 
-`MAX_INTEREST_LEVEL = 3` [FIXED] — upgrade route rejects at level ≥ 3.
+`MAX_INTEREST_LEVEL = 10` [FIXED] — upgrade route rejects at level ≥ 10. Must equal highest key in `INTEREST_RATE_BY_LEVEL`.
 `vip.bankInterestBonus = 0` — VIP contributes nothing to bank interest.
+
+**Invariants enforced by `validateBalance()` at boot:**
+- `INTEREST_RATE_BY_LEVEL` must contain level 0
+- All values non-negative
+- Values monotonically non-decreasing (level N ≥ level N-1)
+- `MAX_INTEREST_LEVEL` equals highest key in the table
 
 Source: `BALANCE.bank.INTEREST_RATE_BY_LEVEL`, `lib/game/tick.ts → calcBankInterest()`
 
@@ -1651,7 +1664,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 | T2 | `SOLDIER_V`, `SOLDIER_K` | `1`, `3` placeholder | Tier balance untuned |
 | T3 | `combat.BASE_LOSS` | `0.15` placeholder | Loss rates untuned |
 | T4 | Race bonuses (orc/human/elf/dwarf values) | Set but [TUNE] | May need adjustment after playtesting |
-| T5 | Bank interest levels (`INTEREST_RATE_BY_LEVEL`) | 0%/5%/7.5%/10% [TUNE] | May need adjustment after playtesting |
+| T5 | Bank interest levels (`INTEREST_RATE_BY_LEVEL`) | 0%…30% across 11 tiers (levels 0–10) [TUNE] | May need adjustment after playtesting |
 | T6 | City slave production multipliers (`slaveProductionMultByCity`) | 1.0/1.3/1.7/2.2/3.0 [TUNE] | May need adjustment after playtesting |
 | T7 | City promotion soldiers required (`promotion.soldiersRequiredByCity`) | 100/500/2K/10K [TUNE] | May need adjustment after playtesting |
 | T7b | City promotion resource cost (`promotion.resourceCostByCity`) | See §14 table [TUNE] | May need adjustment after playtesting |
@@ -1668,6 +1681,14 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Bank Interest Table + BALANCE Invariant Guards
+
+Extended `INTEREST_RATE_BY_LEVEL` from 4 levels (0–3) to 11 levels (0–10, max rate 30%). Added `MAX_INTEREST_LEVEL = 10`.
+- `config/balance.config.ts`: `INTEREST_RATE_BY_LEVEL` now covers levels 0–10 (0%→5%→7.5%→10%→12.5%→15%→17.5%→20%→22.5%→25%→30%); `MAX_INTEREST_LEVEL = 10`
+- `lib/game/balance-validate.ts`: rich Zod `.refine()` guards for bank (level 0 present, non-negative, monotonically non-decreasing, MAX_INTEREST_LEVEL matches highest key) and cities (slaveProductionMultByCity covers 1..maxCity, all values > 0)
+- `lib/game/balance.test.ts`: 2 new bank tests — interest table invariants + MAX_INTEREST_LEVEL key alignment
+- `docs/GameMechanics-SingleSourceOfTruth.md`: §11 interest table updated with all 11 tiers + invariant notes
 
 ### 2026-03-05 — Spy: Atomic RPC (`spy_resolve_apply`)
 

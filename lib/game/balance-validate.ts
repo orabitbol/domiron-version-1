@@ -98,7 +98,34 @@ const balanceSchema = z.object({
     upgradeBaseCost:       z.number(),
     depositsPerDay:        z.number(),
     maxDepositPercent:     z.number(),
-  }).passthrough(),
+  }).passthrough()
+    .refine(
+      b => '0' in b.INTEREST_RATE_BY_LEVEL,
+      { message: 'INTEREST_RATE_BY_LEVEL must contain level 0', path: ['INTEREST_RATE_BY_LEVEL'] },
+    )
+    .refine(
+      b => Object.values(b.INTEREST_RATE_BY_LEVEL).every((v) => (v as number) >= 0),
+      { message: 'INTEREST_RATE_BY_LEVEL values must be non-negative', path: ['INTEREST_RATE_BY_LEVEL'] },
+    )
+    .refine(
+      b => {
+        const sorted = Object.keys(b.INTEREST_RATE_BY_LEVEL)
+          .map(Number)
+          .sort((a, c) => a - c)
+        for (let i = 1; i < sorted.length; i++) {
+          if ((b.INTEREST_RATE_BY_LEVEL[sorted[i]] as number) < (b.INTEREST_RATE_BY_LEVEL[sorted[i - 1]] as number)) return false
+        }
+        return true
+      },
+      { message: 'INTEREST_RATE_BY_LEVEL must be monotonically non-decreasing', path: ['INTEREST_RATE_BY_LEVEL'] },
+    )
+    .refine(
+      b => {
+        const maxKey = Math.max(...Object.keys(b.INTEREST_RATE_BY_LEVEL).map(Number))
+        return b.MAX_INTEREST_LEVEL === maxKey
+      },
+      { message: 'MAX_INTEREST_LEVEL must equal the highest key in INTEREST_RATE_BY_LEVEL', path: ['MAX_INTEREST_LEVEL'] },
+    ),
   training: z.object({
     unitCost: z.object({
       soldier:  z.object({ gold: z.number(), capacityCost: z.number() }),
@@ -172,7 +199,20 @@ const balanceSchema = z.object({
       })),
     }),
     slaveProductionMultByCity: z.record(z.number()),
-  }),
+  })
+    .refine(
+      c => {
+        for (let i = 1; i <= c.maxCity; i++) {
+          if (!(String(i) in c.slaveProductionMultByCity)) return false
+        }
+        return true
+      },
+      { message: 'slaveProductionMultByCity must have entries for cities 1..maxCity', path: ['slaveProductionMultByCity'] },
+    )
+    .refine(
+      c => Object.values(c.slaveProductionMultByCity).every((v) => (v as number) > 0),
+      { message: 'slaveProductionMultByCity values must be > 0', path: ['slaveProductionMultByCity'] },
+    ),
 })
 
 /**
