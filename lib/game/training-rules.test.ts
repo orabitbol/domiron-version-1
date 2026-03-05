@@ -1,8 +1,8 @@
 /**
  * training-rules.test.ts
  *
- * Enforces the training rule changes introduced in the cavalry update:
- *   1. Untrain: only slaves are supported — all others return 400.
+ * Enforces training rules:
+ *   1. Untrain removed — route returns 410 Gone; no untrain tab in UI.
  *   2. Train cavalry: costs free_population (popCost), NOT soldiers.
  *   3. Train cavalry: blocked when BALANCE.training.enableCavalry = false.
  *   4. Combat permanence: no route or RPC ever reduces cavalry counts.
@@ -31,85 +31,61 @@ const migrationSource = fs.readFileSync(MIGRATION_RPC, 'utf8')
 const uiSource       = fs.readFileSync(TRAINING_UI,    'utf8')
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GROUP 1 — Untrain: schema accepts only 'slave'
+// GROUP 1 — Untrain removed: route returns 410 Gone
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Untrain route — slaves-only structural contract', () => {
+describe('Untrain route — removed (410 tombstone)', () => {
 
-  it("schema uses z.literal('slave') — only slave is accepted", () => {
-    expect(untrainSource).toContain("z.literal('slave')")
+  it('route returns 410 status (tombstone, not 404 or 200)', () => {
+    expect(untrainSource).toContain('status: 410')
   })
 
-  it("schema does NOT enumerate soldier/spy/scout/cavalry as valid units", () => {
-    // The old schema was z.enum(['soldier','spy','scout']); it must be gone.
-    expect(untrainSource).not.toContain("z.enum(['soldier'")
-    expect(untrainSource).not.toContain("'soldier', 'spy', 'scout'")
+  it('route error message is "Untrain removed: training is irreversible"', () => {
+    expect(untrainSource).toContain('Untrain removed: training is irreversible')
   })
 
-  it('route decrements army.slaves on success', () => {
-    expect(untrainSource).toContain('army.slaves - amount')
+  it('route has no DB logic (no supabase calls, no army update)', () => {
+    expect(untrainSource).not.toContain('supabase')
+    expect(untrainSource).not.toContain('army.slaves')
+    expect(untrainSource).not.toContain('free_population')
   })
 
-  it('route increments free_population on success', () => {
-    expect(untrainSource).toContain('army.free_population + amount')
+  it('route has no schema validation (no z.literal or z.object)', () => {
+    expect(untrainSource).not.toContain('z.literal')
+    expect(untrainSource).not.toContain('z.object')
   })
 
-  it('route has a guard: not enough slaves', () => {
-    expect(untrainSource).toContain('army.slaves < amount')
-  })
-
-  it('route does NOT reference soldierRatio, soldiers column, or spy column for untrain logic', () => {
-    // These were part of the old multi-unit untrain; they must be gone.
-    expect(untrainSource).not.toContain('soldierRatio')
-    expect(untrainSource).not.toContain("unitColumn")
+  it('route does not import game modules (no balance, no power, no season)', () => {
+    expect(untrainSource).not.toContain("from '@/lib/game")
+    expect(untrainSource).not.toContain("from '@/lib/auth")
   })
 
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GROUP 2 — Untrain: pure-logic scenarios
+// GROUP 2 — Training irreversibility rule (pure logic)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Untrain logic — pure scenarios', () => {
+describe('Training irreversibility — all conversions are one-way', () => {
 
-  function simulateUntrain(slaves: number, freePopulation: number, amount: number) {
-    if (slaves < amount) return { ok: false, error: 'Not enough slaves' }
-    return {
-      ok: true,
-      slaves:          slaves - amount,
-      free_population: freePopulation + amount,
-    }
-  }
-
-  it('untrain 5 slaves: slaves decreases, free_population increases', () => {
-    const result = simulateUntrain(10, 20, 5)
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.slaves).toBe(5)
-      expect(result.free_population).toBe(25)
-    }
+  it('training is a one-way population sink (free_population only decreases)', () => {
+    // All training routes consume free_population; none return it
+    const trainRoute = fs.readFileSync(
+      path.resolve(__dirname, '../../app/api/training/basic/route.ts'), 'utf8'
+    )
+    expect(trainRoute).toContain('free_population - ')
+    expect(trainRoute).not.toContain('free_population + ')
   })
 
-  it('untrain fails when slaves < amount', () => {
-    const result = simulateUntrain(3, 10, 5)
-    expect(result.ok).toBe(false)
+  it('untrain route does NOT increment free_population (tombstone only)', () => {
+    expect(untrainSource).not.toContain('free_population +')
+    expect(untrainSource).not.toContain('free_population -')
   })
 
-  it('untrain all slaves: slaves becomes 0', () => {
-    const result = simulateUntrain(7, 0, 7)
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.slaves).toBe(0)
-      expect(result.free_population).toBe(7)
-    }
-  })
-
-  it('population gain equals amount untrained (no rounding)', () => {
-    for (const amt of [1, 10, 100, 999]) {
-      const result = simulateUntrain(amt, 0, amt)
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.free_population).toBe(amt)
-    }
+  it('slaves are a workforce unit — no reverse path from slave to free_population in any route', () => {
+    // The only routes that touch army.slaves are: basic train (+), attack RPC (captives +)
+    // The untrain route tombstone must not touch slaves
+    expect(untrainSource).not.toContain('slaves')
   })
 
 })
@@ -277,33 +253,39 @@ describe('Combat permanence — cavalry cannot be reduced in combat', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GROUP 7 — UI toggle: TrainingClient respects enableCavalry
+// GROUP 7 — UI: no untrain tab; cavalry feature flag intact
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('TrainingClient UI — cavalry feature flag structural contract', () => {
+describe('TrainingClient UI — no untrain tab + cavalry feature flag', () => {
+
+  it('UI has no Untrain tab in TRAIN_TABS', () => {
+    // The tab array must not include an 'untrain' key
+    expect(uiSource).not.toContain("key: 'untrain'")
+    expect(uiSource).not.toContain("label: 'Untrain'")
+  })
+
+  it('UI does not render any untrain section', () => {
+    expect(uiSource).not.toContain("activeTab === 'untrain'")
+    expect(uiSource).not.toContain('untrainSlaves')
+    expect(uiSource).not.toContain('/api/training/untrain')
+  })
+
+  it('UI has no untrain state (no untrainAmt)', () => {
+    expect(uiSource).not.toContain('untrainAmt')
+    expect(uiSource).not.toContain('setUntrainAmt')
+  })
 
   it('UI references BALANCE.training.enableCavalry', () => {
     expect(uiSource).toContain('BALANCE.training.enableCavalry')
   })
 
   it('UI filters cavalry row using enableCavalry (cavalry hidden when false)', () => {
-    // The UI must gate the cavalry row on the flag
     expect(uiSource).toMatch(/enableCavalry[^)]*\)/)
   })
 
   it('UI cavalry requirements text mentions popCost (not soldierRatio)', () => {
     expect(uiSource).toContain('popCost')
     expect(uiSource).not.toContain('soldierRatio')
-  })
-
-  it('UI untrain tab does NOT list soldier/spy/scout untrain buttons', () => {
-    // Old untrain tab iterated over ['soldier','spy','scout']; that must be gone
-    expect(uiSource).not.toContain("'soldier', 'spy', 'scout'")
-    expect(uiSource).not.toContain("as UntrainUnit[]")
-  })
-
-  it('UI untrain calls API with unit: slave (not soldier/spy/scout)', () => {
-    expect(uiSource).toContain("unit: 'slave'")
   })
 
 })

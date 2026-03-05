@@ -465,18 +465,21 @@ Source: `BALANCE.startingResources.startingPopulation = 50`, set in `app/api/aut
 | Train spy | −amount |
 | Train scout | −amount |
 | Train cavalry | −(amount × 5) (popCost = 5 per cavalry) |
-| Untrain slave | +amount |
-| Untrain soldier/spy/scout/cavalry | **not supported** — API returns 400 |
+| Any untrain | **not supported — training is irreversible** |
 | Combat losses | **no change** (soldiers lost ≠ population returned) |
 
-Source: `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
+Source: `app/api/training/basic/route.ts`
 
 ---
 
 ## 4. Training System
 
-**Files:** `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
+**Files:** `app/api/training/basic/route.ts`, `app/api/training/advanced/route.ts`
 **Balance:** `config/balance.config.ts` → `BALANCE.training`
+
+> **Training is irreversible.** All unit conversions (Free Population → Soldier / Spy / Scout / Cavalry / Slave) are one-way. There is no untrain mechanic for any unit type. `POST /api/training/untrain` returns **410 Gone**.
+>
+> **Slaves** are a workforce unit. Unallocated slaves produce nothing. Allocate them via `POST /api/mine/allocate` to assign them to gold/iron/wood/food production.
 
 ### Unit Costs
 
@@ -489,17 +492,6 @@ Source: `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
 | cavalry | 200 | **5 free_pop per cavalry** (`popCost = 5`) | `BALANCE.training.enableCavalry = true` |
 
 Source: `BALANCE.training.unitCost`
-
-### Untrain: Slaves Only
-
-**Only slaves can be untrained.** Soldiers, spies, scouts, and cavalry are permanent assignments.
-
-- `army.slaves -= amount`
-- `army.free_population += amount`
-- Costs nothing (no gold refund)
-- API returns 400 `{ error: 'Untrain not supported for this unit' }` for any other unit
-
-Source: `app/api/training/untrain/route.ts` — schema: `z.literal('slave')`
 
 ### No Unit Cap — Training Gates Only
 
@@ -521,15 +513,6 @@ There is **no capacity cap** on any unit type. The old `players.capacity` DB col
 7. Population check: cavalry needs `amount × popCost (5)` free_pop; others need `amount` free_pop
 8. DB writes: resources (deduct gold), army (add unit, deduct free_pop)
 9. Recalculate power
-
-### Gate Order (untrain route)
-
-1. Auth check → 401
-2. Season freeze check → 423
-3. Unit must be `'slave'` — all others → 400
-4. `army.slaves >= amount` check
-5. DB write: army (decrement slaves, increment free_pop)
-6. Recalculate power
 
 ### Cavalry Feature Toggle
 
@@ -616,7 +599,7 @@ SpyScore = spies × 5 + scouts × 5
 ### What Triggers PP Recalculation
 
 PP recalculates (via `recalculatePower()`) after:
-- Soldier count changes (train, untrain, combat losses) or cavalry count changes (train only — cavalry are never lost in combat)
+- Soldier count changes (train or combat losses) or cavalry count changes (train only — cavalry are never lost in combat)
 - Equipment changes (buy, sell)
 - Skill level changes (advanced training)
 - Fortification level changes (development upgrade)
@@ -1817,7 +1800,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 
 | # | Feature | Status |
 |---|---|---|
-| M1 | Cavalry untrain | No route exists |
+| M1 | ~~Cavalry untrain~~ | **Removed** — training is irreversible by design |
 | M2 | Hall of Fame population | Season-end snapshotting not implemented |
 | M3 | VIP weekly turns bonus | `weeklyTurnsBonus = 50` in BALANCE; no route applies it |
 | M4 | Hero XP leveling | `hero.xp` column + `xpPerLevel` in BALANCE; no route increments XP |
@@ -1861,13 +1844,24 @@ Added server-side 1 s cooldown for attack and spy actions to prevent spam and un
 - `lib/game/rate-limiting.test.ts`: **new** — 23 tests (attack structural ×5, spy structural ×5, migration structural ×5, pure-logic gate scenarios ×8)
 - `docs/GameMechanics-SingleSourceOfTruth.md`: §26 "Rate Limiting" added
 
-### 2026-03-05 — Training Rules: Untrain slaves-only, Cavalry popCost, Cavalry permanence, enableCavalry toggle
+### 2026-03-05 — Untrain Removed: Training is irreversible
 
-Four behaviour changes applied together:
+All unit conversions are now one-way. There is no untrain for any unit type.
 
-**A) Untrain: slaves only**
-- `app/api/training/untrain/route.ts`: schema changed from `z.enum(['soldier','spy','scout'])` to `z.literal('slave')`. Route now only decrements `army.slaves` and increments `army.free_population`. All other units return 400.
-- `app/(game)/training/TrainingClient.tsx`: Untrain tab now shows a single slave row. `untrainUnit(UntrainUnit)` replaced with `untrainSlaves()`.
+- `app/api/training/untrain/route.ts`: replaced with 410 Gone tombstone. Body: `{ error: 'Untrain removed: training is irreversible' }`.
+- `app/(game)/training/TrainingClient.tsx`: Untrain tab removed from `TRAIN_TABS`. All untrain state, handlers, and JSX deleted. `/api/training/untrain` is no longer called from anywhere in the UI.
+- `lib/game/training-rules.test.ts`: GROUP 1 updated (route returns 410, no DB logic); GROUP 2 updated (irreversibility pure-logic tests); GROUP 7 updated (no untrain tab in UI).
+- `docs/GameMechanics-SingleSourceOfTruth.md`: irreversibility rule added to §4 header; untrain subsection removed; population table updated.
+
+**Slave clarification:** Slaves are a workforce unit. Unallocated slaves produce nothing. Allocate via `/api/mine/allocate`.
+
+**515 → 515 tests passing (35 in training-rules.test.ts — net −1 from removed logic tests + new irreversibility tests). 0 TypeScript errors.**
+
+### 2026-03-05 — Training Rules: Cavalry popCost, Cavalry permanence, enableCavalry toggle
+
+Three behaviour changes (untrain slaves-only step has since been superseded by full untrain removal):
+
+**A) ~~Untrain: slaves only~~ → superseded: training is now fully irreversible**
 
 **B) Cavalry cost: 5 free_population per cavalry (no soldier requirement)**
 - `config/balance.config.ts`: cavalry config changed from `{ soldierRatio: 5 }` to `{ popCost: 5 }`.
@@ -2130,7 +2124,7 @@ ALTER TABLE army DROP COLUMN IF EXISTS farmers;
 - `lib/game/balance-validate.ts` — removed `farmer` from training Zod schema
 - `app/api/tick/route.ts` — food formula changed from `calcSlaveProduction(slaves_food + farmers, ...)` → `calcSlaveProduction(slaves_food, ...)`
 - `app/api/training/basic/route.ts` — `farmer` removed from unit enum
-- `app/api/training/untrain/route.ts` — `farmer` removed from unit enum
+- `app/api/training/untrain/route.ts` — `farmer` removed from unit enum (route later replaced with 410 tombstone)
 - `app/api/spy/route.ts` — `farmers` removed from revealed data
 - `app/(game)/layout.tsx` — `farmers: 0` removed from fallback army object
 - `app/(game)/base/page.tsx` — Farmers row removed from army summary
@@ -2276,7 +2270,7 @@ if (patch.player) {
 | Page / Client | After mutation | applyPatch slices | Also calls refresh()? |
 |---|---|---|---|
 | `BaseClient` | (display only — reads context) | — | — |
-| `TrainingClient` | train/untrain | `army`, `resources` | After advanced upgrade (training levels change) |
+| `TrainingClient` | train | `army`, `resources` | After advanced upgrade (training levels change) |
 | `BankClient` | deposit/withdraw/upgrade | `bank`, `resources` | No |
 | `MineClient` | save allocations | `army` | No |
 | `DevelopClient` | upgrade | `development`, `resources` | After city move (player.city changed in DB) |

@@ -14,7 +14,7 @@ import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { Training } from '@/types/game'
 
 type BasicUnit = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry'
-type AdvancedType = 'attack' | 'defense' | 'spy' | 'scout'
+type AdvancedType  = 'attack' | 'defense' | 'spy' | 'scout'
 
 const UNIT_LABELS: Record<BasicUnit, string> = {
   soldier: 'Soldier',
@@ -33,7 +33,6 @@ const ADVANCED_LABELS: Record<AdvancedType, string> = {
 
 const TRAIN_TABS = [
   { key: 'train',    label: 'Train Units' },
-  { key: 'untrain',  label: 'Untrain' },
   { key: 'advanced', label: 'Advanced Training' },
 ]
 
@@ -45,7 +44,6 @@ export function TrainingClient() {
   const [trainAmts,   setTrainAmts]   = useState<Record<BasicUnit, string>>({
     soldier: '', slave: '', spy: '', scout: '', cavalry: '',
   })
-  const [untrainAmt, setUntrainAmt] = useState('')
   const [loadingUnit, setLoadingUnit] = useState<string | null>(null)
   const [loadingAdv,  setLoadingAdv]  = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
@@ -72,38 +70,6 @@ export function TrainingClient() {
         // Immediate store update — UI reflects change before refresh() resolves
         if (data.data?.army)      applyPatch({ army: data.data.army })
         if (data.data?.resources) applyPatch({ resources: data.data.resources })
-        refresh()
-      }
-    } catch {
-      setMessage({ text: 'Network error', type: 'error' })
-    } finally {
-      setLoadingUnit(null)
-    }
-  }
-
-  // ── Untrain (slaves only) ─────────────────────────────────────────────────
-
-  async function untrainSlaves() {
-    const amt = parseInt(untrainAmt || '0')
-    if (!amt || amt <= 0) return
-    setLoadingUnit('untrain_slave')
-    setMessage(null)
-    try {
-      const res = await fetch('/api/training/untrain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unit: 'slave', amount: amt }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setMessage({ text: data.error ?? 'Untrain failed', type: 'error' })
-      } else {
-        setMessage({
-          text: `${formatNumber(amt)} Slave(s) returned to free population`,
-          type: 'success',
-        })
-        setUntrainAmt('')
-        if (data.data?.army) applyPatch({ army: data.data.army })
         refresh()
       }
     } catch {
@@ -163,12 +129,6 @@ export function TrainingClient() {
     const cost = BALANCE.training.advancedCost
     return (resources?.gold ?? 0) >= cost.gold * (level + 1) &&
            (resources?.food ?? 0) >= cost.food * (level + 1)
-  }
-
-  function canUntrainSlaves(): boolean {
-    const amt = parseInt(untrainAmt || '0')
-    if (!amt || amt <= 0) return false
-    return (army?.slaves ?? 0) >= amt
   }
 
   const advCost = BALANCE.training.advancedCost
@@ -234,7 +194,7 @@ export function TrainingClient() {
               </div>
               <p className="text-game-xs text-game-text-muted">
                 Slaves work mines and produce resources per tick.
-                Captured from combat or trained from free population.
+                Allocate them via the Mine page. Training is irreversible.
               </p>
             </div>
           </div>
@@ -342,58 +302,6 @@ export function TrainingClient() {
                 </div>
               )
             })}
-          </div>
-        </div>
-      )}
-
-      {/* ── UNTRAIN TAB ───────────────────────────────────────────────────── */}
-      {activeTab === 'untrain' && (
-        <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
-          <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-2">Untrain Units</h2>
-          </div>
-          <div className="divider-gold mb-4" />
-          <div className="mb-4 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1 shadow-emboss">
-            <p className="font-semibold">Slaves only: untrained slaves return to free population.</p>
-            <p>Only slaves can be untrained. Soldiers, spies, scouts, and cavalry are permanent
-              assignments and cannot be returned to the population pool.</p>
-          </div>
-          <div>
-            {(() => {
-              const currentSlaves = army?.slaves ?? 0
-              const amt = parseInt(untrainAmt || '0') || 0
-              return (
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">Slaves</p>
-                    <p className="text-game-xs text-game-text-muted font-body mt-1">
-                      Available: <span className="text-game-text-white font-semibold">{formatNumber(currentSlaves)}</span>
-                      {' · '}Will return: <span className="text-game-gold font-semibold">{formatNumber(amt)} Free Population</span>
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 sm:w-52">
-                    <Input
-                      type="number"
-                      placeholder="Amount"
-                      value={untrainAmt}
-                      min={1}
-                      max={currentSlaves}
-                      onChange={(e) => setUntrainAmt(e.target.value)}
-                      className="w-28"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      loading={loadingUnit === 'untrain_slave'}
-                      disabled={isFrozen || !canUntrainSlaves() || !!loadingUnit}
-                      onClick={() => untrainSlaves()}
-                    >
-                      Untrain
-                    </Button>
-                  </div>
-                </div>
-              )
-            })()}
           </div>
         </div>
       )}
