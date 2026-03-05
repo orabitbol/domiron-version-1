@@ -6,7 +6,7 @@
  *   - calcTribePowerTotal: empty array, sum correctness
  */
 import { describe, it, expect } from 'vitest'
-import { calcBankInterest, calcTribePowerTotal } from '@/lib/game/tick'
+import { calcBankInterest, calcTribePowerTotal, calcSlaveProduction } from '@/lib/game/tick'
 import { BALANCE } from '@/lib/game/balance'
 
 // ─────────────────────────────────────────
@@ -88,4 +88,52 @@ describe('calcTribePowerTotal', () => {
     expect(calcTribePowerTotal(members)).toBe(20_000_000)
   })
 
+})
+
+// ─────────────────────────────────────────
+// calcSlaveProduction — city multiplier
+// ─────────────────────────────────────────
+
+describe('calcSlaveProduction — city multiplier applied', () => {
+  const slaves   = 100
+  const devLevel = 1
+  const vip      = null
+
+  it('city 1 applies ×1.0 multiplier', () => {
+    const city1Mult = BALANCE.cities.slaveProductionMultByCity[1]
+    expect(city1Mult).toBe(1.0)
+    const result = calcSlaveProduction(slaves, devLevel, 1, vip)
+    const { baseMin, baseMax } = BALANCE.production
+    expect(result.min).toBe(Math.floor(slaves * baseMin * city1Mult))
+    expect(result.max).toBe(Math.floor(slaves * baseMax * city1Mult))
+  })
+
+  it('city 2 applies ×1.3 multiplier — higher than city 1', () => {
+    const city2Mult = BALANCE.cities.slaveProductionMultByCity[2]
+    expect(city2Mult).toBe(1.3)
+    const city1 = calcSlaveProduction(slaves, devLevel, 1, vip)
+    const city2 = calcSlaveProduction(slaves, devLevel, 2, vip)
+    expect(city2.avg).toBeGreaterThan(city1.avg)
+  })
+
+  it('city 5 produces more than city 1 (promotion incentive)', () => {
+    const city1 = calcSlaveProduction(slaves, devLevel, 1, vip)
+    const city5 = calcSlaveProduction(slaves, devLevel, 5, vip)
+    expect(city5.avg).toBeGreaterThan(city1.avg)
+  })
+
+  it('multipliers are monotonically non-decreasing across all cities', () => {
+    for (let city = 2; city <= 5; city++) {
+      const prev = calcSlaveProduction(slaves, devLevel, city - 1, vip)
+      const curr = calcSlaveProduction(slaves, devLevel, city, vip)
+      expect(curr.avg).toBeGreaterThanOrEqual(prev.avg)
+    }
+  })
+
+  it('unknown city falls back to ×1 (no crash)', () => {
+    // city 99 is not in the table — should not throw or return NaN
+    const result = calcSlaveProduction(slaves, devLevel, 99, vip)
+    expect(Number.isFinite(result.avg)).toBe(true)
+    expect(result.avg).toBeGreaterThanOrEqual(0)
+  })
 })

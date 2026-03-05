@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — (1–6) Previous changes documented in §23; (7) Full system audit: dead code removed, hardcoded game values moved to balance.config, missing Zod schema keys added, System-Audit-Report.md created
+**Last updated:** 2026-03-05 — City Promotion made atomic via `city_promote_apply()` RPC (FOR UPDATE row locks, server-side re-validation, single transaction). Prior: promotion feature + system audit.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -383,11 +383,11 @@ goldGained = floor(goldProd.min + random() × (goldProd.max - goldProd.min))
 | `production.baseMin` | 1.0 | [TUNE] |
 | `production.baseMax` | 3.0 | [TUNE] |
 | `production.DEV_OFFSET_PER_LEVEL` | +0.5 | [TUNE] — sourced from `config/balance.config.ts` |
-| `cities.CITY_PRODUCTION_MULT[1]` | 1.0 | [TUNE] |
-| `cities.CITY_PRODUCTION_MULT[2]` | 1.2 | [TUNE] |
-| `cities.CITY_PRODUCTION_MULT[3]` | 1.5 | [TUNE] |
-| `cities.CITY_PRODUCTION_MULT[4]` | 2.0 | [TUNE] |
-| `cities.CITY_PRODUCTION_MULT[5]` | 2.5 | [TUNE] |
+| `cities.slaveProductionMultByCity[1]` | 1.0 | [TUNE] |
+| `cities.slaveProductionMultByCity[2]` | 1.3 | [TUNE] |
+| `cities.slaveProductionMultByCity[3]` | 1.7 | [TUNE] |
+| `cities.slaveProductionMultByCity[4]` | 2.2 | [TUNE] |
+| `cities.slaveProductionMultByCity[5]` | 3.0 | [TUNE] |
 
 **DB columns involved:** `army.slaves_gold`, `army.slaves_iron`, `army.slaves_wood`, `army.slaves_food`
 **Allocation route:** `POST /api/mine/allocate`
@@ -1283,39 +1283,75 @@ Fortification no longer updates `players.capacity` — there is no unit capacity
 | 4 | Grandoria |
 | 5 | Nerokvor |
 
-### Promotion Thresholds
+### City Promotion
 
-Gate: `player.power_total ≥ promotionPowerThreshold[nextCity]`
-
-| Target City | Power threshold |
-|---|---|
-| 2 | 5,000 [TUNE] |
-| 3 | 20,000 [TUNE] |
-| 4 | 60,000 [TUNE] |
-| 5 | 150,000 [TUNE] |
-
-Source: `BALANCE.cities.promotionPowerThreshold`
+- Promotion is **irreversible** (1 → 2 → 3 → 4 → 5 only, no downgrade)
+- Can happen any time if requirements are met (even daily)
+- Player **must not be in a clan/tribe** to promote
+- City affects **only slave production output** — no effect on combat, power, loot, or bank
 
 **Promote route:** `POST /api/city/promote`
-Gates: auth → season freeze → city < 5 → **not in tribe** → power_total ≥ threshold → update city → return `{ city, city_name }`.
 
-**Also available (legacy):** `POST /api/develop/move-city` — same power-threshold gate, does not check tribe membership.
+Gate order (route-level, fast pre-validation):
+auth → season freeze → city < maxCity → **not in tribe** → soldiers ≥ requirement → resources ≥ cost
 
-### City Production Multiplier
+Then calls the **`city_promote_apply()` RPC** (migration `0012_city_promote_rpc.sql`) which:
+1. Acquires `FOR UPDATE` row locks on `players` + `resources` + `army` (single JOIN, no deadlock risk — one player only)
+2. Re-validates all conditions after locking (TOCTTOU-safe)
+3. Applies both writes in one Postgres transaction: `resources` deduction + `players.city = nextCity`
+4. Returns the updated snapshot: `{ ok, city, gold, wood, iron, food }`
 
-| City | Multiplier |
+If any re-validation fails inside the RPC, the transaction is rolled back automatically — **no partial state is possible**.
+
+Response shape: `{ data: { city, city_name, slave_production_mult, resources: { gold, wood, iron, food } } }`
+
+**Error codes:** `ALREADY_MAX_CITY` · `IN_TRIBE` · `NOT_ENOUGH_SOLDIERS` · `NOT_ENOUGH_RESOURCES`
+
+**Deprecated:** `POST /api/develop/move-city` → returns 410 Gone; use `/api/city/promote`.
+
+**Files:** `app/api/city/promote/route.ts` · `supabase/migrations/0012_city_promote_rpc.sql`
+
+**BALANCE keys:** `cities.maxCity` · `cities.promotion.soldiersRequiredByCity` · `cities.promotion.resourceCostByCity`
+
+#### Soldiers Required
+
+| Target City | Min Soldiers |
 |---|---|
-| 1 (Izrahland) | 1.0 [TUNE] |
-| 2 (Masterina) | 1.2 [TUNE] |
-| 3 (Rivercastlor) | 1.5 [TUNE] |
-| 4 (Grandoria) | 2.0 [TUNE] |
-| 5 (Nerokvor) | 2.5 [TUNE] |
+| 2 | 100 [TUNE] |
+| 3 | 500 [TUNE] |
+| 4 | 2,000 [TUNE] |
+| 5 | 10,000 [TUNE] |
 
-Applied as `cityMult` in `calcSlaveProduction()` — multiplies slave output per tick. Higher cities produce significantly more.
+#### Resource Cost
 
-### Clan-City Locking
+| Target City | Gold | Wood | Iron | Food |
+|---|---|---|---|---|
+| 2 | 5,000 | 2,000 | 1,000 | 500 |
+| 3 | 20,000 | 8,000 | 4,000 | 2,000 |
+| 4 | 80,000 | 30,000 | 15,000 | 8,000 |
+| 5 | 300,000 | 100,000 | 50,000 | 25,000 |
 
-Clans are locked to one city (`tribes.city`). Players must leave clan before migrating. 48h cooldown after migration before joining another clan.
+All values [TUNE].
+
+### Slave Production Multiplier by City
+
+Applied as `cityMult` in `calcSlaveProduction()` — multiplies slave resource output per tick only.
+
+`produced = floor(slavesAllocated × rate × cityMult × vipMult × (1 + slaveBonus))`
+
+**BALANCE key:** `cities.slaveProductionMultByCity`
+
+| City | Name | Multiplier |
+|---|---|---|
+| 1 | Izrahland | ×1.0 [TUNE] |
+| 2 | Masterina | ×1.3 [TUNE] |
+| 3 | Rivercastlor | ×1.7 [TUNE] |
+| 4 | Grandoria | ×2.2 [TUNE] |
+| 5 | Nerokvor | ×3.0 [TUNE] |
+
+### Clan-City Restriction
+
+Players must leave clan/tribe before promoting. After leaving, they may promote immediately. The `tribe_members` table is checked at promotion time; if a row exists for the player, promotion is blocked with `IN_TRIBE` error.
 
 ---
 
@@ -1592,8 +1628,9 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 | T3 | `combat.BASE_LOSS` | `0.15` placeholder | Loss rates untuned |
 | T4 | Race bonuses (orc/human/elf/dwarf values) | Set but [TUNE] | May need adjustment after playtesting |
 | T5 | Bank interest levels (`INTEREST_RATE_BY_LEVEL`) | 0%/5%/7.5%/10% [TUNE] | May need adjustment after playtesting |
-| T6 | City production multipliers (`CITY_PRODUCTION_MULT`) | 1.0/1.2/1.5/2.0/2.5 [TUNE] | May need adjustment after playtesting |
-| T7 | City promotion thresholds (`promotionPowerThreshold`) | 5K/20K/60K/150K [TUNE] | May need adjustment after playtesting |
+| T6 | City slave production multipliers (`slaveProductionMultByCity`) | 1.0/1.3/1.7/2.2/3.0 [TUNE] | May need adjustment after playtesting |
+| T7 | City promotion soldiers required (`promotion.soldiersRequiredByCity`) | 100/500/2K/10K [TUNE] | May need adjustment after playtesting |
+| T7b | City promotion resource cost (`promotion.resourceCostByCity`) | See §14 table [TUNE] | May need adjustment after playtesting |
 | T8 | Tribe spell multipliers (`spellEffects`) | 1.15/1.25/1.20 [TUNE] | May need adjustment after playtesting |
 
 ### D. Refactor Hotspots
@@ -1607,6 +1644,25 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — City Promotion: Atomic RPC
+
+**Made promotion atomic** via `city_promote_apply()` Postgres RPC.
+- `supabase/migrations/0012_city_promote_rpc.sql`: new RPC — FOR UPDATE locks on players + resources + army; server-side re-validation inside transaction; both writes in one transaction; returns JSONB snapshot
+- `app/api/city/promote/route.ts`: updated to call single `supabase.rpc('city_promote_apply', …)`; removed separate update calls; maps RPC error codes to HTTP responses
+- `lib/game/city-promote.test.ts`: 19 new tests — config integrity, pre-validation logic, atomicity contract (structural: verifies exactly 1 rpc() call, no direct .update() on players/resources)
+
+**319 tests passing, 0 TypeScript errors.**
+
+### 2026-03-05 — City Promotion Feature
+
+**Replaced** power-threshold gate with soldiers + resources + clan/tribe restriction.
+- `config/balance.config.ts`: removed `S_base/P_base/R_base/s_growth/p_growth/r_growth/promotionPowerThreshold`, added `maxCity`, `promotion.soldiersRequiredByCity`, `promotion.resourceCostByCity`, renamed `CITY_PRODUCTION_MULT` → `slaveProductionMultByCity` (new values: 1.0/1.3/1.7/2.2/3.0)
+- `lib/game/balance-validate.ts`: updated Zod schema for all new keys
+- `lib/game/tick.ts`, `mine/MineClient.tsx`, `develop/DevelopClient.tsx`, `map/page.tsx`: renamed key
+- `app/api/city/promote/route.ts`: initial rewrite — soldiers + resources + tribe guard
+- `app/api/develop/move-city/route.ts`: deprecated → returns 410 Gone
+- `lib/game/tick.test.ts`, `lib/game/balance.test.ts`: new tests for city multipliers and promotion config
 
 ### 2026-03-05 — Full System Audit + Dead Code Cleanup
 

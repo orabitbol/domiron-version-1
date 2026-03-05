@@ -462,46 +462,42 @@ export const BALANCE = {
   // CITIES
   //
   // 5 cities total. Promotion is sequential (1 → 2 → 3 → 4 → 5 only).
-  // Player must leave clan before promoting.
-  // After migration: 48-hour clan join restriction.
-  // Clan is locked to a single city.
-  //
-  // Promotion threshold formulas (all parameters [TUNE: unassigned]):
-  //   SoldierThreshold(C) = S_base × s_growth ^ (C - 2)
-  //   PowerThreshold(C)   = P_base × p_growth ^ (C - 2)
-  //   ResourceCost(C)[r]  = R_base[r] × r_growth ^ (C - 2)
-  //   for C ∈ {2, 3, 4, 5}
-  //
-  // Production multiplier per city:
-  //   CityProductionMultiplier(C): independently tunable per city tier [TUNE: unassigned]
+  // Player must leave tribe/clan before promoting.
+  // Promotion is irreversible — no downgrade.
+  // City affects ONLY slave production output (slaveProductionMultByCity).
   // ═══════════════════════════════════════
   cities: {
-    total: 5, // [FIXED]
+    total:   5, // [FIXED]
+    maxCity: 5, // [FIXED]
 
-    // ── Promotion threshold parameters [TUNE: unassigned] ──
-    S_base:   undefined as unknown as number, // Min soldiers required for City 2
-    P_base:   undefined as unknown as number, // Min PersonalPower required for City 2
-    R_base: {
-      gold: undefined as unknown as number,   // Resource cost (gold) for City 2
-      iron: undefined as unknown as number,   // Resource cost (iron) for City 2
-      wood: undefined as unknown as number,   // Resource cost (wood) for City 2
-      food: undefined as unknown as number,   // Resource cost (food) for City 2
+    // ── Promotion requirements [TUNE] ────────────────────────────────────────
+    // Soldiers + resources required to promote from City N-1 → N.
+    // Must not be in a tribe/clan to promote (enforced in API).
+    promotion: {
+      soldiersRequiredByCity: {
+        2:   100,   // [TUNE]
+        3:   500,   // [TUNE]
+        4:  2_000,  // [TUNE]
+        5: 10_000,  // [TUNE]
+      } as Record<number, number>,
+      resourceCostByCity: {
+        2: { gold:   5_000, wood:   2_000, iron:   1_000, food:    500 }, // [TUNE]
+        3: { gold:  20_000, wood:   8_000, iron:   4_000, food:  2_000 }, // [TUNE]
+        4: { gold:  80_000, wood:  30_000, iron:  15_000, food:  8_000 }, // [TUNE]
+        5: { gold: 300_000, wood: 100_000, iron:  50_000, food: 25_000 }, // [TUNE]
+      } as Record<number, { gold: number; wood: number; iron: number; food: number }>,
     },
-    s_growth: undefined as unknown as number, // Per-city multiplier for soldier threshold
-    p_growth: undefined as unknown as number, // Per-city multiplier for PP threshold
-    r_growth: undefined as unknown as number, // Per-city multiplier for resource costs
 
-    // ── City production multipliers [TUNE] ────
-    // CityProductionMultiplier(C): applied to slave output per tick.
-    // Higher cities produce more resources — this is the primary promotion incentive.
-    // Each city is independently tunable (not constrained to a linear sequence).
-    CITY_PRODUCTION_MULT: {
+    // ── Slave production multiplier by city tier [TUNE] ──────────────────────
+    // Applied ONLY to slave resource output each tick.
+    // No effect on combat, power, loot, or bank.
+    slaveProductionMultByCity: {
       1: 1.0,
-      2: 1.2,
-      3: 1.5,
-      4: 2.0,
-      5: 2.5,
-    } as Record<number, number>, // [TUNE]
+      2: 1.3,
+      3: 1.7,
+      4: 2.2,
+      5: 3.0,
+    } as Record<number, number>,
 
     // City names (display only)
     names: {
@@ -511,16 +507,6 @@ export const BALANCE = {
       4: 'Grandoria',
       5: 'Nerokvor',
     } as Record<number, string>,
-
-    // ── City promotion power thresholds [TUNE] ────
-    // Minimum power_total required to promote from city C-1 → C.
-    // City 1 is starting city; no promotion required to reach it.
-    promotionPowerThreshold: {
-      2:   5_000,
-      3:  20_000,
-      4:  60_000,
-      5: 150_000,
-    } as Record<number, number>, // [TUNE]
   },
 
   // ═══════════════════════════════════════

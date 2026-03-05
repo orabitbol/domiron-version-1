@@ -31,9 +31,9 @@ const MAX_DEV_LEVEL = 10
 
 function calcProdRange(slaves: number, devLevel: number, city: number): { min: number; max: number } {
   const { baseMin, baseMax } = BALANCE.production
-  const cityMult  = BALANCE.cities.CITY_PRODUCTION_MULT[city] ?? 1
+  const cityMult  = BALANCE.cities.slaveProductionMultByCity[city] ?? 1
   const level     = Math.max(1, devLevel || 1)
-  const devOffset = (level - 1) * 0.5
+  const devOffset = (level - 1) * BALANCE.production.DEV_OFFSET_PER_LEVEL
   return {
     min: Math.floor(slaves * (baseMin + devOffset) * cityMult),
     max: Math.floor(slaves * (baseMax + devOffset) * cityMult),
@@ -42,9 +42,9 @@ function calcProdRange(slaves: number, devLevel: number, city: number): { min: n
 
 function perSlaveRateAt(devLevel: number, city: number): string {
   const { baseMin, baseMax } = BALANCE.production
-  const cityMult  = BALANCE.cities.CITY_PRODUCTION_MULT[city] ?? 1
+  const cityMult  = BALANCE.cities.slaveProductionMultByCity[city] ?? 1
   const level     = Math.max(1, devLevel || 1)
-  const devOffset = (level - 1) * 0.5
+  const devOffset = (level - 1) * BALANCE.production.DEV_OFFSET_PER_LEVEL
   const lo = ((baseMin + devOffset) * cityMult).toFixed(1)
   const hi = ((baseMax + devOffset) * cityMult).toFixed(1)
   return `${lo}–${hi}`

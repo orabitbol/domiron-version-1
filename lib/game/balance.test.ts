@@ -74,10 +74,44 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
   })
 
   // ── cities ────────────────────────────────────────────────────────────────
-  it('cities paths — names exist for all 5 cities', () => {
+  it('cities paths — names and maxCity', () => {
     expect(BALANCE.cities.total).toBe(5)
+    expect(BALANCE.cities.maxCity).toBe(5)
     for (let i = 1; i <= 5; i++) {
       expect(typeof BALANCE.cities.names[i]).toBe('string')
+    }
+  })
+
+  it('cities.slaveProductionMultByCity — all 5 tiers are numbers ≥ 1', () => {
+    for (let i = 1; i <= 5; i++) {
+      const mult = BALANCE.cities.slaveProductionMultByCity[i]
+      expect(typeof mult).toBe('number')
+      expect(mult).toBeGreaterThanOrEqual(1)
+    }
+    // Multipliers must be non-decreasing
+    for (let i = 2; i <= 5; i++) {
+      expect(BALANCE.cities.slaveProductionMultByCity[i]).toBeGreaterThanOrEqual(
+        BALANCE.cities.slaveProductionMultByCity[i - 1]
+      )
+    }
+  })
+
+  it('cities.promotion — soldiersRequiredByCity for cities 2–5', () => {
+    for (let i = 2; i <= 5; i++) {
+      const req = BALANCE.cities.promotion.soldiersRequiredByCity[i]
+      expect(typeof req).toBe('number')
+      expect(req).toBeGreaterThan(0)
+    }
+  })
+
+  it('cities.promotion — resourceCostByCity has gold/wood/iron/food for cities 2–5', () => {
+    for (let i = 2; i <= 5; i++) {
+      const cost = BALANCE.cities.promotion.resourceCostByCity[i]
+      expect(typeof cost.gold).toBe('number')
+      expect(typeof cost.wood).toBe('number')
+      expect(typeof cost.iron).toBe('number')
+      expect(typeof cost.food).toBe('number')
+      expect(cost.gold).toBeGreaterThan(0)
     }
   })
 

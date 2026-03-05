@@ -146,17 +146,17 @@ export function DevelopClient() {
     }
   }
 
-  async function handleMoveCity() {
+  async function handlePromoteCity() {
     setLoadingCity(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/develop/move-city', { method: 'POST' })
+      const res = await fetch('/api/city/promote', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ text: data.error ?? 'Failed to move city', type: 'error' })
+        setMessage({ text: data.error ?? 'Failed to promote city', type: 'error' })
       } else {
-        setMessage({ text: `Moved to ${data.cityName}!`, type: 'success' })
-        // Player city changed — refresh() to get the updated player.city
+        setMessage({ text: `Promoted to ${data.data.city_name}!`, type: 'success' })
+        if (data.data?.resources) applyPatch({ resources: data.data.resources })
         refresh()
       }
     } catch {
@@ -166,15 +166,23 @@ export function DevelopClient() {
     }
   }
 
-  const currentCityName = BALANCE.cities.names[player?.city ?? 1] ?? `City ${player?.city ?? 1}`
-  const currentCityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player?.city ?? 1] ?? 1
-  const hasNextCity = (player?.city ?? 1) < BALANCE.cities.total
-  const nextCityNum  = (player?.city ?? 1) + 1
-  const nextCityThreshold = hasNextCity ? BALANCE.cities.promotionPowerThreshold[nextCityNum] : null
-  const nextCityName = hasNextCity ? (BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`) : null
+  const currentCity     = player?.city ?? 1
+  const currentCityName = BALANCE.cities.names[currentCity] ?? `City ${currentCity}`
+  const currentCityMult = BALANCE.cities.slaveProductionMultByCity[currentCity] ?? 1
+  const hasNextCity     = currentCity < BALANCE.cities.maxCity
+  const nextCityNum     = currentCity + 1
+  const nextCityName    = hasNextCity ? (BALANCE.cities.names[nextCityNum] ?? `City ${nextCityNum}`) : null
+  const nextCityMult    = hasNextCity ? (BALANCE.cities.slaveProductionMultByCity[nextCityNum] ?? 1) : null
 
-  const meetsPower  = nextCityThreshold != null ? (player?.power_total ?? 0) >= nextCityThreshold : false
-  const canMoveCity = meetsPower && hasNextCity
+  const nextReq         = hasNextCity ? BALANCE.cities.promotion.soldiersRequiredByCity[nextCityNum] : null
+  const nextCost        = hasNextCity ? BALANCE.cities.promotion.resourceCostByCity[nextCityNum] : null
+
+  const meetsArmy = nextReq != null && (army?.soldiers ?? 0) >= nextReq
+  const meetsGold = nextCost != null && (resources?.gold ?? 0) >= nextCost.gold
+  const meetsWood = nextCost != null && (resources?.wood ?? 0) >= nextCost.wood
+  const meetsIron = nextCost != null && (resources?.iron ?? 0) >= nextCost.iron
+  const meetsFood = nextCost != null && (resources?.food ?? 0) >= nextCost.food
+  const canPromote = hasNextCity && meetsArmy && meetsGold && meetsWood && meetsIron && meetsFood
 
   const popLevel    = (development?.population_level ?? 0)
   const popPerTick  = BALANCE.training.populationPerTick[popLevel] ?? 1
@@ -290,7 +298,7 @@ export function DevelopClient() {
 
             const prodMin = BALANCE.production.baseMin
             const prodMax = BALANCE.production.baseMax
-            const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[player?.city ?? 1] ?? 1
+            const cityMult = BALANCE.cities.slaveProductionMultByCity[player?.city ?? 1] ?? 1
             const description = `${card.description} Base: ${prodMin}–${prodMax} × City ×${cityMult}`
 
             return (
@@ -344,29 +352,63 @@ export function DevelopClient() {
         <h2 className="panel-header text-game-gold mb-3">City Progression</h2>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Badge variant="gold">City {player?.city ?? 1}</Badge>
+            <Badge variant="gold">City {currentCity}</Badge>
             <span className="font-heading text-game-base text-game-text-white uppercase">{currentCityName}</span>
-            <span className="text-game-text-muted text-game-sm font-body">×{currentCityMult} production</span>
+            <span className="text-game-text-muted text-game-sm font-body">×{currentCityMult} slave production</span>
           </div>
 
           <div className="divider-gold" />
 
-          {hasNextCity ? (
+          {hasNextCity && nextCityName && nextCost && nextReq !== null ? (
             <div className="card-game p-4 space-y-3">
               <p className="font-heading text-game-sm uppercase tracking-wide text-game-gold">
                 Next: City {nextCityNum} — {nextCityName}
               </p>
+              <p className="text-game-text-muted text-game-xs font-body">
+                Slave production: ×{currentCityMult} → ×{nextCityMult}
+              </p>
               <div className="space-y-2 text-game-sm font-body">
                 <div className="flex items-center justify-between">
-                  <span className="text-game-text-secondary">Power required</span>
-                  <span className={meetsPower ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                    {formatNumber(player?.power_total ?? 0)} / {nextCityThreshold != null ? formatNumber(nextCityThreshold) : '—'}
-                    {meetsPower ? ' ✓' : ''}
+                  <span className="text-game-text-secondary">Soldiers required</span>
+                  <span className={meetsArmy ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(army?.soldiers ?? 0)} / {formatNumber(nextReq)}
+                    {meetsArmy ? ' ✓' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-game-text-secondary">Gold cost</span>
+                  <span className={meetsGold ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(resources?.gold ?? 0)} / {formatNumber(nextCost.gold)}
+                    {meetsGold ? ' ✓' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-game-text-secondary">Wood cost</span>
+                  <span className={meetsWood ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(resources?.wood ?? 0)} / {formatNumber(nextCost.wood)}
+                    {meetsWood ? ' ✓' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-game-text-secondary">Iron cost</span>
+                  <span className={meetsIron ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(resources?.iron ?? 0)} / {formatNumber(nextCost.iron)}
+                    {meetsIron ? ' ✓' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-game-text-secondary">Food cost</span>
+                  <span className={meetsFood ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                    {formatNumber(resources?.food ?? 0)} / {formatNumber(nextCost.food)}
+                    {meetsFood ? ' ✓' : ''}
                   </span>
                 </div>
               </div>
-              <Button variant="primary" disabled={!canMoveCity} loading={loadingCity} onClick={handleMoveCity}>
-                Move to {nextCityName}
+              <p className="text-game-xs text-game-text-muted font-body italic">
+                You cannot promote while in a clan/tribe. Promotion is irreversible.
+              </p>
+              <Button variant="primary" disabled={!canPromote} loading={loadingCity} onClick={handlePromoteCity}>
+                Promote to {nextCityName}
               </Button>
             </div>
           ) : (

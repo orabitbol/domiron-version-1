@@ -162,11 +162,17 @@ const balanceSchema = z.object({
     sellRefundPercent: z.number(),
   }),
   cities: z.object({
-    total:                   z.number(),
-    names:                   z.record(z.string()),
-    CITY_PRODUCTION_MULT:    z.record(z.number()),
-    promotionPowerThreshold: z.record(z.number()),
-  }).passthrough(),
+    total:   z.number(),
+    maxCity: z.number(),
+    names:   z.record(z.string()),
+    promotion: z.object({
+      soldiersRequiredByCity: z.record(z.number()),
+      resourceCostByCity:     z.record(z.object({
+        gold: z.number(), wood: z.number(), iron: z.number(), food: z.number(),
+      })),
+    }),
+    slaveProductionMultByCity: z.record(z.number()),
+  }),
 })
 
 /**
