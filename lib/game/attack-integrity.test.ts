@@ -105,7 +105,7 @@ describe('Attack integrity: base WIN scenario', () => {
   // PP passed directly to resolveCombat: use ratio that guarantees WIN (≥ 1.30)
   // PP 2000 vs 500 → ratio = 4.0 → well above WIN_THRESHOLD
   const turnsUsed = 3
-  const foodCost  = turnsUsed * BALANCE.combat.foodCostPerTurn  // 3 × 1 = 3
+  const foodCost  = ATT_BEFORE.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 100 × 0.05 × 3 = 15
 
   const result = resolveCombat({
     attackerPP: 2000, defenderPP: 500,
@@ -272,7 +272,7 @@ describe('Edge case B: defender under New Player Protection', () => {
   const DEF_RESOURCES = { gold: 10_000, iron: 5_000, wood: 5_000, food: 5_000 }
   const attBefore = { gold: 1000, iron: 0, wood: 0, food: 100, soldiers: 100, slaves: 0 }
   const turnsUsed = 3
-  const foodCost  = turnsUsed * BALANCE.combat.foodCostPerTurn
+  const foodCost  = attBefore.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 100 × 0.05 × 3 = 15
 
   const result = resolveCombat({
     attackerPP: 2000, defenderPP: 500,
@@ -679,16 +679,18 @@ describe('Atomic RPC: pre-validation guards match SQL post-lock checks', () => {
     expect(passes).toBe(true)
   })
 
-  // Mirrors: attResources.food >= turnsUsed × foodCostPerTurn
+  // Mirrors: attResources.food >= attArmy.soldiers × FOOD_PER_SOLDIER × turnsUsed
   it('attack rejected when attacker has insufficient food', () => {
+    const soldiers = 20
     const food     = 2
-    const foodCost = BALANCE.combat.foodCostPerTurn * 5   // 5 turns
+    const foodCost = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * 5   // 5 turns: 20×0.05×5=5
     const passes   = food >= foodCost
     expect(passes).toBe(false)
   })
 
   it('attack allowed when attacker has exactly enough food', () => {
-    const food     = BALANCE.combat.foodCostPerTurn * 5
+    const soldiers = 20
+    const food     = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * 5   // exactly enough
     const foodCost = food
     const passes   = food >= foodCost
     expect(passes).toBe(true)

@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Attacker data not found' }, { status: 404 })
     }
 
-    const foodCost = turnsUsed * BALANCE.combat.foodCostPerTurn
+    const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
 
     if (attPlayer.turns < turnsUsed) {
       return NextResponse.json({ error: 'Not enough turns' }, { status: 400 })

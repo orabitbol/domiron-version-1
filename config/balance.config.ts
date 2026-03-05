@@ -293,11 +293,9 @@ export const BALANCE = {
     MIN_TURNS_PER_ATTACK: 1,  // [FIXED]
     MAX_TURNS_PER_ATTACK: 10, // [FIXED]
 
-    // food_cost = deployed_soldiers × FOOD_PER_SOLDIER
-    FOOD_PER_SOLDIER: 1, // [TUNE]
-
-    // food gate cost per turn used (attack screen pre-check)
-    foodCostPerTurn: 1, // [TUNE]
+    // food_cost = deployed_soldiers × FOOD_PER_SOLDIER × turns_used
+    // Single formula used everywhere (server + UI).
+    FOOD_PER_SOLDIER: 0.05, // [TUNE] food per soldier per turn
 
     // Kill cooldown — per (attacker_id → target_id) pair
     // Checked against the `attacks` table (NOT player_hero_effects).

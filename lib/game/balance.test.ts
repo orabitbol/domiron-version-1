@@ -24,7 +24,7 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
 
   // ── combat ────────────────────────────────────────────────────────────────
   it('combat paths', () => {
-    expect(typeof BALANCE.combat.foodCostPerTurn).toBe('number')
+    expect(typeof BALANCE.combat.FOOD_PER_SOLDIER).toBe('number')
     expect(typeof BALANCE.combat.WIN_THRESHOLD).toBe('number')
     expect(typeof BALANCE.combat.cavalryMultiplier).toBe('number')
     expect(typeof BALANCE.combat.KILL_COOLDOWN_HOURS).toBe('number')

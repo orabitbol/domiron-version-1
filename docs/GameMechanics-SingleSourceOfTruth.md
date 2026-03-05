@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Audit #4: players.max_turns removed from all SELECT queries; BALANCE.tick.maxTurns confirmed as sole turn-cap SSOT. Prior: city promotion threshold formula, bank upgrade RPC atomicity.
+**Last updated:** 2026-03-05 — Audit #5: Food consumption formula standardized to `soldiers × FOOD_PER_SOLDIER × turns`; `foodCostPerTurn` removed. Prior: Audit #4 max_turns SSOT, city promotion threshold formula, bank upgrade RPC atomicity.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -655,7 +655,7 @@ finalECP = floor(baseECP × tribeMultiplier)
 4. Season freeze → 423
 5. Fetch attacker data (player, army, weapons, training, development, resources, tribe)
 6. Attacker has enough turns → 400
-7. Attacker has enough food (`turns × 1`) → 400
+7. Attacker has enough food (`soldiers × FOOD_PER_SOLDIER × turns`) → 400
 8. Attacker has soldiers > 0 → 400
 9. Fetch defender data
 10. Defender exists → 404
@@ -688,7 +688,7 @@ finalECP = floor(baseECP × tribeMultiplier)
     - **No direct `.update()` calls remain in the route** — structural test enforces this
 23. Recalculate stored power for both players via `recalculatePower()` (non-fatal — failure self-corrects on next tick)
 
-> **Food cost** in the route: `foodCost = turnsUsed × BALANCE.combat.foodCostPerTurn` (= turns × 1). `calculateFoodCost(deployedSoldiers)` has been **removed** from `combat.ts` (was dead code).
+> **Food cost** in the route: `foodCost = attArmy.soldiers × BALANCE.combat.FOOD_PER_SOLDIER × turnsUsed` (e.g. 100 soldiers × 0.05 × 3 turns = 15 food). `foodCostPerTurn` has been **removed** — `FOOD_PER_SOLDIER` is now the sole formula constant.
 
 > **Deployed soldiers:** The route always passes `attArmy.soldiers` as `deployedSoldiers` — meaning **all soldiers are always deployed**. There is no partial deployment mechanic.
 
@@ -852,13 +852,25 @@ Each target row shows 4 status dots in the `Status` column (formerly `Shields`).
 
 Source: `app/(game)/attack/AttackClient.tsx` → `BattleReportModal`
 
-### Food Cost (actual)
+### Food Consumption Formula
 
 ```
-foodCost = turnsUsed × foodCostPerTurn    (= turns × 1)
+foodCost = soldiers × FOOD_PER_SOLDIER × turns
 ```
 
-`foodCostPerTurn = 1` — one food per turn used (not per soldier). `FOOD_PER_SOLDIER` remains in `BALANCE.combat` as a tuning note but `calculateFoodCost(deployedSoldiers)` has been removed from `combat.ts` (was dead code — the route never called it).
+| Symbol | Meaning |
+|---|---|
+| `soldiers` | Attacker's total soldiers (`attArmy.soldiers`) — all soldiers are always deployed |
+| `FOOD_PER_SOLDIER` | `BALANCE.combat.FOOD_PER_SOLDIER = 0.05` — food consumed per soldier per turn |
+| `turns` | `turnsUsed` — number of turns spent on the attack (1–10) |
+
+**Example:** 100 soldiers, 3 turns → `100 × 0.05 × 3 = 15 food`
+
+- **Route:** `app/api/attack/route.ts` — `const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed`
+- **UI preview:** `app/(game)/attack/AttackClient.tsx` — `(army?.soldiers ?? 0) * BALANCE.combat.FOOD_PER_SOLDIER * t`
+- **Balance key:** `BALANCE.combat.FOOD_PER_SOLDIER` — `lib/game/balance-validate.ts` enforces it is `finite ≥ 0`
+- **Tests:** `lib/game/food-formula.test.ts` — 17 tests (constant invariants, canonical examples, linear scaling, structural contract)
+- `foodCostPerTurn` has been **removed** from `BALANCE.combat` and all code paths.
 
 ### Multi-Turn Scaling and Persistence
 
@@ -1714,7 +1726,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 | I1 | **`maxLifetimeDeposits` vs `depositsPerDay`.** Both = 5 but `maxLifetimeDeposits` is never referenced in code. The actually enforced limit is `depositsPerDay`. | `balance.config.ts` |
 | ~~I2~~ | ~~**`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic.~~ | **Resolved (Audit #4)** — column removed from all SELECT queries; `@deprecated` in `types/game.ts`; structural guard in `lib/game/max-turns-audit.test.ts`. |
 | ~~I3~~ | ~~`players.capacity` DB default mismatch~~ | **Resolved** — capacity gate removed entirely; `players.capacity` column is legacy (not read or written). |
-| I4 | **`BALANCE.combat.FOOD_PER_SOLDIER`** (dead constant). Documented as `food_cost = soldiers × FOOD_PER_SOLDIER` but no route uses this formula. Actual cost: `turns × foodCostPerTurn`. | `balance.config.ts:278` |
+| ~~I4~~ | ~~**`BALANCE.combat.FOOD_PER_SOLDIER`** (dead constant). Documented as `food_cost = soldiers × FOOD_PER_SOLDIER` but no route uses this formula. Actual cost: `turns × foodCostPerTurn`.~~ | **Resolved (Audit #5)** — `foodCostPerTurn` removed; route + UI now use `soldiers × FOOD_PER_SOLDIER × turns` exclusively; 17 structural tests in `lib/game/food-formula.test.ts`. |
 | I5 | **`calcTurnsAfterRegen`** in `combat.ts` is dead production code — only called from tests. Tick route uses `calcTurnsToAdd(turns, isVacation)` from `tick.ts` (with vacation modifier). | `lib/game/combat.ts:574` |
 
 ### B. Missing Implementations
@@ -1753,6 +1765,18 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Audit #5: Food Consumption Formula Standardization
+
+Standardized food consumption to the single canonical formula: `soldiers × FOOD_PER_SOLDIER × turns`. Removed `foodCostPerTurn` from all code paths.
+
+- `config/balance.config.ts`: `FOOD_PER_SOLDIER: 0.05`; removed `foodCostPerTurn`
+- `lib/game/balance-validate.ts`: Zod enforces `FOOD_PER_SOLDIER: z.number().finite().min(0)`; removed `foodCostPerTurn` field
+- `app/api/attack/route.ts`: `const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed`
+- `app/(game)/attack/AttackClient.tsx`: `(army?.soldiers ?? 0) * BALANCE.combat.FOOD_PER_SOLDIER * t`
+- `lib/game/food-formula.test.ts`: **new** — 17 tests (constant invariants, canonical examples, linear scaling, structural contract)
+- `lib/game/attack-integrity.test.ts`, `mutation-patterns.test.ts`, `attack-resolve.test.ts`, `balance.test.ts`: updated to new formula
+- Inconsistency I4 resolved — `FOOD_PER_SOLDIER` is now the live single constant, not a dead tuning note
 
 ### 2026-03-05 — Audit #4: Max Turns SSOT (`players.max_turns` → dead/legacy)
 

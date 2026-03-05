@@ -163,7 +163,7 @@ describe('Pre-RPC invariant assertions — no impossible deltas reach the RPC', 
     const foodStolen = Math.min(scaledLoot.food, defRes.food)
     const captives   = calculateCaptives(defLossesScaled)
 
-    const foodCost    = turnsUsed * BALANCE.combat.foodCostPerTurn
+    const foodCost    = attSoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
     const newAttFood  = Math.max(0, attRes.food - foodCost + foodStolen)
     const newAttSold  = Math.max(0, attSoldiers - attLossesScaled)
     const newDefSold  = Math.max(0, defSoldiers - defLossesScaled)
@@ -240,7 +240,7 @@ describe('Pre-RPC invariant assertions — no impossible deltas reach the RPC', 
   it('newAttFood is never negative (food floor applied)', () => {
     // Give attacker only enough food to barely cover the cost
     const result = resolveCombat(BASE_WIN_INPUTS)
-    const foodCost = 3 * BALANCE.combat.foodCostPerTurn
+    const foodCost = 1_000 * BALANCE.combat.FOOD_PER_SOLDIER * 3  // 1000×0.05×3=150
     const p = computeRpcParams(result, 3, 1_000, 500,
       { gold: 10_000, iron: 5_000, wood: 3_000, food: 2_000 },
       { food: foodCost - 1 }) // just below cost — relies on food stolen to stay ≥ 0

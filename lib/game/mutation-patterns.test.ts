@@ -49,8 +49,9 @@ describe('Immediate update contract (no-refresh pattern)', () => {
     // Mirrors the route's newAttFood computation exactly:
     //   newAttFood = max(0, attResources.food - foodCost + foodStolen)
     const attFood     = 200
+    const soldiers    = 100
     const turnsUsed   = 3
-    const foodCost    = turnsUsed * BALANCE.combat.foodCostPerTurn
+    const foodCost    = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 100×0.05×3=15
     const foodStolen  = 40
 
     const newAttFood = Math.max(0, attFood - foodCost + foodStolen)
@@ -146,8 +147,9 @@ describe('Race condition: server rejects stale-resource requests', () => {
   it('returns error when food is insufficient after concurrent attack drained it', () => {
     // Simulates: user sees food=200 in UI → concurrent attack drains to 2 → user tries to attack
     const freshFoodFromDB  = 2    // server re-reads this value
+    const soldiers         = 20
     const turnsUsed        = 3
-    const foodCost         = turnsUsed * BALANCE.combat.foodCostPerTurn  // = 3
+    const foodCost         = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 20×0.05×3=3
 
     // The server gate check (line 71 in route): if (attResources.food < foodCost)
     const wouldBeRejected = freshFoodFromDB < foodCost
@@ -186,9 +188,9 @@ describe('Race condition: server rejects stale-resource requests', () => {
     // Gate conditions that must ALL be true before resolveCombat() is called
     const attTurns    = 5
     const turnsUsed   = 3
-    const food        = 10
-    const foodCost    = turnsUsed * BALANCE.combat.foodCostPerTurn
     const soldiers    = 50
+    const food        = 10
+    const foodCost    = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 50×0.05×3=7.5
 
     const canProceed = attTurns >= turnsUsed && food >= foodCost && soldiers > 0
     expect(canProceed).toBe(true)

@@ -231,7 +231,7 @@ export function AttackClient({ targets }: Props) {
   }
 
   function foodCost(t: number) {
-    return t * BALANCE.combat.foodCostPerTurn
+    return (army?.soldiers ?? 0) * BALANCE.combat.FOOD_PER_SOLDIER * t
   }
 
   async function executeAttack() {
