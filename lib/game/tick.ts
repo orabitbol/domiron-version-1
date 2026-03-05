@@ -51,8 +51,8 @@ export function calcSlaveProduction(
   const cityMult = BALANCE.cities.CITY_PRODUCTION_MULT[city] ?? 1
   const vipMult  = isVipActive(vipUntil) ? BALANCE.vip.productionMultiplier : 1.0
 
-  // Development level adds 0.5 per level to production rate range
-  const devOffset = (devLevel - 1) * 0.5
+  // Development level adds DEV_OFFSET_PER_LEVEL (0.5) per level to production rate range
+  const devOffset = (devLevel - 1) * BALANCE.production.DEV_OFFSET_PER_LEVEL
   const rateMin   = (baseMin + devOffset) * cityMult * vipMult * (1 + raceGoldBonus) * (1 + slaveBonus)
   const rateMax   = (baseMax + devOffset) * cityMult * vipMult * (1 + raceGoldBonus) * (1 + slaveBonus)
 

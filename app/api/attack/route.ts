@@ -8,7 +8,6 @@ import {
   calculatePersonalPower,
   calculateCaptives,
   resolveCombat,
-  isKillCooldownActive,
   isNewPlayerProtected,
   getLootDecayMultiplier,
 } from '@/lib/game/combat'

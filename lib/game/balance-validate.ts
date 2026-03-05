@@ -42,6 +42,9 @@ const balanceSchema = z.object({
     }),
     SPY_UNIT_VALUE:   z.number(),
     SCOUT_UNIT_VALUE: z.number(),
+    SPY_GEAR_MULT:    z.record(z.number()),
+    SCOUT_GEAR_MULT:  z.record(z.number()),
+    FORTIFICATION_MULT_PER_LEVEL: z.number(),
   }),
   clan: z.object({
     maxMembers:                 z.number(),
@@ -123,6 +126,7 @@ const balanceSchema = z.object({
   production: z.object({
     baseMin: z.number(),
     baseMax: z.number(),
+    DEV_OFFSET_PER_LEVEL: z.number(),
     developmentUpgradeCost: z.object({
       level2:  z.object({ gold: z.number(), resource: z.number() }),
       level3:  z.object({ gold: z.number(), resource: z.number() }),
@@ -141,6 +145,7 @@ const balanceSchema = z.object({
     hallOfFameTribes:                    z.number(),
     accountDeletionAfterInactiveSeasons: z.number(),
     vacationTurnsMultiplier:             z.number(),
+    protectionStartDays:                 z.number(),
   }),
   raceBonuses: z.object({
     orc:   z.object({ attackBonus: z.number(),  defenseBonus: z.number() }),

@@ -19,19 +19,8 @@ function calcPowerTotal(
   return powerAttack + powerDefense + powerSpy + powerScout
 }
 
-// Spy weapon multipliers (owned = 1 / not owned = 0, stacks multiplicatively)
-const SPY_WEAPON_MULTIPLIERS = {
-  shadow_cloak: 1.15,
-  dark_mask:    1.30,
-  elven_gear:   1.50,
-} as const
-
-// Scout weapon multipliers (owned = 1 / not owned = 0, stacks multiplicatively)
-const SCOUT_WEAPON_MULTIPLIERS = {
-  scout_boots:  1.15,
-  scout_cloak:  1.30,
-  elven_boots:  1.50,
-} as const
+// Spy/Scout gear multipliers sourced from BALANCE — see config/balance.config.ts
+// pp.SPY_GEAR_MULT and pp.SCOUT_GEAR_MULT. Never hardcode here.
 
 export async function recalculatePower(
   playerId: string,
@@ -81,7 +70,7 @@ export async function recalculatePower(
   if (weapons.mithril_armor > 0) defWeaponMult *= defWeapons.mithril_armor.multiplier
   if (weapons.gods_armor    > 0) defWeaponMult *= defWeapons.gods_armor.multiplier
   const defenseTrainMult = 1 + training.defense_level * BALANCE.training.advancedMultiplierPerLevel
-  const fortMult = 1 + (development.fortification_level - 1) * 0.10
+  const fortMult = 1 + (development.fortification_level - 1) * BALANCE.pp.FORTIFICATION_MULT_PER_LEVEL
   const powerDefense = Math.floor(
     baseDefenseUnits * defWeaponMult * defenseTrainMult * fortMult
   )
@@ -89,9 +78,9 @@ export async function recalculatePower(
   // ── Spy Power ───────────────────────────────────────────────────────────────
   const spyTrainMult = 1 + training.spy_level * BALANCE.training.advancedMultiplierPerLevel
   let spyWeaponMult = 1.0
-  if (weapons.shadow_cloak > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.shadow_cloak
-  if (weapons.dark_mask    > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.dark_mask
-  if (weapons.elven_gear   > 0) spyWeaponMult *= SPY_WEAPON_MULTIPLIERS.elven_gear
+  if (weapons.shadow_cloak > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.shadow_cloak
+  if (weapons.dark_mask    > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.dark_mask
+  if (weapons.elven_gear   > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.elven_gear
   const powerSpy = Math.floor(
     army.spies * spyTrainMult * spyWeaponMult
   )
@@ -99,9 +88,9 @@ export async function recalculatePower(
   // ── Scout Power ─────────────────────────────────────────────────────────────
   const scoutTrainMult = 1 + training.scout_level * BALANCE.training.advancedMultiplierPerLevel
   let scoutWeaponMult = 1.0
-  if (weapons.scout_boots  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.scout_boots
-  if (weapons.scout_cloak  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.scout_cloak
-  if (weapons.elven_boots  > 0) scoutWeaponMult *= SCOUT_WEAPON_MULTIPLIERS.elven_boots
+  if (weapons.scout_boots  > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.scout_boots
+  if (weapons.scout_cloak  > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.scout_cloak
+  if (weapons.elven_boots  > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.elven_boots
   const powerScout = Math.floor(
     army.scouts * scoutTrainMult * scoutWeaponMult
   )

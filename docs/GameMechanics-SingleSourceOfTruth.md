@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — (1) Tick/countdown system root-cause analysis and all fixes; (2) Farmer unit removed, full formula audit, gap analysis added; (3) UI Update Rules (immediate vs tick-only) added as §25; (4) Binary outcome rule (no draw/partial), soldier loss documentation, slaves-from-combat clarification; (5) Kill Cooldown / Protection status exposed in Attack UI + Battle Report; (6) Captives feature implemented (`calculateCaptives`, updated RPC, BattleReport.gained.captives, UI Captives row)
+**Last updated:** 2026-03-05 — (1–6) Previous changes documented in §23; (7) Full system audit: dead code removed, hardcoded game values moved to balance.config, missing Zod schema keys added, System-Audit-Report.md created
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -382,7 +382,7 @@ goldGained = floor(goldProd.min + random() × (goldProd.max - goldProd.min))
 |---|---|---|
 | `production.baseMin` | 1.0 | [TUNE] |
 | `production.baseMax` | 3.0 | [TUNE] |
-| devOffset per level | +0.5 | Hardcoded in `tick.ts:55` |
+| `production.DEV_OFFSET_PER_LEVEL` | +0.5 | [TUNE] — sourced from `config/balance.config.ts` |
 | `cities.CITY_PRODUCTION_MULT[1]` | 1.0 | [TUNE] |
 | `cities.CITY_PRODUCTION_MULT[2]` | 1.2 | [TUNE] |
 | `cities.CITY_PRODUCTION_MULT[3]` | 1.5 | [TUNE] |
@@ -1434,17 +1434,19 @@ defWeaponMult = 1.0
     × (mithril_armor > 0 ? 1.90 : 1)
     × (gods_armor    > 0 ? 2.20 : 1)
 
+// Multipliers from BALANCE.pp.SPY_GEAR_MULT and BALANCE.pp.SCOUT_GEAR_MULT (config/balance.config.ts)
 spyWeaponMult = 1.0
-    × (shadow_cloak > 0 ? 1.15 : 1)
-    × (dark_mask    > 0 ? 1.30 : 1)
-    × (elven_gear   > 0 ? 1.50 : 1)
+    × (shadow_cloak > 0 ? BALANCE.pp.SPY_GEAR_MULT.shadow_cloak : 1)  // 1.15
+    × (dark_mask    > 0 ? BALANCE.pp.SPY_GEAR_MULT.dark_mask    : 1)  // 1.30
+    × (elven_gear   > 0 ? BALANCE.pp.SPY_GEAR_MULT.elven_gear   : 1)  // 1.50
 
 scoutWeaponMult = 1.0
-    × (scout_boots  > 0 ? 1.15 : 1)
-    × (scout_cloak  > 0 ? 1.30 : 1)
-    × (elven_boots  > 0 ? 1.50 : 1)
+    × (scout_boots  > 0 ? BALANCE.pp.SCOUT_GEAR_MULT.scout_boots  : 1)  // 1.15
+    × (scout_cloak  > 0 ? BALANCE.pp.SCOUT_GEAR_MULT.scout_cloak  : 1)  // 1.30
+    × (elven_boots  > 0 ? BALANCE.pp.SCOUT_GEAR_MULT.elven_boots  : 1)  // 1.50
 
-fortMult = 1 + (fortification_level − 1) × 0.10    // ← applied to stored defense only
+// BALANCE.pp.FORTIFICATION_MULT_PER_LEVEL = 0.10 (config/balance.config.ts)
+fortMult = 1 + (fortification_level − 1) × BALANCE.pp.FORTIFICATION_MULT_PER_LEVEL  // ← applied to stored defense only
 
 power_attack = floor((baseAttackUnits + attackWeaponPower) × attackTrainMult)
 power_defense = floor(baseDefenseUnits × defWeaponMult × defenseTrainMult × fortMult)
@@ -1567,6 +1569,8 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 | I1 | **`maxLifetimeDeposits` vs `depositsPerDay`.** Both = 5 but `maxLifetimeDeposits` is never referenced in code. The actually enforced limit is `depositsPerDay`. | `balance.config.ts` |
 | I2 | **`players.max_turns` DB default = 30** vs `BALANCE.tick.maxTurns = 200`. DB column unused in logic. | DB schema vs `tick.ts` |
 | ~~I3~~ | ~~`players.capacity` DB default mismatch~~ | **Resolved** — capacity gate removed entirely; `players.capacity` column is legacy (not read or written). |
+| I4 | **`BALANCE.combat.FOOD_PER_SOLDIER`** (dead constant). Documented as `food_cost = soldiers × FOOD_PER_SOLDIER` but no route uses this formula. Actual cost: `turns × foodCostPerTurn`. | `balance.config.ts:278` |
+| I5 | **`calcTurnsAfterRegen`** in `combat.ts` is dead production code — only called from tests. Tick route uses `calcTurnsToAdd(turns, isVacation)` from `tick.ts` (with vacation modifier). | `lib/game/combat.ts:574` |
 
 ### B. Missing Implementations
 
@@ -1603,6 +1607,26 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Full System Audit + Dead Code Cleanup
+
+**Files changed (5):**
+
+- `app/api/attack/route.ts` — removed unused `isKillCooldownActive` import (attack route uses DB count query instead)
+- `config/balance.config.ts` — moved hardcoded values from engine files into config:
+  - `pp.SPY_GEAR_MULT` (shadow_cloak: 1.15, dark_mask: 1.30, elven_gear: 1.50)
+  - `pp.SCOUT_GEAR_MULT` (scout_boots: 1.15, scout_cloak: 1.30, elven_boots: 1.50)
+  - `pp.FORTIFICATION_MULT_PER_LEVEL: 0.10`
+  - `production.DEV_OFFSET_PER_LEVEL: 0.5`
+- `lib/game/power.ts` — replaced `SPY_WEAPON_MULTIPLIERS` and `SCOUT_WEAPON_MULTIPLIERS` local consts with `BALANCE.pp.SPY_GEAR_MULT`/`SCOUT_GEAR_MULT`; replaced hardcoded `0.10` with `BALANCE.pp.FORTIFICATION_MULT_PER_LEVEL`
+- `lib/game/tick.ts` — replaced hardcoded `0.5` devOffset with `BALANCE.production.DEV_OFFSET_PER_LEVEL`
+- `lib/game/balance-validate.ts` — added missing keys to Zod schema: `season.protectionStartDays`, `pp.SPY_GEAR_MULT`, `pp.SCOUT_GEAR_MULT`, `pp.FORTIFICATION_MULT_PER_LEVEL`, `production.DEV_OFFSET_PER_LEVEL`
+
+**Audit deliverable:** `docs/System-Audit-Report.md` — full end-to-end audit (DB → backend → engine → API → UI → docs).
+
+**Test result:** 292 passing, 0 TypeScript errors.
+
+---
 
 ### 2026-03-05 — Captives feature + Kill Cooldown root-cause investigation
 

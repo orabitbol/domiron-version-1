@@ -146,6 +146,25 @@ export const BALANCE = {
     // Keep low to maintain ~5% total PP contribution.
     SPY_UNIT_VALUE:   5,  // [TUNE]
     SCOUT_UNIT_VALUE: 5,  // [TUNE]
+
+    // ── Spy/Scout gear power multipliers (used in power.ts) ───
+    // Applied multiplicatively to spy/scout unit count.
+    // Each piece stacks: e.g. shadow_cloak + dark_mask → ×1.15 × ×1.30.
+    SPY_GEAR_MULT: {
+      shadow_cloak: 1.15, // [TUNE]
+      dark_mask:    1.30, // [TUNE]
+      elven_gear:   1.50, // [TUNE]
+    } as Record<string, number>,
+
+    SCOUT_GEAR_MULT: {
+      scout_boots:  1.15, // [TUNE]
+      scout_cloak:  1.30, // [TUNE]
+      elven_boots:  1.50, // [TUNE]
+    } as Record<string, number>,
+
+    // Fortification defense multiplier per level above 1.
+    // powerDefense × (1 + (fortification_level - 1) × FORTIFICATION_MULT_PER_LEVEL)
+    FORTIFICATION_MULT_PER_LEVEL: 0.10, // [TUNE]
   },
 
   // ═══════════════════════════════════════
@@ -392,6 +411,9 @@ export const BALANCE = {
   production: {
     baseMin: 1.0, // [TUNE]
     baseMax: 3.0, // [TUNE]
+    // Per development-level offset added to both baseMin and baseMax.
+    // devOffset = (devLevel - 1) × DEV_OFFSET_PER_LEVEL
+    DEV_OFFSET_PER_LEVEL: 0.5, // [TUNE]
 
     developmentUpgradeCost: {
       level2:  { gold: 3,   resource: 3   }, // [TUNE]
