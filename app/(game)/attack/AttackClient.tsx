@@ -9,10 +9,11 @@ import { Modal } from '@/components/ui/modal'
 import { ResourceBadge } from '@/components/ui/resource-badge'
 import { GameTable } from '@/components/ui/game-table'
 import { EmptyState } from '@/components/ui/game-table'
+import { AttackDialog } from '@/components/game/AttackDialog'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
-import type { BattleReport, BattleReportReason } from '@/types/game'
+import type { BattleReport, BattleReportReason, SpyResult } from '@/types/game'
 
 interface Target {
   id: string
@@ -142,8 +143,6 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         )}
       </div>
 
-      {/* Battle notes — shown when gains are zero OR when any modifier is active.
-           Title adapts: "Why Nothing Was Gained" vs "Combat Modifiers". */}
       {(allGainsZero || report.reasons.length > 0) && (
         <div className={`border rounded-game-lg p-3 shadow-engrave ${
           allGainsZero
@@ -165,6 +164,78 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
           ) : (
             <p className="font-body text-game-sm text-game-text-secondary">The enemy had no resources available to plunder.</p>
           )}
+        </div>
+      )}
+
+      <Button variant="ghost" onClick={onClose}>Close</Button>
+    </div>
+  )
+}
+
+function SpyResultModal({ result, onClose }: { result: SpyResult; onClose: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="text-center">
+        <p className={`font-display text-game-3xl uppercase tracking-wide text-title-glow ${result.success ? 'text-game-green-bright' : 'text-game-red-bright'}`}>
+          {result.success ? 'Mission Success' : 'Mission Failed'}
+        </p>
+      </div>
+
+      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
+        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Mission Summary</p>
+        <div className="space-y-1.5 font-body text-game-sm">
+          <div className="flex justify-between">
+            <span className="text-game-text-secondary">Spies Sent</span>
+            <span className="text-game-text-white font-semibold">{formatNumber(result.spies_sent)}</span>
+          </div>
+          {result.spies_caught > 0 && (
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Spies Caught</span>
+              <span className="text-game-red-bright font-semibold">{formatNumber(result.spies_caught)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {result.success && result.revealed && (
+        <div className="bg-game-green/5 border border-green-900 rounded-game-lg p-3 shadow-engrave">
+          <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Intel Revealed</p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Soldiers</span>
+              <span className="text-game-text-white font-semibold">{formatNumber(result.revealed.soldiers)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Spies</span>
+              <span className="text-game-text-white font-semibold">{formatNumber(result.revealed.spies)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Gold</span>
+              <span className="text-res-gold font-semibold">{formatNumber(result.revealed.gold)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Iron</span>
+              <span className="text-res-iron font-semibold">{formatNumber(result.revealed.iron)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Wood</span>
+              <span className="text-res-wood font-semibold">{formatNumber(result.revealed.wood)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary">Food</span>
+              <span className="text-res-food font-semibold">{formatNumber(result.revealed.food)}</span>
+            </div>
+            {(result.revealed.resource_shield || result.revealed.soldier_shield) && (
+              <div className="col-span-2 border-t border-game-border mt-1 pt-1 flex gap-4">
+                {result.revealed.resource_shield && (
+                  <span className="text-game-gold-bright text-game-xs font-heading uppercase">Resource Shield Active</span>
+                )}
+                {result.revealed.soldier_shield && (
+                  <span className="text-blue-400 text-game-xs font-heading uppercase">Soldier Shield Active</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -210,11 +281,10 @@ export function AttackClient({ targets }: Props) {
 
   const [search, setSearch] = useState('')
   // localTargets: updated optimistically after battle to reflect fight result (soldiers/gold).
-  // Does NOT re-fetch from server — attack table ranking only updates on tick.
   const [localTargets, setLocalTargets] = useState<Target[]>(targets)
-  const [turns, setTurns] = useState<Record<string, string>>({})
-  const [confirmTarget, setConfirmTarget] = useState<Target | null>(null)
+  const [dialogTarget, setDialogTarget] = useState<Target | null>(null)
   const [battleReport, setBattleReport] = useState<BattleReport | null>(null)
+  const [spyResult, setSpyResult] = useState<SpyResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
@@ -226,55 +296,72 @@ export function AttackClient({ targets }: Props) {
     [localTargets, search]
   )
 
-  function getTargetTurns(targetId: string) {
-    return Math.max(1, Math.min(10, parseInt(turns[targetId] || '1') || 1))
-  }
-
-  function foodCost(t: number) {
-    return (army?.soldiers ?? 0) * BALANCE.combat.FOOD_PER_SOLDIER * t
-  }
-
-  async function executeAttack() {
-    if (!confirmTarget || !player || !army || !resources) return
-    if (confirmTarget.id === player.id) return
-    const t = getTargetTurns(confirmTarget.id)
+  async function executeAttack(turns: number) {
+    if (!dialogTarget || !player || !army || !resources) return
+    if (dialogTarget.id === player.id) return
     setLoading(true)
     setMessage(null)
     try {
       const res = await fetch('/api/attack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ defender_id: confirmTarget.id, turns: t }),
+        body: JSON.stringify({ defender_id: dialogTarget.id, turns }),
       })
       const data = await res.json()
       if (!res.ok) {
         setMessage({ text: data.error ?? 'Attack failed', type: 'error' })
-        setConfirmTarget(null)
+        setDialogTarget(null)
       } else {
         const report = data.battleReport
         setBattleReport(report)
-        setConfirmTarget(null)
+        setDialogTarget(null)
 
         // Immediate context update — turns, resources, soldiers
         applyPatch({
-          player: { ...player, turns: data.turns },
+          player:    { ...player, turns: data.turns },
           resources: { ...resources, ...data.resources },
-          army: { ...army, soldiers: report.attacker.after.soldiers },
+          army:      { ...army, soldiers: report.attacker.after.soldiers },
         })
 
         // Optimistically update defender's visible stats in the target list
-        // (Ranking column stays unchanged — only updates on tick)
         setLocalTargets((prev) =>
           prev.map((tgt) => {
-            if (tgt.id === confirmTarget.id)
+            if (tgt.id === dialogTarget.id)
               return { ...tgt, soldiers: report.defender.after.soldiers, gold: report.defender.after.gold }
             return tgt
           })
         )
 
-        // Background sync — DO NOT call router.refresh() here.
-        // Attack table (targets list) is tick-only; router.refresh() would re-fetch
-        // and potentially show mid-tick stale ranking data.
+        refresh()
+      }
+    } catch {
+      setMessage({ text: 'Network error', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function executeSpy(spiesSent: number) {
+    if (!dialogTarget || !player || !army) return
+    setLoading(true)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/spy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: dialogTarget.id, spies_sent: spiesSent }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage({ text: data.error ?? 'Spy mission failed', type: 'error' })
+        setDialogTarget(null)
+      } else {
+        setSpyResult(data.result)
+        setDialogTarget(null)
+        applyPatch({
+          player: { ...player, turns: data.turns },
+          army:   { ...army, spies: data.spies },
+        })
         refresh()
       }
     } catch {
@@ -342,18 +429,11 @@ export function AttackClient({ targets }: Props) {
           <EmptyState title="No Targets Found" description="No enemies match your search or are available to attack." />
         ) : (
           <GameTable
-            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Status', 'Turns', 'Food Cost', 'Action']}
+            headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Status', 'Action']}
             striped
             hoverable
             rows={filtered.map((target) => {
               const isSelf = target.id === player?.id
-              const t = getTargetTurns(target.id)
-              const cost = foodCost(t)
-              const canAttack =
-                !isSelf &&
-                playerTurns >= t &&
-                (playerResources?.food ?? 0) >= cost &&
-                !target.is_vacation
 
               return [
                 <span key="rank" className="text-game-sm font-body tabular-nums">
@@ -370,18 +450,10 @@ export function AttackClient({ targets }: Props) {
                   {isSelf ? '—' : formatNumber(target.gold)}
                 </span>,
                 <StatusIndicators key="status" resource={target.resource_shield_active} soldier={target.soldier_shield_active} protected={target.is_protected} cooldown={target.kill_cooldown_active} />,
-                isSelf ? <span key="turns" /> : (
-                  <Input
-                    key="turns" type="number" value={turns[target.id] ?? '1'} min={1} max={10}
-                    onChange={(e) => setTurns((prev) => ({ ...prev, [target.id]: e.target.value }))}
-                    className="w-16"
-                  />
-                ),
-                isSelf ? <span key="cost" /> : <ResourceBadge key="cost" type="food" amount={cost} />,
                 isSelf ? (
                   <span key="action" className="text-game-xs text-game-text-muted font-body">—</span>
                 ) : (
-                  <Button key="attack" variant="danger" size="sm" disabled={isFrozen || !canAttack} onClick={() => setConfirmTarget(target)}>
+                  <Button key="action" variant="danger" size="sm" disabled={isFrozen} onClick={() => setDialogTarget(target)}>
                     Attack
                   </Button>
                 ),
@@ -391,47 +463,28 @@ export function AttackClient({ targets }: Props) {
         )}
       </div>
 
-      {/* Attack confirmation modal */}
-      <Modal isOpen={!!confirmTarget} onClose={() => setConfirmTarget(null)} title="Confirm Attack" size="sm">
-        {confirmTarget && (
-          <div className="space-y-4">
-            <div className="space-y-2 text-game-sm font-body">
-              <div className="flex justify-between">
-                <span className="text-game-text-secondary">Target</span>
-                <span className="text-game-text-white font-heading uppercase">{confirmTarget.army_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-game-text-secondary">Status</span>
-                <StatusIndicators resource={confirmTarget.resource_shield_active} soldier={confirmTarget.soldier_shield_active} protected={confirmTarget.is_protected} cooldown={confirmTarget.kill_cooldown_active} />
-              </div>
-              <div className="divider-ornate my-1" />
-              <div className="flex justify-between">
-                <span className="text-game-text-secondary">Turns</span>
-                <span className="text-game-gold font-semibold">{getTargetTurns(confirmTarget.id)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-game-text-secondary">Food Cost</span>
-                <ResourceBadge type="food" amount={foodCost(getTargetTurns(confirmTarget.id))} />
-              </div>
-              <div className="flex justify-between">
-                <span className="text-game-text-secondary">Your Turns</span>
-                <span className="text-game-text-white">{playerTurns}</span>
-              </div>
-            </div>
-            <p className="text-game-xs text-game-text-muted font-body">
-              Victory grants resources. Defeat costs soldiers. Choose wisely.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <Button variant="danger" loading={loading} disabled={isFrozen} onClick={executeAttack}>Attack!</Button>
-              <Button variant="ghost" disabled={loading} onClick={() => setConfirmTarget(null)}>Cancel</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* Attack / Spy dialog */}
+      <AttackDialog
+        target={dialogTarget}
+        onClose={() => setDialogTarget(null)}
+        armySoldiers={army?.soldiers ?? 0}
+        armySpies={army?.spies ?? 0}
+        playerFood={resources?.food ?? 0}
+        playerTurns={playerTurns}
+        onAttack={executeAttack}
+        onSpy={executeSpy}
+        loading={loading}
+        isFrozen={isFrozen}
+      />
 
       {/* Battle result modal */}
       <Modal isOpen={!!battleReport} onClose={() => setBattleReport(null)} title="Battle Report" size="md">
         {battleReport && <BattleReportModal report={battleReport} onClose={() => setBattleReport(null)} />}
+      </Modal>
+
+      {/* Spy result modal */}
+      <Modal isOpen={!!spyResult} onClose={() => setSpyResult(null)} title="Spy Report" size="sm">
+        {spyResult && <SpyResultModal result={spyResult} onClose={() => setSpyResult(null)} />}
       </Modal>
     </div>
   )

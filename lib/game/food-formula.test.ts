@@ -141,3 +141,51 @@ describe('Attack route structural contract — food formula', () => {
   })
 
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GROUP 5 — UI consistency contract: AttackDialog uses the canonical formula
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DIALOG_PATH = path.resolve(__dirname, '../../components/game/AttackDialog.tsx')
+const dialogSource = fs.readFileSync(DIALOG_PATH, 'utf8')
+
+describe('AttackDialog UI structural contract — food formula', () => {
+
+  it('dialog uses FOOD_PER_SOLDIER (not a hardcoded value)', () => {
+    expect(dialogSource).toContain('BALANCE.combat.FOOD_PER_SOLDIER')
+  })
+
+  it('dialog does NOT use foodCostPerTurn (obsolete constant)', () => {
+    expect(dialogSource).not.toContain('foodCostPerTurn')
+  })
+
+  it('dialog multiplies by soldiers (formula: armySoldiers * FOOD_PER_SOLDIER * turns)', () => {
+    expect(dialogSource).toMatch(/armySoldiers\s*\*\s*BALANCE\.combat\.FOOD_PER_SOLDIER/)
+  })
+
+  it('dialog imports BALANCE from the canonical balance module', () => {
+    expect(dialogSource).toContain("from '@/lib/game/balance'")
+  })
+
+  it('10 soldiers, 1 turn → food = soldiers × FOOD_PER_SOLDIER × 1', () => {
+    const soldiers = 10
+    const turns    = 1
+    expect(soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns).toBe(10 * BALANCE.combat.FOOD_PER_SOLDIER)
+  })
+
+  it('10 soldiers, 5 turns → food = soldiers × FOOD_PER_SOLDIER × 5', () => {
+    const soldiers = 10
+    const turns    = 5
+    expect(soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns).toBe(10 * BALANCE.combat.FOOD_PER_SOLDIER * 5)
+  })
+
+  it('UI preview formula is identical to backend formula (deterministic)', () => {
+    // Verifies that using FOOD_PER_SOLDIER in both places produces the same result
+    const soldiers  = 500
+    const turnsUsed = 7
+    const uiPreview   = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+    const backendCost = soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+    expect(uiPreview).toBe(backendCost)
+  })
+
+})

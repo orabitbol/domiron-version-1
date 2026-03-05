@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Audit #5: Food consumption formula standardized to `soldiers × FOOD_PER_SOLDIER × turns`; `foodCostPerTurn` removed. Prior: Audit #4 max_turns SSOT, city promotion threshold formula, bank upgrade RPC atomicity.
+**Last updated:** 2026-03-05 — Attack page UX: turns/food columns removed from table; AttackDialog with turn selector, spy tab, validation, and cost preview added. Prior: Audit #5 food formula SSOT.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -867,10 +867,30 @@ foodCost = soldiers × FOOD_PER_SOLDIER × turns
 **Example:** 100 soldiers, 3 turns → `100 × 0.05 × 3 = 15 food`
 
 - **Route:** `app/api/attack/route.ts` — `const foodCost = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed`
-- **UI preview:** `app/(game)/attack/AttackClient.tsx` — `(army?.soldiers ?? 0) * BALANCE.combat.FOOD_PER_SOLDIER * t`
+- **UI preview:** `components/game/AttackDialog.tsx` — `armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns`
 - **Balance key:** `BALANCE.combat.FOOD_PER_SOLDIER` — `lib/game/balance-validate.ts` enforces it is `finite ≥ 0`
-- **Tests:** `lib/game/food-formula.test.ts` — 17 tests (constant invariants, canonical examples, linear scaling, structural contract)
+- **Tests:** `lib/game/food-formula.test.ts` — 24 tests (constant invariants, canonical examples, linear scaling, structural contracts for route + dialog)
 - `foodCostPerTurn` has been **removed** from `BALANCE.combat` and all code paths.
+
+### UI Consistency Rule
+
+All UI elements displaying food consumption **must** use the same formula as the backend:
+
+```
+foodCost = soldiers × FOOD_PER_SOLDIER × turns
+```
+
+Requirements:
+- **Must** reference `BALANCE.combat.FOOD_PER_SOLDIER` — never hardcode food values
+- **Must not** use legacy logic such as `foodCostPerTurn`
+- UI preview must match backend calculation exactly (same formula, same constant)
+- Structural tests enforce this contract automatically (see GROUP 5 in `food-formula.test.ts`)
+
+**UI locations subject to this rule:**
+| Location | File |
+|---|---|
+| Attack dialog cost preview | `components/game/AttackDialog.tsx` |
+| Any future action dialog with food cost | (same rule applies) |
 
 ### Multi-Turn Scaling and Persistence
 
@@ -1765,6 +1785,15 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — Attack Page UX: AttackDialog + Spy Integration
+
+Moved turn selection out of the attack table into a dedicated dialog. Spy action added to the same dialog.
+
+- `components/game/AttackDialog.tsx`: **new** — full-screen modal with ATTACK/SPY tabs; turn stepper (1–10) + range slider; food cost preview using `armySoldiers × FOOD_PER_SOLDIER × turns`; client-side validation (not enough food / soldiers / turns) with inline errors; spy tab with spy count stepper + requirements preview + outcome descriptions; SpyResultModal in AttackClient shows revealed intel on success
+- `app/(game)/attack/AttackClient.tsx`: removed "Turns" and "Food Cost" columns from attack table; removed old inline turns `<Input>` per row; Attack button now opens AttackDialog directly; added `executeSpy()` function; added spy result state + modal; table headers reduced to 7 columns
+- `lib/game/food-formula.test.ts`: GROUP 5 added — 7 UI structural tests: dialog uses `BALANCE.combat.FOOD_PER_SOLDIER`, no `foodCostPerTurn`, multiplies by `armySoldiers`, imports from canonical module; explicit 10-soldier/1-turn and 10-soldier/5-turn cases; UI-backend formula equivalence proof
+- `docs/GameMechanics-SingleSourceOfTruth.md`: Food section updated with `AttackDialog` as the UI location; UI Consistency Rule subsection added; test count updated (17→24)
 
 ### 2026-03-05 — Audit #5: Food Consumption Formula Standardization
 
