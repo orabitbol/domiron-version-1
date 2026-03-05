@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, city, race, turns, max_turns, is_vacation, vip_until,
         power_attack, power_defense, power_spy, power_scout,
-        army:army!inner(slaves, slaves_gold, slaves_iron, slaves_wood, slaves_food, farmers, free_population),
+        army:army!inner(slaves, slaves_gold, slaves_iron, slaves_wood, slaves_food, free_population),
         development:development!inner(
           gold_level, iron_level, wood_level, food_level, population_level
         ),
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     let playerIdx = 0
     for (const player of players) {
       const army = player.army as unknown as {
-        slaves: number; farmers: number; free_population: number
+        slaves: number; free_population: number
         slaves_gold: number; slaves_iron: number; slaves_wood: number; slaves_food: number
       }
       const dev = player.development as unknown as {
@@ -149,7 +149,6 @@ export async function GET(request: NextRequest) {
 
       // 3. Slave production — per-resource assignment (each slave produces one resource)
       // slaves_gold/iron/wood/food are the assigned counts; idle slaves produce nothing.
-      // Farmers (separate unit type) always contribute to food production.
 
       // Hero slave bonus (pre-clamped 0–0.50)
       const playerEffects = heroEffectsByPlayer.get(player.id) ?? []
@@ -171,7 +170,7 @@ export async function GET(request: NextRequest) {
       const goldProd = calcSlaveProduction(army.slaves_gold, dev.gold_level, player.city, player.vip_until, raceGoldBonus, slaveBonus)
       const ironProd = calcSlaveProduction(army.slaves_iron, dev.iron_level, player.city, player.vip_until, 0, slaveBonus)
       const woodProd = calcSlaveProduction(army.slaves_wood, dev.wood_level, player.city, player.vip_until, 0, slaveBonus)
-      const foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, player.city, player.vip_until, 0, slaveBonus)
+      const foodProd = calcSlaveProduction(army.slaves_food, dev.food_level, player.city, player.vip_until, 0, slaveBonus)
 
       // Random production within range, apply tribe blessing
       const goldGained = Math.floor((goldProd.min + Math.random() * (goldProd.max - goldProd.min)) * tribeProdMult)

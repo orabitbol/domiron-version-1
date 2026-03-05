@@ -43,11 +43,11 @@ const DEV_CARDS: DevConfig[] = [
   {
     field: 'food_level',
     title: 'Farmlands',
-    description: 'Increases food production per farmer assigned.',
+    description: 'Increases food production per food slave assigned.',
     maxLevel: 10,
     resourceType: 'food',
     costKey: 'level10',
-    productionLabel: 'Food/tick per farmer',
+    productionLabel: 'Food/tick per slave',
   },
   {
     field: 'wood_level',

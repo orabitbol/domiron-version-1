@@ -103,7 +103,6 @@ const balanceSchema = z.object({
       spy:      z.object({ gold: z.number(), capacityCost: z.number() }),
       scout:    z.object({ gold: z.number(), capacityCost: z.number() }),
       cavalry:  z.object({ gold: z.number(), capacityCost: z.number(), soldierRatio: z.number() }),
-      farmer:   z.object({ gold: z.number(), capacityCost: z.number() }),
     }),
     populationPerTick:           z.record(z.number()),
     advancedMultiplierPerLevel:  z.number(),

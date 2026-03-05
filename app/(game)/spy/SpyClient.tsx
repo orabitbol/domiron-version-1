@@ -368,7 +368,6 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
           <div className="flex justify-between"><span className="text-game-text-secondary">Spies</span><span className="text-game-text-white">{formatNumber(data.spies)}</span></div>
           <div className="flex justify-between"><span className="text-game-text-secondary">Scouts</span><span className="text-game-text-white">{formatNumber(data.scouts)}</span></div>
           <div className="flex justify-between"><span className="text-game-text-secondary">Slaves</span><span className="text-game-text-white">{formatNumber(data.slaves)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">Farmers</span><span className="text-game-text-white">{formatNumber(data.farmers)}</span></div>
         </div>
       </div>
 

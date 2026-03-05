@@ -56,7 +56,6 @@
     "spies": "מרגלים",
     "scouts": "סיירים",
     "slaves": "עבדים",
-    "farmers": "חקלאים",
     "free_population": "אוכלוסייה חופשית"
   },
   "base": {
@@ -131,7 +130,6 @@
     "gold_mine": "מכרה זהב",
     "iron_mine": "מכרה ברזל",
     "woodcutters": "כורתי עצים",
-    "farmers": "חקלאים",
     "free_slaves": "עבדים חופשיים",
     "allocate": "הקצה",
     "production_per_tick": "ייצור לטיק"

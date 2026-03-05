@@ -4,7 +4,7 @@
  * Returns trained units back to free_population.
  *
  * Rules:
- *   - Only soldiers, spies, scouts, farmers can be untrained.
+ *   - Only soldiers, spies, and scouts can be untrained.
  *   - Cavalry cannot be untrained (they are a permanent tier upgrade).
  *   - Untraining costs nothing (no gold refund).
  *   - Amount deducted from the unit column, added to army.free_population.
@@ -19,7 +19,7 @@ import { recalculatePower } from '@/lib/game/power'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
-  unit: z.enum(['soldier', 'spy', 'scout', 'farmer']),
+  unit: z.enum(['soldier', 'spy', 'scout']),
   amount: z.number().int().min(1),
 })
 

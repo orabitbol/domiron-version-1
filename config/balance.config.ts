@@ -331,7 +331,6 @@ export const BALANCE = {
       spy:      { gold: 80,  capacityCost: 1              }, // [TUNE]
       scout:    { gold: 80,  capacityCost: 1              }, // [TUNE]
       cavalry:  { gold: 200, capacityCost: 2, soldierRatio: 5 }, // [TUNE]
-      farmer:   { gold: 20,  capacityCost: 0              }, // [TUNE]
     },
 
     populationPerTick: {

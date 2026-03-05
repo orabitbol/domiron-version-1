@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { ResourceBadge } from '@/components/ui/resource-badge'
-import { Badge } from '@/components/ui/badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
@@ -142,17 +141,12 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
     }
   }
 
-  // Grand total production across all assigned slaves + farmers
+  // Grand total production across all assigned slaves
   let grandMin = 0
   let grandMax = 0
   for (const job of JOBS) {
     const devLevel = (development[job.devLevelField] as number) || 1
     const { min, max } = calcProdRange(assignments[job.key], devLevel, player.city)
-    grandMin += min
-    grandMax += max
-  }
-  if (army.farmers > 0) {
-    const { min, max } = calcProdRange(army.farmers, development.food_level || 1, player.city)
     grandMin += min
     grandMax += max
   }
@@ -198,13 +192,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
           <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Assigned</p>
           <p className="text-game-xl text-game-gold font-body font-semibold mt-0.5">{formatNumber(totalAssigned)}</p>
         </div>
-        {army.farmers > 0 && (
-          <div className="card-game p-3 text-center">
-            <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Farmers</p>
-            <p className="text-game-xl text-game-gold font-body font-semibold mt-0.5">{formatNumber(army.farmers)}</p>
-            <p className="text-game-xs text-game-text-muted font-body">always produce food</p>
-          </div>
-        )}
       </div>
 
       {/* Assignment rows */}
@@ -302,35 +289,6 @@ export function MineClient({ player, army: initialArmy, development }: Props) {
             </div>
           )
         })}
-
-        {/* Farmers row (read-only) */}
-        {army.farmers > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-3 sm:gap-4 items-center p-3 rounded-game-lg border border-game-border/40 bg-game-surface/50 opacity-75">
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                  🌾 Farmers
-                </p>
-                <Badge variant="default">Separate Unit</Badge>
-              </div>
-              <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                Dev Level {development.food_level} · Always produce food (cannot be reassigned here)
-              </p>
-            </div>
-            <div className="w-36 text-center">
-              <span className="font-body text-game-sm text-game-text-white font-semibold">{formatNumber(army.farmers)}</span>
-            </div>
-            <div className="text-game-sm font-body text-right w-36">
-              <span className="text-game-gold-bright font-semibold">{perSlaveRateAt(development.food_level || 1, player.city)}</span>
-            </div>
-            <div className="text-game-sm font-body text-right w-36">
-              {(() => {
-                const { min, max } = calcProdRange(army.farmers, development.food_level || 1, player.city)
-                return <span className="text-game-gold font-semibold">{formatNumber(min)}–{formatNumber(max)}/tick</span>
-              })()}
-            </div>
-          </div>
-        )}
 
         <div className="divider-gold" />
 

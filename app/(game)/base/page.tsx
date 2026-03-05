@@ -452,7 +452,6 @@ export default async function BasePage() {
             { label: "מרגלים", value: army?.spies ?? 0 },
             { label: "סיירים", value: army?.scouts ?? 0 },
             { label: "עבדים", value: army?.slaves ?? 0 },
-            { label: "חקלאים", value: army?.farmers ?? 0 },
             { label: "פנויים", value: army?.free_population ?? 0 },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col">

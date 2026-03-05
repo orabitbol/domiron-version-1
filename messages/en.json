@@ -56,7 +56,6 @@
     "spies": "Spies",
     "scouts": "Scouts",
     "slaves": "Slaves",
-    "farmers": "Farmers",
     "free_population": "Free Population"
   },
   "base": {
@@ -131,7 +130,6 @@
     "gold_mine": "Gold Mine",
     "iron_mine": "Iron Mine",
     "woodcutters": "Woodcutters",
-    "farmers": "Farmers",
     "free_slaves": "Unallocated Slaves",
     "allocate": "Allocate",
     "production_per_tick": "Production per Tick"

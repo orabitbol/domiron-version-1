@@ -20,8 +20,8 @@ interface Props {
   resources: Resources
 }
 
-type BasicUnit = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry' | 'farmer'
-type UntrainUnit = 'soldier' | 'spy' | 'scout' | 'farmer'
+type BasicUnit = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry'
+type UntrainUnit = 'soldier' | 'spy' | 'scout'
 type AdvancedType = 'attack' | 'defense' | 'spy' | 'scout'
 
 const UNIT_LABELS: Record<BasicUnit, string> = {
@@ -30,14 +30,12 @@ const UNIT_LABELS: Record<BasicUnit, string> = {
   spy:     'Spy',
   scout:   'Scout',
   cavalry: 'Cavalry',
-  farmer:  'Farmer',
 }
 
 const UNTRAIN_LABELS: Record<UntrainUnit, string> = {
   soldier: 'Soldiers',
   spy:     'Spies',
   scout:   'Scouts',
-  farmer:  'Farmers',
 }
 
 const ADVANCED_LABELS: Record<AdvancedType, string> = {
@@ -72,10 +70,10 @@ export function TrainingClient({
 
   const [activeTab,   setActiveTab]   = useState('train')
   const [trainAmts,   setTrainAmts]   = useState<Record<BasicUnit, string>>({
-    soldier: '', slave: '', spy: '', scout: '', cavalry: '', farmer: '',
+    soldier: '', slave: '', spy: '', scout: '', cavalry: '',
   })
   const [untrainAmts, setUntrainAmts] = useState<Record<UntrainUnit, string>>({
-    soldier: '', spy: '', scout: '', farmer: '',
+    soldier: '', spy: '', scout: '',
   })
   const [loadingUnit, setLoadingUnit] = useState<string | null>(null)
   const [loadingAdv,  setLoadingAdv]  = useState<string | null>(null)
@@ -199,9 +197,8 @@ export function TrainingClient({
   }
 
   function untrainableCount(unit: UntrainUnit): number {
-    if (unit === 'spy')    return army.spies
-    if (unit === 'scout')  return army.scouts
-    if (unit === 'farmer') return army.farmers
+    if (unit === 'spy')   return army.spies
+    if (unit === 'scout') return army.scouts
     return army.soldiers
   }
 
@@ -249,7 +246,6 @@ export function TrainingClient({
             { label: 'Spies',             value: army.spies },
             { label: 'Scouts',            value: army.scouts },
             { label: 'Slaves (workers)',  value: army.slaves },
-            { label: 'Farmers',           value: army.farmers },
             { label: 'Free Population',   value: army.free_population },
           ]}
         />
@@ -307,7 +303,7 @@ export function TrainingClient({
           </div>
           <div className="divider-gold mb-4" />
           <div className="space-y-3">
-            {(['soldier', 'slave', 'spy', 'scout', 'cavalry', 'farmer'] as BasicUnit[]).map((unit) => {
+            {(['soldier', 'slave', 'spy', 'scout', 'cavalry'] as BasicUnit[]).map((unit) => {
               const cfg = unitCost(unit)
               const amt = parseInt(trainAmts[unit] || '0') || 0
               const goldTotal = cfg.gold * amt
@@ -396,12 +392,12 @@ export function TrainingClient({
           <div className="divider-gold mb-4" />
           <div className="mb-4 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-amber-900/40 text-game-xs font-body text-amber-300/90 space-y-1 shadow-emboss">
             <p className="font-semibold">Important: Untrained units return to free population.</p>
-            <p>Once a soldier, spy, scout, or farmer is untrained they return to your untrained population pool.
+            <p>Once a soldier, spy, or scout is untrained they return to your untrained population pool.
               From there they can be retrained into any unit type, including slaves.
               Cavalry cannot be untrained.</p>
           </div>
           <div className="space-y-3">
-            {(['soldier', 'spy', 'scout', 'farmer'] as UntrainUnit[]).map((unit) => {
+            {(['soldier', 'spy', 'scout'] as UntrainUnit[]).map((unit) => {
               const current = untrainableCount(unit)
               const amt = parseInt(untrainAmts[unit] || '0') || 0
 

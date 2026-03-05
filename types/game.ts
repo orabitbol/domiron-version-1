@@ -143,7 +143,6 @@ export interface Army {
   slaves_wood: number
   /** Slaves assigned to food production. */
   slaves_food: number
-  farmers: number
   free_population: number
   updated_at: string
 }
@@ -426,7 +425,6 @@ export interface SpyRevealedData {
   scouts:          number
   cavalry:         number
   slaves:          number
-  farmers:         number
   gold:            number
   iron:            number
   wood:            number
@@ -469,7 +467,7 @@ export interface RankedTribe {
 export type ResourceType = 'gold' | 'iron' | 'wood' | 'food' | 'turns' | 'mana'
 
 // Unit types for training
-export type UnitType = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry' | 'farmer'
+export type UnitType = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry'
 
 // Training types for advanced training
 export type TrainingType = 'attack' | 'defense' | 'spy' | 'scout'

@@ -8,7 +8,7 @@ import { recalculatePower } from '@/lib/game/power'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
-  unit: z.enum(['soldier', 'slave', 'spy', 'scout', 'cavalry', 'farmer']),
+  unit: z.enum(['soldier', 'slave', 'spy', 'scout', 'cavalry']),
   amount: z.number().int().min(1),
 })
 
@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
     if (unit === 'spy')      armyUpdate.spies            = army.spies            + amount
     if (unit === 'scout')    armyUpdate.scouts           = army.scouts           + amount
     if (unit === 'cavalry')  armyUpdate.cavalry          = army.cavalry          + amount
-    if (unit === 'farmer')   armyUpdate.farmers          = army.farmers          + amount
 
     // Deduct free population for all non-cavalry units
     if (unit !== 'cavalry') {

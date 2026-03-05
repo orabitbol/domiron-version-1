@@ -47,7 +47,6 @@ const EMPTY_ARMY = {
   spies:    0,
   scouts:   0,
   slaves:   0,
-  farmers:  0,
   free_population: 0,
   id: 'a', player_id: 'p', updated_at: '',
 }

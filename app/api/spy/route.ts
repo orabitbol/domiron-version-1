@@ -238,7 +238,6 @@ export async function POST(request: NextRequest) {
       scouts:          defArmy.scouts,
       cavalry:         defArmy.cavalry,
       slaves:          defArmy.slaves,
-      farmers:         defArmy.farmers,
       gold:            defResources.gold,
       iron:            defResources.iron,
       wood:            defResources.wood,
