@@ -199,6 +199,22 @@ const balanceSchema = z.object({
       })),
     }),
     slaveProductionMultByCity: z.record(z.number()),
+    promotionThresholds: z.object({
+      S_base:   z.number().finite(),
+      P_base:   z.number().finite(),
+      R_base:   z.number().finite(),
+      s_growth: z.number().finite(),
+      p_growth: z.number().finite(),
+      r_growth: z.number().finite(),
+    })
+      .refine(t => t.S_base > 0 && t.P_base > 0 && t.R_base > 0, {
+        message: 'S_base, P_base, R_base must be > 0',
+        path: ['promotionThresholds'],
+      })
+      .refine(t => t.s_growth >= 1 && t.p_growth >= 1 && t.r_growth >= 1, {
+        message: 's_growth, p_growth, r_growth must be >= 1',
+        path: ['promotionThresholds'],
+      }),
   })
     .refine(
       c => {

@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Bank upgrade made atomic via `bank_interest_upgrade_apply()` RPC. Prior: interest table extended to 11 tiers, spy/attack/city-promote RPC atomicity.
+**Last updated:** 2026-03-05 — City promotion threshold formula parameters added to BALANCE with Zod guards. Prior: bank upgrade RPC atomicity, interest table 11 tiers.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -1385,7 +1385,42 @@ Response shape: `{ data: { city, city_name, slave_production_mult, resources: { 
 
 **Files:** `app/api/city/promote/route.ts` · `supabase/migrations/0012_city_promote_rpc.sql`
 
-**BALANCE keys:** `cities.maxCity` · `cities.promotion.soldiersRequiredByCity` · `cities.promotion.resourceCostByCity`
+**BALANCE keys:** `cities.maxCity` · `cities.promotion.soldiersRequiredByCity` · `cities.promotion.resourceCostByCity` · `cities.promotionThresholds`
+
+**Files (threshold formula):** `lib/game/city-thresholds.ts` · `lib/game/city-thresholds.test.ts`
+
+#### Promotion Threshold Formula
+
+The six `promotionThresholds` parameters define a geometric-growth formula for computing per-city requirements programmatically. This is the canonical definition; the lookup tables below are tuned from these values.
+
+```
+soldiersRequired(city)   = floor(S_base  × s_growth ^ (city-1))
+populationRequired(city) = floor(P_base  × p_growth ^ (city-1))
+resourcesRequired(city)  = floor(R_base  × r_growth ^ (city-1))
+```
+
+At `city=1` the exponent is 0, so each result equals the base value exactly. Growth factors `≥ 1` guarantee monotonic increase.
+
+| Parameter | Value | Rule | Meaning |
+|---|---|---|---|
+| `S_base` | 20 | > 0 | Soldiers at city 1 |
+| `P_base` | 50 | > 0 | Population at city 1 |
+| `R_base` | 2,000 | > 0 | Gold-equivalent resources at city 1 |
+| `s_growth` | 5 | ≥ 1 | Soldier multiplier per tier |
+| `p_growth` | 2 | ≥ 1 | Population multiplier per tier |
+| `r_growth` | 4 | ≥ 1 | Resource multiplier per tier |
+
+All six parameters validated by `validateBalance()` at boot (finite, base > 0, growth ≥ 1).
+
+**Derived thresholds (city 1–5):**
+
+| City | Soldiers | Population | Resources (gold-equiv) |
+|---|---|---|---|
+| 1 | 20 | 50 | 2,000 |
+| 2 | 100 | 100 | 8,000 |
+| 3 | 500 | 200 | 32,000 |
+| 4 | 2,500 | 400 | 128,000 |
+| 5 | 12,500 | 800 | 512,000 |
 
 #### Soldiers Required
 
@@ -1718,6 +1753,15 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 ---
 
 ## 23. Recent Changes
+
+### 2026-03-05 — City Promotion Threshold Formula Parameters
+
+Added `promotionThresholds` to `BALANCE.cities` with six geometric-growth parameters (S_base, P_base, R_base, s_growth, p_growth, r_growth). Enforced with Zod invariants (base > 0, growth ≥ 1, all finite) in `validateBalance()`. Formula implemented in `lib/game/city-thresholds.ts`.
+- `config/balance.config.ts`: new `cities.promotionThresholds` object (S_base=20, P_base=50, R_base=2000, s_growth=5, p_growth=2, r_growth=4)
+- `lib/game/balance-validate.ts`: Zod schema for `promotionThresholds` with `.refine()` for base > 0 and growth ≥ 1
+- `lib/game/city-thresholds.ts`: **new** — exports `soldiersRequired(city)`, `populationRequired(city)`, `resourcesRequired(city)`
+- `lib/game/city-thresholds.test.ts`: **new** — 17 tests (config shape, city-1 base values, monotonicity, no NaN/Infinity, validateBalance rejection cases)
+- `docs/GameMechanics-SingleSourceOfTruth.md`: §14 expanded with formula, parameter table, derived threshold table for cities 1–5
 
 ### 2026-03-05 — Bank Upgrade: Atomic RPC (`bank_interest_upgrade_apply`)
 

@@ -514,6 +514,25 @@ export const BALANCE = {
       5: 3.0,
     } as Record<number, number>,
 
+    // ── Promotion threshold formula parameters [TUNE] ───────────────────────
+    // These define the geometric-growth formula used to compute per-city
+    // requirements programmatically (see lib/game/city-thresholds.ts):
+    //
+    //   soldiersRequired(city)  = floor(S_base × s_growth ^ (city-1))
+    //   populationRequired(city) = floor(P_base × p_growth ^ (city-1))
+    //   resourcesRequired(city) = floor(R_base × r_growth ^ (city-1))
+    //
+    // city=1 always equals the base values exactly (growth^0 = 1).
+    // growth factors must be ≥ 1 (≥1 = monotonically non-decreasing).
+    promotionThresholds: {
+      S_base:    20,   // [TUNE] Soldiers required at city tier 1
+      P_base:    50,   // [TUNE] Population required at city tier 1
+      R_base: 2_000,   // [TUNE] Gold-equivalent resources at city tier 1
+      s_growth:   5,   // [TUNE] Soldier multiplier per tier (≥ 1)
+      p_growth:   2,   // [TUNE] Population multiplier per tier (≥ 1)
+      r_growth:   4,   // [TUNE] Resource multiplier per tier (≥ 1)
+    },
+
     // City names (display only)
     names: {
       1: 'Izrahland',
