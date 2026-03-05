@@ -1212,6 +1212,22 @@ interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 
 Source: `BALANCE.bank.INTEREST_RATE_BY_LEVEL`, `lib/game/tick.ts → calcBankInterest()`
 
+**`POST /api/bank/upgrade` response shape:**
+```json
+{
+  "bank":      { /* full bank row */ },
+  "resources": { /* full resources row */ },
+  "upgrade": {
+    "newLevel":     3,
+    "currentRate":  0.10,
+    "nextRate":     0.125,
+    "upgradeCost":  8000,
+    "atMaxLevel":   false
+  }
+}
+```
+`nextRate` and `upgradeCost` are `null` when `newLevel === MAX_INTEREST_LEVEL`.
+
 ---
 
 ## 12. Weapons System

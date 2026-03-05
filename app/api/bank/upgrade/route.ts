@@ -36,10 +36,11 @@ export async function POST() {
     }
 
     const now = new Date().toISOString()
+    const newLevel = bank.interest_level + 1
 
     await Promise.all([
       supabase.from('resources').update({ gold: resources.gold - upgradeCost, updated_at: now }).eq('player_id', playerId),
-      supabase.from('bank').update({ interest_level: bank.interest_level + 1, updated_at: now }).eq('player_id', playerId),
+      supabase.from('bank').update({ interest_level: newLevel, updated_at: now }).eq('player_id', playerId),
     ])
 
     const [{ data: updatedBank }, { data: updatedResources }] = await Promise.all([
@@ -47,7 +48,22 @@ export async function POST() {
       supabase.from('resources').select('*').eq('player_id', playerId).single(),
     ])
 
-    return NextResponse.json({ bank: updatedBank, resources: updatedResources })
+    const maxLevel = BALANCE.bank.MAX_INTEREST_LEVEL
+    const currentRate  = BALANCE.bank.INTEREST_RATE_BY_LEVEL[newLevel] ?? 0
+    const nextRate     = newLevel < maxLevel ? (BALANCE.bank.INTEREST_RATE_BY_LEVEL[newLevel + 1] ?? null) : null
+    const nextUpgradeCost = newLevel < maxLevel ? BALANCE.bank.upgradeBaseCost * (newLevel + 1) : null
+
+    return NextResponse.json({
+      bank:      updatedBank,
+      resources: updatedResources,
+      upgrade: {
+        newLevel,
+        currentRate,
+        nextRate,
+        upgradeCost:     nextUpgradeCost,
+        atMaxLevel:      newLevel >= maxLevel,
+      },
+    })
   } catch (err) {
     console.error('Bank/upgrade error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
