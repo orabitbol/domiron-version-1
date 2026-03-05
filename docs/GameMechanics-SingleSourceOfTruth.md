@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — Tick/countdown system root-cause analysis and all fixes
+**Last updated:** 2026-03-05 — (1) Tick/countdown system root-cause analysis and all fixes; (2) Farmer unit removed, full formula audit, gap analysis added
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -27,6 +27,7 @@
 | Registration | `app/api/auth/register/route.ts` |
 | DB schema | `supabase/migrations/0001_initial.sql` |
 | World-state timer seed | `supabase/migrations/0008_world_state.sql` |
+| Farmer unit removal | `supabase/migrations/0009_remove_farmer.sql` |
 
 ---
 
@@ -54,6 +55,8 @@
 20. [Registration Flow](#20-registration-flow)
 21. [Rankings](#21-rankings)
 22. [Known Gaps / Inconsistencies / Missing / Tuning Needed](#22-known-gaps--inconsistencies--missing--tuning-needed)
+23. [Recent Changes](#23-recent-changes)
+24. [Missing From Documentation](#24-missing-from-documentation)
 
 ---
 
@@ -389,15 +392,6 @@ goldGained = floor(goldProd.min + random() × (goldProd.max - goldProd.min))
 **Allocation route:** `POST /api/mine/allocate`
 **Constraint:** `slaves_gold + slaves_iron + slaves_wood + slaves_food ≤ army.slaves`
 
-### Farmer Contribution to Food
-
-Farmers are added to `slaves_food` count for production calculation only:
-```
-foodProd = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, city, vip_until, 0, slaveBonus)
-```
-
-Farmers use the same production formula as food slaves.
-
 ### Hero Slave Bonus
 
 Batch-fetched per tick. `slaveBonus` = `totalSlaveBonus` from `calcActiveHeroEffects()` (0.0–0.50).
@@ -468,12 +462,10 @@ Source: `BALANCE.startingResources.startingPopulation = 50`, set in `app/api/aut
 | Train slave | −amount |
 | Train spy | −amount |
 | Train scout | −amount |
-| Train farmer | −amount |
 | Train cavalry | **no change** (uses existing soldiers) |
 | Untrain soldier | +amount |
 | Untrain spy | +amount |
 | Untrain scout | +amount |
-| Untrain farmer | +amount |
 | Untrain cavalry | **[MISSING]** not supported — no route |
 | Combat losses | **no change** (soldiers lost ≠ population returned) |
 
@@ -495,7 +487,6 @@ Source: `app/api/training/train/route.ts`, `app/api/training/untrain/route.ts`
 | spy | 80 | 1 free_pop | — |
 | scout | 80 | 1 free_pop | — |
 | cavalry | 200 | **0** | amount × 5 existing soldiers |
-| farmer | 20 | 1 free_pop | — |
 
 Source: `BALANCE.training.unitCost`
 
@@ -525,7 +516,7 @@ There is **no capacity cap** on any unit type. The old `players.capacity` DB col
 
 1. Auth check → 401
 2. Season freeze check → 423
-3. Unit must be soldier/spy/scout/farmer (cavalry untrain **[MISSING]**)
+3. Unit must be soldier/spy/scout (cavalry untrain **[MISSING]**)
 4. Sufficient units exist
 5. DB writes: army (deduct unit, add free_pop)
 
@@ -880,7 +871,7 @@ if failure:
 
 ```json
 {
-  "army_name", "soldiers", "spies", "scouts", "cavalry", "slaves", "farmers",
+  "army_name", "soldiers", "spies", "scouts", "cavalry", "slaves",
   "gold", "iron", "wood", "food",
   "power_attack", "power_defense", "power_spy", "power_scout", "power_total",
   "soldier_shield_active": bool,
@@ -1126,7 +1117,8 @@ Source: `BALANCE.bank.INTEREST_RATE_BY_LEVEL`, `lib/game/tick.ts → calcBankInt
 | iron_ball | 340 | 340 | 1 | 12,800 |
 
 PP values = combat power values (same numbers). PP is **additive per unit**.
-Attack power formula in `power.ts`: `(baseUnits + Σ weaponCount×power) × trainMult × raceMult`
+Attack power formula in `power.ts`: `floor((baseUnits + Σ weaponCount×power) × trainMult)`
+Race bonuses are **not** applied in stored power — stored power is race-agnostic (see §17).
 
 ### Defense Weapons (PP ranking: binary once owned, Combat power: multiplicative)
 
@@ -1343,6 +1335,48 @@ These are **two different systems** that diverge in important ways:
 **Stored power** = clean ranking power. It reflects what units and upgrades a player has, without race modifiers.
 **Combat ECP** = strategic combat power. Race bonuses are added here via `raceBonus` parameter, applied as `PP × (1 + raceBonus)` before ClanBonus is added.
 
+### Stored Power Component Formulas (`lib/game/power.ts`)
+
+```
+baseAttackUnits  = soldiers + cavalry × 2
+baseDefenseUnits = soldiers + cavalry × 2     (same as attack)
+
+attackTrainMult  = 1 + attack_level  × 0.08
+defenseTrainMult = 1 + defense_level × 0.08
+spyTrainMult     = 1 + spy_level     × 0.08
+scoutTrainMult   = 1 + scout_level   × 0.08
+
+attackWeaponPower = Σ (count × weaponPPValue)   // per weapon type, additive
+
+defWeaponMult = 1.0
+    × (wood_shield   > 0 ? 1.10 : 1)
+    × (iron_shield   > 0 ? 1.25 : 1)
+    × (leather_armor > 0 ? 1.40 : 1)
+    × (chain_armor   > 0 ? 1.55 : 1)
+    × (plate_armor   > 0 ? 1.70 : 1)
+    × (mithril_armor > 0 ? 1.90 : 1)
+    × (gods_armor    > 0 ? 2.20 : 1)
+
+spyWeaponMult = 1.0
+    × (shadow_cloak > 0 ? 1.15 : 1)
+    × (dark_mask    > 0 ? 1.30 : 1)
+    × (elven_gear   > 0 ? 1.50 : 1)
+
+scoutWeaponMult = 1.0
+    × (scout_boots  > 0 ? 1.15 : 1)
+    × (scout_cloak  > 0 ? 1.30 : 1)
+    × (elven_boots  > 0 ? 1.50 : 1)
+
+fortMult = 1 + (fortification_level − 1) × 0.10    // ← applied to stored defense only
+
+power_attack = floor((baseAttackUnits + attackWeaponPower) × attackTrainMult)
+power_defense = floor(baseDefenseUnits × defWeaponMult × defenseTrainMult × fortMult)
+power_spy    = floor(spies  × spyTrainMult  × spyWeaponMult)
+power_scout  = floor(scouts × scoutTrainMult × scoutWeaponMult)
+```
+
+> Note: `fortMult` applies only to **stored** defense power (rankings). In combat, fortification contributes via `DevScore += fortification_level × 100` inside `calculatePersonalPower()` — a different treatment.
+
 ### Power Total (Ranking)
 
 ```
@@ -1488,3 +1522,112 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 | R1 | ~~6 separate Supabase calls in attack route. No transaction.~~ | ✅ **Resolved** — `attack_multi_turn_apply()` RPC (`0006_attack_rpc.sql`) is now the sole write path; row-level locks + single Postgres transaction guarantee atomicity |
 | R2 | **Power recalc on every tick for every player.** `N × 5` queries per tick. | Debounce or compute lazily on read |
 | R3 | ~~Diagnostic logging in attack route. 20+ `console.log` lines.~~ | ✅ **Resolved** — all `[ATK_DIAG]` blocks removed |
+
+---
+
+## 23. Recent Changes
+
+### 2026-03-05 — Farmer unit completely removed
+
+**Migration:** `supabase/migrations/0009_remove_farmer.sql`
+
+The `Farmer` unit duplicated the slave-food allocation mechanic and was removed in its entirety.
+
+**DB change:**
+```sql
+-- Backfill: existing farmers become slaves + food-assigned slaves
+UPDATE army
+SET slaves = slaves + farmers, slaves_food = slaves_food + farmers
+WHERE farmers > 0;
+
+ALTER TABLE army DROP CONSTRAINT IF EXISTS chk_farmers;
+ALTER TABLE army DROP COLUMN IF EXISTS farmers;
+```
+
+**Code changes (17 files):**
+- `types/game.ts` — removed `farmers` from `Army`, `SpyRevealedData`, `UnitType`
+- `config/balance.config.ts` — removed `farmer` from `training.unitCost`
+- `lib/game/balance-validate.ts` — removed `farmer` from training Zod schema
+- `app/api/tick/route.ts` — food formula changed from `calcSlaveProduction(slaves_food + farmers, ...)` → `calcSlaveProduction(slaves_food, ...)`
+- `app/api/training/basic/route.ts` — `farmer` removed from unit enum
+- `app/api/training/untrain/route.ts` — `farmer` removed from unit enum
+- `app/api/spy/route.ts` — `farmers` removed from revealed data
+- `app/(game)/layout.tsx` — `farmers: 0` removed from fallback army object
+- `app/(game)/base/page.tsx` — Farmers row removed from army summary
+- `app/(game)/training/TrainingClient.tsx` — farmer removed from all types, labels, state, and rendered lists
+- `app/(game)/mine/MineClient.tsx` — farmer summary card and row removed
+- `app/(game)/spy/SpyClient.tsx` — Farmers row removed from intel report
+- `app/(game)/develop/DevelopClient.tsx` — food upgrade description updated from "farmer" to "food slave"
+- `lib/game/combat.test.ts` — `farmers: 0` removed from army fixture
+- `messages/en.json`, `messages/he.json` — both "farmers" keys removed
+
+**Food production is now ONLY:**
+```
+foodProd = calcSlaveProduction(army.slaves_food, dev.food_level, city, vip_until, 0, slaveBonus)
+```
+Slaves must be explicitly allocated to food via `/api/mine/allocate`. Unallocated slaves produce nothing.
+
+---
+
+## 24. MISSING FROM DOCUMENTATION
+
+Items that exist in the codebase but were not previously documented. Each is a real formula or behavior that affects gameplay.
+
+---
+
+### M-DOC-1: `calcTurnsAfterRegen` — second turn regen function in combat engine
+
+**File:** `lib/game/combat.ts`
+**Function:** `calcTurnsAfterRegen(currentTurns: number): number`
+
+```typescript
+export function calcTurnsAfterRegen(currentTurns: number): number {
+  if (currentTurns >= BALANCE.tick.maxTurns) return currentTurns
+  return Math.min(currentTurns + BALANCE.tick.turnsPerTick, BALANCE.tick.maxTurns)
+}
+```
+
+**Status: Likely dead code.** This function is defined in `combat.ts` but is **not called by any route or other module**. The tick route uses `calcTurnsToAdd(currentTurns, isVacation)` from `lib/game/tick.ts` instead, which correctly handles the vacation modifier. `calcTurnsAfterRegen` omits the vacation modifier and is never called.
+
+**Recommendation:** Delete from `combat.ts`. If turn regen is ever needed in combat context, import from `tick.ts`.
+
+---
+
+### M-DOC-2: `calcSlaveProduction` `avg` return value — computed but never consumed
+
+**File:** `lib/game/tick.ts`
+**Function:** `calcSlaveProduction(...): { min: number; max: number; avg: number }`
+
+The function returns three values:
+```typescript
+return {
+  min: Math.floor(slavesAllocated * rateMin),
+  max: Math.floor(slavesAllocated * rateMax),
+  avg: Math.floor(slavesAllocated * (rateMin + rateMax) / 2),
+}
+```
+
+The tick route uses only `min` and `max`:
+```typescript
+const goldGained = Math.floor(goldProd.min + Math.random() * (goldProd.max - goldProd.min))
+```
+
+**`avg` is never read by any caller.** The MineClient displays it as the "Production per Tick" estimate in the UI (the `/api/mine/allocate` response returns it as `production`), but the tick itself does not use `avg` — actual production is a random value between `min` and `max`.
+
+**Not a bug** — the UI showing `avg` as the estimate is correct UX. But consumers should know the actual tick value is randomised in [min, max], not exactly `avg`.
+
+---
+
+### M-DOC-3: Fortification multiplier — different treatment in stored power vs. combat PP
+
+Already added to §17 but captured here for cross-reference since it was previously absent from all documentation:
+
+| System | Formula | File |
+|---|---|---|
+| Stored power (rankings) | `fortMult = 1 + (fortification_level − 1) × 0.10` applied to `power_defense` | `lib/game/power.ts:~84` |
+| Combat PP | `DevScore += fortification_level × 100` (capped at 10,000) | `lib/game/combat.ts` → `calculatePersonalPower()` |
+
+At `fortification_level = 1`: stored `fortMult = 1.00` (neutral); combat DevScore += 100.
+At `fortification_level = 5`: stored `fortMult = 1.40`; combat DevScore += 500.
+
+The two systems scale differently. A player's visible `power_defense` ranking does not exactly predict their combat defensive ECP.
