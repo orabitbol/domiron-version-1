@@ -91,6 +91,55 @@ describe('calcTribePowerTotal', () => {
 })
 
 // ─────────────────────────────────────────
+// calcSlaveProduction — dev level scaling
+// ─────────────────────────────────────────
+
+describe('calcSlaveProduction — dev level scaling', () => {
+  const slaves = 100
+  const city   = 1
+  const vip    = null
+
+  it('level 1 produces base rate (devOffset = 0)', () => {
+    const { baseMin, baseMax } = BALANCE.production
+    const result = calcSlaveProduction(slaves, 1, city, vip)
+    expect(result.min).toBe(Math.floor(slaves * baseMin))
+    expect(result.max).toBe(Math.floor(slaves * baseMax))
+  })
+
+  it('level 2 produces more than level 1 (first offset step)', () => {
+    const l1 = calcSlaveProduction(slaves, 1, city, vip)
+    const l2 = calcSlaveProduction(slaves, 2, city, vip)
+    expect(l2.avg).toBeGreaterThan(l1.avg)
+  })
+
+  it('each upgrade adds exactly DEV_OFFSET_PER_LEVEL to both min and max rates', () => {
+    const { baseMin, baseMax, DEV_OFFSET_PER_LEVEL } = BALANCE.production
+    const l1 = calcSlaveProduction(slaves, 1, city, vip)
+    const l2 = calcSlaveProduction(slaves, 2, city, vip)
+    expect(l2.min).toBe(Math.floor(slaves * (baseMin + DEV_OFFSET_PER_LEVEL)))
+    expect(l2.max).toBe(Math.floor(slaves * (baseMax + DEV_OFFSET_PER_LEVEL)))
+    expect(l2.min - l1.min).toBe(Math.floor(slaves * DEV_OFFSET_PER_LEVEL))
+  })
+
+  it('rate increases monotonically across all dev levels 1–10', () => {
+    let prev = calcSlaveProduction(slaves, 1, city, vip)
+    for (let level = 2; level <= 10; level++) {
+      const curr = calcSlaveProduction(slaves, level, city, vip)
+      expect(curr.avg).toBeGreaterThan(prev.avg)
+      prev = curr
+    }
+  })
+
+  it('level 10 produces significantly more than level 1', () => {
+    const l1  = calcSlaveProduction(slaves, 1,  city, vip)
+    const l10 = calcSlaveProduction(slaves, 10, city, vip)
+    const { DEV_OFFSET_PER_LEVEL } = BALANCE.production
+    // 9 levels × DEV_OFFSET_PER_LEVEL × slaves added to both min and max
+    expect(l10.min - l1.min).toBe(Math.floor(slaves * 9 * DEV_OFFSET_PER_LEVEL))
+  })
+})
+
+// ─────────────────────────────────────────
 // calcSlaveProduction — city multiplier
 // ─────────────────────────────────────────
 

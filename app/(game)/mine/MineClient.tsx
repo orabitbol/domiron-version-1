@@ -4,9 +4,10 @@ import { useState, useCallback } from 'react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { ResourceBadge } from '@/components/ui/resource-badge'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, isVipActive } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
+import { calcSlaveProduction } from '@/lib/game/tick'
 import type { Development } from '@/types/game'
 
 type JobKey = 'gold' | 'iron' | 'wood' | 'food'
@@ -29,24 +30,21 @@ const JOBS: JobConfig[] = [
 
 const MAX_DEV_LEVEL = 10
 
-function calcProdRange(slaves: number, devLevel: number, city: number): { min: number; max: number } {
+// Returns the per-slave rate range as a display string, matching the tick formula exactly.
+// slaveBonus (hero effects) is not included — it's transient and not in PlayerContext.
+function perSlaveRateAt(
+  devLevel: number,
+  city: number,
+  vipUntil: string | null,
+  raceGoldBonus: number,
+): string {
   const { baseMin, baseMax } = BALANCE.production
   const cityMult  = BALANCE.cities.slaveProductionMultByCity[city] ?? 1
+  const vipMult   = isVipActive(vipUntil) ? BALANCE.vip.productionMultiplier : 1.0
   const level     = Math.max(1, devLevel || 1)
   const devOffset = (level - 1) * BALANCE.production.DEV_OFFSET_PER_LEVEL
-  return {
-    min: Math.floor(slaves * (baseMin + devOffset) * cityMult),
-    max: Math.floor(slaves * (baseMax + devOffset) * cityMult),
-  }
-}
-
-function perSlaveRateAt(devLevel: number, city: number): string {
-  const { baseMin, baseMax } = BALANCE.production
-  const cityMult  = BALANCE.cities.slaveProductionMultByCity[city] ?? 1
-  const level     = Math.max(1, devLevel || 1)
-  const devOffset = (level - 1) * BALANCE.production.DEV_OFFSET_PER_LEVEL
-  const lo = ((baseMin + devOffset) * cityMult).toFixed(1)
-  const hi = ((baseMax + devOffset) * cityMult).toFixed(1)
+  const lo = ((baseMin + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)).toFixed(1)
+  const hi = ((baseMax + devOffset) * cityMult * vipMult * (1 + raceGoldBonus)).toFixed(1)
   return `${lo}–${hi}`
 }
 
@@ -132,13 +130,20 @@ export function MineClient() {
     }
   }
 
-  const city = player?.city ?? 1
+  const city      = player?.city ?? 1
+  const vipUntil  = player?.vip_until ?? null
+  const playerRace = player?.race ?? ''
+  // Race gold bonus: human +15%, dwarf +3% — mirrors tick.ts logic exactly
+  const baseRaceGoldBonus = playerRace === 'human' ? BALANCE.raceBonuses.human.goldProductionBonus
+                          : playerRace === 'dwarf'  ? BALANCE.raceBonuses.dwarf.goldProductionBonus
+                          : 0
 
   let grandMin = 0
   let grandMax = 0
   for (const job of JOBS) {
-    const devLevel = ((development?.[job.devLevelField] as number) || 1)
-    const { min, max } = calcProdRange(assignments[job.key], devLevel, city)
+    const devLevel    = ((development?.[job.devLevelField] as number) || 1)
+    const jobRaceBonus = job.key === 'gold' ? baseRaceGoldBonus : 0
+    const { min, max } = calcSlaveProduction(assignments[job.key], devLevel, city, vipUntil, jobRaceBonus, 0)
     grandMin += min
     grandMax += max
   }
@@ -199,13 +204,14 @@ export function MineClient() {
         </div>
 
         {JOBS.map((job) => {
-          const devLevel  = ((development?.[job.devLevelField] as number) || 1)
-          const assigned  = assignments[job.key]
-          const { min, max } = calcProdRange(assigned, devLevel, city)
+          const devLevel     = ((development?.[job.devLevelField] as number) || 1)
+          const assigned     = assignments[job.key]
+          const jobRaceBonus = job.key === 'gold' ? baseRaceGoldBonus : 0
+          const { min, max } = calcSlaveProduction(assigned, devLevel, city, vipUntil, jobRaceBonus, 0)
 
-          const currentRate = perSlaveRateAt(devLevel, city)
+          const currentRate = perSlaveRateAt(devLevel, city, vipUntil, jobRaceBonus)
           const atMax       = devLevel >= MAX_DEV_LEVEL
-          const nextRate    = atMax ? null : perSlaveRateAt(devLevel + 1, city)
+          const nextRate    = atMax ? null : perSlaveRateAt(devLevel + 1, city, vipUntil, jobRaceBonus)
 
           return (
             <div
