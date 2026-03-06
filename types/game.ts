@@ -300,6 +300,15 @@ export interface TribeTaxLog {
   created_at: string
 }
 
+// ─── tribe_chat ────────────────────────────────────────────────────────────
+export interface TribeChat {
+  id:         string
+  tribe_id:   string
+  player_id:  string
+  message:    string
+  created_at: string
+}
+
 // ─── tribe_audit_log ───────────────────────────────────────────────────────
 export interface TribeAuditLog {
   id: string

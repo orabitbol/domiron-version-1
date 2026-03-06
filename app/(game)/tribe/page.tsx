@@ -3,6 +3,15 @@ import { authOptions } from '@/lib/auth/options'
 import { createClient } from '@/lib/supabase/server'
 import { TribeClient } from './TribeClient'
 
+function getIsraelDate(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year:     'numeric',
+    month:    '2-digit',
+    day:      '2-digit',
+  }).format(d) // → "YYYY-MM-DD"
+}
+
 export default async function TribePage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -28,9 +37,10 @@ export default async function TribePage() {
   let tribe = null
   let members: Array<{
     member: { player_id: string; role: 'leader' | 'deputy' | 'member'; reputation: number; reputation_pct: number; tax_exempt: boolean }
-    player: { id: string; username: string; army_name: string; rank_city: number | null } | null
+    player: { id: string; username: string; army_name: string; rank_city: number | null; power_total: number | null } | null
   }> = []
   let tribeSpells: Array<{ spell_key: string; expires_at: string }> = []
+  let taxLogToday: Array<{ player_id: string; paid: boolean }> = []
 
   if (membership) {
     const { data: tribeData } = await supabase
@@ -50,7 +60,7 @@ export default async function TribePage() {
         const playerIds = memberRows.map((m) => m.player_id)
         const { data: playerRows } = await supabase
           .from('players')
-          .select('id, username, army_name, rank_city')
+          .select('id, username, army_name, rank_city, power_total')
           .in('id', playerIds)
 
         members = memberRows.map((m) => ({
@@ -66,6 +76,15 @@ export default async function TribePage() {
         .gt('expires_at', new Date().toISOString())
 
       tribeSpells = spellRows ?? []
+
+      const israelToday = getIsraelDate(new Date())
+      const { data: taxLogRows } = await supabase
+        .from('tribe_tax_log')
+        .select('player_id, paid')
+        .eq('tribe_id', tribe.id)
+        .eq('collected_date', israelToday)
+
+      taxLogToday = taxLogRows ?? []
     }
   }
 
@@ -108,6 +127,7 @@ export default async function TribePage() {
       members={members}
       tribeSpells={tribeSpells}
       joinableTribes={joinableTribes}
+      taxLogToday={taxLogToday}
     />
   )
 }

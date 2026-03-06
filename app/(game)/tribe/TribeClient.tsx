@@ -1,19 +1,20 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { GameTable } from '@/components/ui/game-table'
-import { EmptyState } from '@/components/ui/game-table'
+import { Tabs } from '@/components/ui/tabs'
+import { GameTable, EmptyState } from '@/components/ui/game-table'
 import { ResourceBadge } from '@/components/ui/resource-badge'
+import { Modal } from '@/components/ui/modal'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import type { Player, Tribe, TribeMember, TribeMemberRole } from '@/types/game'
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MemberRow {
   member: {
@@ -28,6 +29,7 @@ interface MemberRow {
     username: string
     army_name: string
     rank_city: number | null
+    power_total: number | null
   } | null
 }
 
@@ -46,6 +48,15 @@ interface TaxStatus {
   last_tax_collected_at: string | null
 }
 
+interface ChatMessage {
+  id: string
+  tribe_id: string
+  player_id: string
+  message: string
+  created_at: string
+  username: string
+}
+
 interface Props {
   player: Player
   membership: TribeMember | null
@@ -53,9 +64,10 @@ interface Props {
   members: MemberRow[]
   tribeSpells: Array<{ spell_key: string; expires_at: string }>
   joinableTribes: JoinableTribe[]
+  taxLogToday: Array<{ player_id: string; paid: boolean }>
 }
 
-// ── Spell metadata ────────────────────────────────────────────────────────────
+// ── Spell metadata ─────────────────────────────────────────────────────────────
 
 type SpellKey = 'war_cry' | 'tribe_shield' | 'production_blessing' | 'spy_veil' | 'battle_supply'
 
@@ -67,7 +79,7 @@ const SPELL_LABELS: Record<SpellKey, string> = {
   battle_supply:       'Battle Supply',
 }
 
-const SPELL_DESC: Record<SpellKey, string> = {
+const SPELL_EFFECT: Record<SpellKey, string> = {
   war_cry:             `Attacker ECP ×${BALANCE.tribe.spellEffects.war_cry.combatMultiplier}`,
   tribe_shield:        `Defender ECP ×${BALANCE.tribe.spellEffects.tribe_shield.defenseMultiplier}`,
   production_blessing: `Slave output ×${BALANCE.tribe.spellEffects.production_blessing.productionMultiplier}`,
@@ -75,20 +87,33 @@ const SPELL_DESC: Record<SpellKey, string> = {
   battle_supply:       `Attack food cost −${(BALANCE.tribe.spellEffects.battle_supply.foodReduction * 100).toFixed(0)}%`,
 }
 
-const V1_SPELLS: SpellKey[] = ['war_cry', 'tribe_shield', 'production_blessing', 'spy_veil', 'battle_supply']
-
-// ── Role badge ────────────────────────────────────────────────────────────────
-
-const ROLE_BADGE: Record<TribeMemberRole, React.ReactNode> = {
-  leader: <Badge variant="gold">Leader</Badge>,
-  deputy: <Badge variant="purple">Deputy</Badge>,
-  member: <Badge variant="default">Member</Badge>,
+const SPELL_ACCENT: Record<SpellKey, { borderL: string; text: string }> = {
+  war_cry:             { borderL: 'border-l-red-600',     text: 'text-red-400'     },
+  tribe_shield:        { borderL: 'border-l-blue-600',    text: 'text-blue-400'    },
+  production_blessing: { borderL: 'border-l-emerald-600', text: 'text-emerald-400' },
+  spy_veil:            { borderL: 'border-l-purple-600',  text: 'text-purple-400'  },
+  battle_supply:       { borderL: 'border-l-amber-600',   text: 'text-amber-400'   },
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const V1_SPELLS: SpellKey[] = [
+  'war_cry', 'tribe_shield', 'production_blessing', 'spy_veil', 'battle_supply',
+]
+
+// ── Tab definitions ────────────────────────────────────────────────────────────
+
+type TribeTab = 'overview' | 'members' | 'spells' | 'chat'
+
+const TRIBE_TABS: Array<{ key: string; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'members',  label: 'Members'  },
+  { key: 'spells',   label: 'Spells'   },
+  { key: 'chat',     label: 'Chat'     },
+]
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatCountdown(ms: number): string {
-  if (ms <= 0) return 'Overdue'
+  if (ms <= 0) return 'Soon'
   const h = Math.floor(ms / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
   const s = Math.floor((ms % 60_000) / 1_000)
@@ -97,33 +122,89 @@ function formatCountdown(ms: number): string {
   return `${s}s`
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function formatTimeLeft(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now()
+  if (ms <= 0) return 'Expired'
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  if (h > 0) return `${h}h ${m}m left`
+  return `${m}m left`
+}
 
-export function TribeClient({ player, membership, tribe, members, tribeSpells, joinableTribes }: Props) {
+function formatChatTime(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) {
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  }
+  return (
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    ' ' +
+    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  )
+}
+
+function tribeInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0] ?? '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export function TribeClient({
+  player,
+  membership,
+  tribe,
+  members,
+  tribeSpells,
+  joinableTribes,
+  taxLogToday,
+}: Props) {
   const { refresh } = usePlayer()
   const router      = useRouter()
 
-  // ── State ─────────────────────────────────────────────────────────────────
-  const [loading,       setLoading]       = useState<string | null>(null)
-  const [message,       setMessage]       = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-  const [tribeName,     setTribeName]     = useState('')
-  const [tribeAnthem,   setTribeAnthem]   = useState('')
-  const [taxAmount,     setTaxAmount]     = useState('')
-  const [manaAmount,    setManaAmount]    = useState('')
-  const [localMembers,  setLocalMembers]  = useState(members)
-  const [localTribeMana, setLocalTribeMana] = useState(tribe?.mana ?? 0)
-  const [taxStatus,     setTaxStatus]     = useState<TaxStatus | null>(null)
-  const [countdown,     setCountdown]     = useState('')
-  const [disbandConfirm, setDisbandConfirm] = useState(false)
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [activeTab,        setActiveTab]        = useState<TribeTab>('overview')
+  const [loading,          setLoading]          = useState<string | null>(null)
+  const [message,          setMessage]          = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [tribeName,        setTribeName]        = useState('')
+  const [tribeAnthem,      setTribeAnthem]      = useState('')
+  const [taxAmount,        setTaxAmount]        = useState('')
+  const [manaAmount,       setManaAmount]       = useState('')
+  const [localMembers,     setLocalMembers]     = useState(members)
+  const [localTribeMana,   setLocalTribeMana]   = useState(tribe?.mana ?? 0)
+  const [localTaxAmount,   setLocalTaxAmount]   = useState(tribe?.tax_amount ?? 0)
+  const [localSpells,      setLocalSpells]      = useState(tribeSpells)
+  const [taxStatus,        setTaxStatus]        = useState<TaxStatus | null>(null)
+  const [countdown,        setCountdown]        = useState('')
+  // Modals
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [showDisbandModal,  setShowDisbandModal]  = useState(false)
+  const [showLeaveModal,    setShowLeaveModal]    = useState(false)
+  const [transferTarget,    setTransferTarget]    = useState<string | null>(null)
+  // Member actions dropdown
+  const [openMenu,         setOpenMenu]         = useState<string | null>(null)
+  // Chat
+  const [chatMessages,     setChatMessages]     = useState<ChatMessage[]>([])
+  const [chatInput,        setChatInput]        = useState('')
+  const [chatFetched,      setChatFetched]      = useState(false)
+  const [chatLoading,      setChatLoading]      = useState(false)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
 
-  const myRole    = membership?.role ?? null
-  const isLeader  = myRole === 'leader'
-  const isDeputy  = myRole === 'deputy'
-  const canManage = isLeader || isDeputy
+  const myRole     = membership?.role ?? null
+  const isLeader   = myRole === 'leader'
+  const isDeputy   = myRole === 'deputy'
+  const canManage  = isLeader || isDeputy
+  const deputyCount    = localMembers.filter((m) => m.member.role === 'deputy').length
+  const deputies       = localMembers.filter((m) => m.member.role === 'deputy')
+  const leaderUsername = localMembers.find((m) => m.member.role === 'leader')?.player?.username ?? '—'
 
-  const deputyCount = localMembers.filter(m => m.member.role === 'deputy').length
-
-  // ── Tax status fetch + countdown ──────────────────────────────────────────
+  // ── Tax status fetch + countdown ───────────────────────────────────────────
 
   const fetchTaxStatus = useCallback(async () => {
     if (!tribe) return
@@ -132,13 +213,11 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       const json = await res.json()
       if (res.ok && json.data) setTaxStatus(json.data as TaxStatus)
     } catch {
-      // Non-critical — countdown will just not display
+      // Non-critical
     }
   }, [tribe])
 
-  useEffect(() => {
-    fetchTaxStatus()
-  }, [fetchTaxStatus])
+  useEffect(() => { fetchTaxStatus() }, [fetchTaxStatus])
 
   useEffect(() => {
     if (!taxStatus) return
@@ -151,7 +230,36 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
     return () => clearInterval(id)
   }, [taxStatus])
 
-  // ── Message helper ────────────────────────────────────────────────────────
+  // ── Chat: lazy-fetch on first tab open ────────────────────────────────────
+
+  const fetchChatMessages = useCallback(async () => {
+    if (!tribe) return
+    setChatLoading(true)
+    try {
+      const r    = await fetch('/api/tribe/chat')
+      const json = await r.json()
+      setChatMessages((json.data?.messages as ChatMessage[]) ?? [])
+      setChatFetched(true)
+    } catch {
+      setChatFetched(true)
+    } finally {
+      setChatLoading(false)
+    }
+  }, [tribe])
+
+  useEffect(() => {
+    if (activeTab !== 'chat' || chatFetched) return
+    fetchChatMessages()
+  }, [activeTab, chatFetched, fetchChatMessages])
+
+  // Scroll to bottom when messages change while chat is active
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages, activeTab])
+
+  // ── Message helper ─────────────────────────────────────────────────────────
 
   function showMsg(text: string, type: 'success' | 'error') {
     setMessage({ text, type })
@@ -199,7 +307,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
     try {
       const res  = await fetch('/api/tribe/leave', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to leave tribe', 'error')
+      if (!res.ok) { showMsg(data.error ?? 'Failed to leave tribe', 'error'); setShowLeaveModal(false) }
       else router.refresh()
     } catch { showMsg('Network error', 'error') }
     finally { setLoading(null) }
@@ -211,13 +319,10 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
     try {
       const res  = await fetch('/api/tribe/disband', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to disband tribe', 'error')
+      if (!res.ok) { showMsg(data.error ?? 'Failed to disband tribe', 'error'); setShowDisbandModal(false) }
       else router.refresh()
     } catch { showMsg('Network error', 'error') }
-    finally {
-      setLoading(null)
-      setDisbandConfirm(false)
-    }
+    finally { setLoading(null) }
   }
 
   async function handleActivateSpell(spellKey: SpellKey) {
@@ -233,8 +338,15 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       if (!res.ok) showMsg(data.error ?? 'Failed to activate spell', 'error')
       else {
         showMsg(`${SPELL_LABELS[spellKey]} activated!`, 'success')
-        const cost = BALANCE.tribe.spells[spellKey]?.manaCost ?? 0
-        setLocalTribeMana(prev => prev - cost)
+        const cfg     = BALANCE.tribe.spells[spellKey]
+        const cost    = cfg?.manaCost ?? 0
+        const hours   = cfg?.durationHours ?? 1
+        const expires = new Date(Date.now() + hours * 3_600_000).toISOString()
+        setLocalTribeMana((prev) => prev - cost)
+        setLocalSpells((prev) => [
+          ...prev.filter((s) => s.spell_key !== spellKey),
+          { spell_key: spellKey, expires_at: expires },
+        ])
         refresh()
       }
     } catch { showMsg('Network error', 'error') }
@@ -242,6 +354,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
   }
 
   async function handleKickMember(memberId: string) {
+    setOpenMenu(null)
     setLoading(`kick-${memberId}`)
     setMessage(null)
     try {
@@ -254,7 +367,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       if (!res.ok) showMsg(data.error ?? 'Failed to kick member', 'error')
       else {
         showMsg('Member removed from tribe', 'success')
-        setLocalMembers(prev => prev.filter(m => m.member.player_id !== memberId))
+        setLocalMembers((prev) => prev.filter((m) => m.member.player_id !== memberId))
         refresh()
       }
     } catch { showMsg('Network error', 'error') }
@@ -276,6 +389,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       if (!res.ok) showMsg(data.error ?? 'Failed to set tax', 'error')
       else {
         showMsg('Daily tribute updated', 'success')
+        setLocalTaxAmount(amt)
         setTaxAmount('')
         refresh()
       }
@@ -299,17 +413,17 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       else {
         showMsg(`Contributed ${amt} mana to tribe`, 'success')
         setManaAmount('')
-        // Use RPC result directly — no router.refresh() needed
         if (data.data?.new_tribe_mana !== undefined) {
           setLocalTribeMana(data.data.new_tribe_mana as number)
         }
-        refresh() // updates hero mana in sidebar
+        refresh()
       }
     } catch { showMsg('Network error', 'error') }
     finally { setLoading(null) }
   }
 
   async function handleSetRole(targetId: string, action: 'appoint' | 'remove') {
+    setOpenMenu(null)
     setLoading(`role-${action}-${targetId}`)
     setMessage(null)
     try {
@@ -321,13 +435,14 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       const data = await res.json()
       if (!res.ok) showMsg(data.error ?? 'Role change failed', 'error')
       else {
-        const label = action === 'appoint' ? 'Deputy appointed' : 'Deputy removed'
-        showMsg(label, 'success')
-        setLocalMembers(prev => prev.map(m =>
-          m.member.player_id === targetId
-            ? { ...m, member: { ...m.member, role: action === 'appoint' ? 'deputy' : 'member' } }
-            : m,
-        ))
+        showMsg(action === 'appoint' ? 'Deputy appointed' : 'Deputy removed', 'success')
+        setLocalMembers((prev) =>
+          prev.map((m) =>
+            m.member.player_id === targetId
+              ? { ...m, member: { ...m.member, role: action === 'appoint' ? 'deputy' : 'member' } }
+              : m,
+          ),
+        )
         refresh()
       }
     } catch { showMsg('Network error', 'error') }
@@ -345,15 +460,66 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       })
       const data = await res.json()
       if (!res.ok) showMsg(data.error ?? 'Leadership transfer failed', 'error')
-      else router.refresh() // leadership change rewrites page structure
+      else {
+        setShowTransferModal(false)
+        setTransferTarget(null)
+        router.refresh()
+      }
     } catch { showMsg('Network error', 'error') }
     finally { setLoading(null) }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  async function handleSendChat() {
+    const msg = chatInput.trim()
+    if (!msg || !tribe) return
+    setLoading('send-chat')
+    // Optimistically add the message immediately
+    const optimisticId = `opt-${Date.now()}`
+    const optimistic: ChatMessage = {
+      id:         optimisticId,
+      tribe_id:   tribe.id,
+      player_id:  player.id,
+      message:    msg,
+      created_at: new Date().toISOString(),
+      username:   player.username,
+    }
+    setChatMessages((prev) => [...prev, optimistic])
+    setChatInput('')
+    try {
+      const res  = await fetch('/api/tribe/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        // Remove the optimistic message on failure
+        setChatMessages((prev) => prev.filter((m) => m.id !== optimisticId))
+        setChatInput(msg) // restore input
+        showMsg(data.error ?? 'Failed to send message', 'error')
+      } else {
+        // Replace the optimistic message with the real one from server
+        const real = data.data?.message as ChatMessage
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === optimisticId ? { ...real, username: player.username } : m)),
+        )
+      }
+    } catch {
+      setChatMessages((prev) => prev.filter((m) => m.id !== optimisticId))
+      setChatInput(msg)
+      showMsg('Network error', 'error')
+    }
+    finally { setLoading(null) }
+  }
+
+  // ── Computed ───────────────────────────────────────────────────────────────
+
+  const taxCollectionHour = BALANCE.tribe.taxCollectionHour
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
       {/* Page header */}
       <div>
@@ -370,7 +536,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
       {/* Feedback message */}
       {message && (
         <div
-          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-2.5 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -380,52 +546,32 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {/* NO TRIBE STATE                                                          */}
-      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* NO TRIBE STATE                                                         */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       {!tribe && (
         <>
-          {/* Found a Tribe */}
           <div className="card-game rounded-game-lg p-5 space-y-4">
             <div className="panel-header">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                Found a Tribe
-              </h2>
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Found a Tribe</h2>
             </div>
             <p className="text-game-sm text-game-text-muted font-body">
               Costs{' '}
-              <span className="text-purple-400 font-semibold">
-                {BALANCE.tribe.creationManaCost} personal mana
-              </span>{' '}
-              to establish.
+              <span className="text-purple-400 font-semibold">{BALANCE.tribe.creationManaCost} personal mana</span>
+              {' '}to establish.
             </p>
             <div className="space-y-3">
-              <Input
-                label="Tribe Name"
-                placeholder="Enter tribe name (3–40 characters)"
-                value={tribeName}
-                onChange={(e) => setTribeName(e.target.value)}
-                maxLength={40}
-              />
-              <Input
-                label="Anthem (optional)"
-                placeholder="Your tribe's motto or battle cry"
-                value={tribeAnthem}
-                onChange={(e) => setTribeAnthem(e.target.value)}
-                maxLength={120}
-              />
-              <Button
-                variant="primary"
-                disabled={tribeName.trim().length < 3 || !!loading}
-                loading={loading === 'create'}
-                onClick={handleCreateTribe}
-              >
+              <Input label="Tribe Name" placeholder="Enter tribe name (3–40 characters)" value={tribeName}
+                onChange={(e) => setTribeName(e.target.value)} maxLength={40} />
+              <Input label="Anthem (optional)" placeholder="Your tribe's motto or battle cry" value={tribeAnthem}
+                onChange={(e) => setTribeAnthem(e.target.value)} maxLength={120} />
+              <Button variant="primary" disabled={tribeName.trim().length < 3 || !!loading}
+                loading={loading === 'create'} onClick={handleCreateTribe}>
                 Create Tribe
               </Button>
             </div>
           </div>
 
-          {/* Joinable tribes */}
           <div className="card-game rounded-game-lg p-5">
             <div className="panel-header mb-4">
               <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
@@ -433,10 +579,7 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
               </h2>
             </div>
             {joinableTribes.length === 0 ? (
-              <EmptyState
-                title="No Tribes Available"
-                description="No tribes exist in your city yet. Be the first to found one."
-              />
+              <EmptyState title="No Tribes Available" description="No tribes exist in your city yet. Be the first to found one." />
             ) : (
               <GameTable
                 headers={['Name', 'Level', 'Members', 'Anthem', 'Action']}
@@ -446,16 +589,10 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
                   <Badge key="level" variant="default">Lvl {t.level}</Badge>,
                   <span key="members" className="text-game-sm font-body tabular-nums">{t.member_count} / {t.max_members}</span>,
                   <span key="anthem" className="text-game-sm text-game-text-muted font-body italic">{t.anthem ?? '—'}</span>,
-                  <Button
-                    key="join"
-                    variant="primary"
-                    size="sm"
+                  <Button key="join" variant="primary" size="sm"
                     disabled={t.member_count >= t.max_members || !!loading}
                     loading={loading === `join-${t.id}`}
-                    onClick={() => handleJoinTribe(t.id)}
-                  >
-                    Join
-                  </Button>,
+                    onClick={() => handleJoinTribe(t.id)}>Join</Button>,
                 ])}
               />
             )}
@@ -463,450 +600,763 @@ export function TribeClient({ player, membership, tribe, members, tribeSpells, j
         </>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {/* IN TRIBE STATE                                                          */}
-      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* IN TRIBE STATE — TABBED                                                */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       {tribe && membership && (
         <>
-          {/* ── Tribe stats strip ──────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {([
-              { label: 'Level',       value: String(tribe.level)                          },
-              { label: 'Reputation',  value: formatNumber(tribe.reputation)                },
-              { label: 'Tribe Mana',  value: formatNumber(localTribeMana), purple: true    },
-              { label: 'Members',     value: `${localMembers.length} / ${tribe.max_members}` },
-            ] as { label: string; value: string; purple?: boolean }[]).map(({ label, value, purple }) => (
-              <div
-                key={label}
-                className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 text-center"
-              >
-                <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">{label}</p>
-                <p className={`text-game-base font-body font-semibold mt-0.5 ${purple ? 'text-purple-400' : 'text-game-gold'}`}>
-                  {value}
-                </p>
-              </div>
-            ))}
-          </div>
+          <Tabs tabs={TRIBE_TABS} activeTab={activeTab} onChange={(k) => setActiveTab(k as TribeTab)} />
 
-          {/* Anthem */}
-          {tribe.anthem && (
-            <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-4 py-3">
-              <p className="text-game-sm text-game-text-secondary font-body italic">&quot;{tribe.anthem}&quot;</p>
+          {/* ── OVERVIEW ──────────────────────────────────────────────────── */}
+          {activeTab === 'overview' && (
+            <div className="space-y-4">
+
+              {/* Identity card */}
+              <div className="card-game rounded-game-lg p-4">
+                <div className="flex items-center gap-4">
+                  <div className="shrink-0 size-16 rounded-full bg-gradient-to-br from-game-gold/25 to-game-bg border-2 border-game-border-gold shadow-[0_0_18px_rgba(201,144,26,0.2)] flex items-center justify-center">
+                    <span className="font-display text-xl font-bold text-game-gold">{tribeInitials(tribe.name)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-heading text-game-xl uppercase tracking-wider text-game-gold-bright leading-tight">
+                      {tribe.name}
+                    </h2>
+                    {tribe.anthem && (
+                      <p className="text-game-xs font-body italic text-game-text-secondary mt-0.5 truncate">
+                        &quot;{tribe.anthem}&quot;
+                      </p>
+                    )}
+                    <p className="text-game-xs text-game-text-muted font-body mt-1">
+                      City {tribe.city}&nbsp;·&nbsp;Lv {tribe.level}&nbsp;·&nbsp;Led by{' '}
+                      <span className="text-game-text-secondary">{leaderUsername}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stats strip */}
+                <div className="grid grid-cols-4 gap-2 mt-4">
+                  {[
+                    { label: 'Level',   value: String(tribe.level)                          },
+                    { label: 'Rep',     value: formatNumber(tribe.reputation)                },
+                    { label: 'Members', value: `${localMembers.length}/${tribe.max_members}` },
+                    { label: 'Power',   value: formatNumber(tribe.power_total)               },
+                  ].map(({ label, value }) => (
+                    <div key={label}
+                      className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-2.5 text-center">
+                      <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">{label}</p>
+                      <p className="text-game-sm font-body font-semibold mt-0.5 text-game-gold tabular-nums">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tribute panel — prominent */}
+              <div className="relative rounded-game-lg border border-amber-700/50 bg-gradient-to-br from-amber-950/50 via-[#1A1208] to-game-surface overflow-hidden">
+                {/* Decorative left accent */}
+                <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-amber-500 via-amber-600 to-amber-800 rounded-l-game-lg" />
+                <div className="px-5 py-4 ps-6">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="text-game-xs font-heading uppercase tracking-widest text-amber-500/80 mb-1">
+                        Daily Tribute
+                      </p>
+                      <p className="text-3xl font-body font-bold text-amber-300 tabular-nums leading-none">
+                        {formatNumber(localTaxAmount)}<span className="text-xl text-amber-400/70 ms-1">Gold</span>
+                      </p>
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                          <span className="text-game-sm font-body tabular-nums text-amber-200">
+                            {countdown ? `Next: ${countdown}` : '—'}
+                          </span>
+                        </div>
+                        <span className="text-game-xs text-amber-600/70 font-body">
+                          Daily at {taxCollectionHour}:00 Israel time
+                        </span>
+                      </div>
+                      {taxStatus?.last_tax_collected_at && (
+                        <p className="text-game-xs text-amber-700/70 font-body mt-1">
+                          Last collected: {taxStatus.last_tax_collected_at}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Leader: set tribute inline */}
+                    {isLeader && (
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <p className="text-game-xs text-amber-600/80 font-heading uppercase tracking-wide">
+                          Set Tribute
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            placeholder="Gold"
+                            value={taxAmount}
+                            min={0}
+                            onChange={(e) => setTaxAmount(e.target.value)}
+                            className="w-28"
+                          />
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            loading={loading === 'set-tax'}
+                            disabled={!taxAmount || !!loading}
+                            onClick={handleSetTax}
+                          >
+                            Set
+                          </Button>
+                        </div>
+                        <p className="text-game-xs text-amber-700/60 font-body">
+                          City cap: {formatNumber(BALANCE.tribe.taxLimits[`city${tribe.city}`] ?? 0)}g
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mana panel */}
+              <div className="bg-gradient-to-b from-purple-950/40 to-game-surface border border-purple-800/40 rounded-game-lg p-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400 mb-0.5">Tribe Mana</p>
+                    <p className="text-2xl font-body font-bold text-purple-300 tabular-nums">{formatNumber(localTribeMana)}</p>
+                    <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                      +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} per tick · {localMembers.length} members
+                    </p>
+                  </div>
+                  <Button variant="link" size="sm" onClick={() => setActiveTab('spells')}>
+                    Manage Spells →
+                  </Button>
+                </div>
+              </div>
+
+              {/* Active spells strip */}
+              {localSpells.length > 0 && (
+                <div className="card-game rounded-game-lg px-4 py-3">
+                  <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400 mb-2">Active Spells</p>
+                  <div className="flex flex-wrap gap-2">
+                    {localSpells.map((spell) => (
+                      <div key={spell.spell_key}
+                        className="flex items-center gap-2 bg-purple-900/30 border border-purple-700/40 rounded-game-lg px-3 py-1.5">
+                        <span className="text-purple-300 font-heading text-game-xs uppercase tracking-wide">
+                          {SPELL_LABELS[spell.spell_key as SpellKey] ?? spell.spell_key}
+                        </span>
+                        <span className="text-game-xs text-purple-400/70 font-body tabular-nums">
+                          · {formatTimeLeft(spell.expires_at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* My status + tribe actions */}
+              <div className="card-game rounded-game-lg p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span>
+                    {myRole === 'leader' && <Badge variant="gold">Leader</Badge>}
+                    {myRole === 'deputy' && <Badge variant="purple">Deputy</Badge>}
+                    {myRole === 'member' && <Badge variant="default">Member</Badge>}
+                  </span>
+                  <span className="text-game-sm font-body text-game-text-secondary">
+                    {myRole === 'leader' && 'You lead this tribe.'}
+                    {myRole === 'deputy' && 'You are a deputy.'}
+                    {myRole === 'member' && (
+                      membership.tax_exempt
+                        ? 'Personal tribute exemption.'
+                        : `Pays ${formatNumber(localTaxAmount)} gold/day.`
+                    )}
+                  </span>
+                  {(myRole === 'leader' || myRole === 'deputy') && (
+                    <span className="text-game-xs text-amber-400/70 font-body">Tax exempt</span>
+                  )}
+                </div>
+
+                <div className="divider-gold" />
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Non-leaders: Leave */}
+                  {!isLeader && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowLeaveModal(true)}>
+                      Leave Tribe
+                    </Button>
+                  )}
+
+                  {/* Leader: Transfer leadership */}
+                  {isLeader && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTransferTarget(null)
+                        setShowTransferModal(true)
+                      }}
+                    >
+                      Transfer Leadership
+                    </Button>
+                  )}
+
+                  {/* Leader: Disband (only when alone) */}
+                  {isLeader && localMembers.length <= 1 && (
+                    <Button variant="danger" size="sm" onClick={() => setShowDisbandModal(true)}>
+                      Disband Tribe
+                    </Button>
+                  )}
+
+                  {isLeader && localMembers.length > 1 && (
+                    <p className="text-game-xs text-game-text-muted font-body">
+                      To disband, remove all members first or transfer leadership.
+                    </p>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
 
-          {/* ── Daily Tribute / Tax countdown ──────────────────────────────── */}
-          <div className="card-game rounded-game-lg p-4">
-            <div className="panel-header mb-3">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                Daily Tribute
-              </h2>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              {/* Tax amount + exemption */}
-              <div className="flex-1 space-y-1">
-                <p className="text-game-sm font-body">
-                  Amount:{' '}
-                  <span className="text-game-gold font-semibold">
-                    {formatNumber(tribe.tax_amount)} Gold
-                  </span>
-                </p>
-                {myRole === 'leader' || myRole === 'deputy' ? (
-                  <p className="text-game-xs font-body text-blue-400">
-                    You are exempt — leader and deputies do not pay tribute.
-                  </p>
-                ) : membership.tax_exempt ? (
-                  <p className="text-game-xs font-body text-blue-400">
-                    You have a personal tax exemption.
-                  </p>
-                ) : (
-                  <p className="text-game-xs font-body text-game-text-muted">
-                    Collected automatically at {BALANCE.tribe.taxCollectionHour}:00 Israel time.
-                    Gold goes directly to the tribe leader.
-                  </p>
-                )}
-              </div>
+          {/* ── MEMBERS ───────────────────────────────────────────────────── */}
+          {activeTab === 'members' && (
+            <div className="space-y-4">
 
-              {/* Tax countdown */}
-              <div className="shrink-0 bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-4 py-3 text-center min-w-[120px]">
-                <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">
-                  Next Collection
-                </p>
-                <p className="text-game-base font-body font-semibold text-amber-400 mt-0.5 tabular-nums">
-                  {countdown || '—'}
-                </p>
-                {taxStatus?.last_tax_collected_at && (
-                  <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                    Last: {taxStatus.last_tax_collected_at}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Contribute Mana ────────────────────────────────────────────── */}
-          <div className="card-game rounded-game-lg p-4 space-y-3">
-            <div className="panel-header">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                Contribute Mana
-              </h2>
-            </div>
-            <div className="space-y-1">
-              <p className="text-game-xs text-game-text-muted font-body">
-                Transfer personal mana from your hero to the tribe pool.
-                <span className="text-amber-400 font-semibold"> Permanent — cannot be withdrawn.</span>
-              </p>
-              <p className="text-game-xs text-game-text-muted font-body">
-                Tribe mana is used to cast tribe spells. Only the tribe leader and deputies can activate spells.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder="Amount"
-                value={manaAmount}
-                min={1}
-                onChange={(e) => setManaAmount(e.target.value)}
-                suffix="Mana"
-                className="w-44"
-              />
-              <Button
-                variant="magic"
-                size="sm"
-                loading={loading === 'contribute-mana'}
-                disabled={!manaAmount || parseInt(manaAmount) <= 0 || !!loading}
-                onClick={handleContributeMana}
-              >
-                Contribute
-              </Button>
-            </div>
-          </div>
-
-          {/* ── Active Spells ───────────────────────────────────────────────── */}
-          {tribeSpells.length > 0 && (
-            <div className="card-game rounded-game-lg p-4">
-              <div className="panel-header mb-3">
-                <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                  Active Spells
-                </h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {tribeSpells.map((spell) => (
-                  <div
-                    key={spell.spell_key}
-                    className="flex items-center gap-2 bg-purple-900/30 border border-purple-700/40 rounded-game-lg px-3 py-1.5"
-                  >
-                    <span className="text-purple-300 font-heading text-game-xs uppercase tracking-wide">
-                      {SPELL_LABELS[spell.spell_key as SpellKey] ?? spell.spell_key}
-                    </span>
-                    <span className="text-game-xs text-purple-400/70 font-body tabular-nums">
-                      until {new Date(spell.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {/* Tribute + schedule strip */}
+              <div className="relative rounded-game-lg border border-amber-800/40 bg-gradient-to-r from-amber-950/40 via-[#1a1208]/60 to-game-surface overflow-hidden">
+                <div className="absolute inset-y-0 start-0 w-[3px] bg-gradient-to-b from-amber-400 to-amber-700 rounded-s-game-lg" />
+                <div className="flex items-center gap-4 ps-5 pe-4 py-3 flex-wrap">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-game-xs font-heading uppercase tracking-widest text-amber-500/80">Tribute</span>
+                    <span className="font-body font-bold text-amber-300 tabular-nums text-game-base">
+                      {formatNumber(localTaxAmount)} <span className="text-amber-400/70 text-game-xs font-normal">gold/day</span>
                     </span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-1.5 text-game-xs font-body">
+                    <span className="size-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                    <span className="text-amber-300/80 tabular-nums">{countdown || '—'}</span>
+                  </div>
+                  <span className="text-game-xs text-amber-700/60 font-body ms-auto">
+                    Daily at {taxCollectionHour}:00 Israel time
+                  </span>
+                </div>
+              </div>
+
+              {/* Roster panel */}
+              <div className="panel-ornate rounded-game-lg overflow-hidden">
+
+                {/* Panel header */}
+                <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-game-elevated/80 to-transparent border-b border-game-border-gold/40">
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-heading text-game-base uppercase tracking-widest text-game-gold-bright">
+                      Roster
+                    </h2>
+                    <span className="chip bg-game-border/60 text-game-text-muted border border-game-border/60">
+                      {localMembers.length}/{tribe.max_members}
+                    </span>
+                  </div>
+                  {isLeader && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setTransferTarget(null); setShowTransferModal(true) }}
+                    >
+                      Transfer Leadership
+                    </Button>
+                  )}
+                </div>
+
+                {/* Click-outside overlay */}
+                {openMenu && (
+                  <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
+                )}
+
+                {/* Member list */}
+                <div>
+                  {localMembers.map(({ member, player: mp }) => {
+                    const isSelf     = member.player_id === player.id
+                    const canKick    = canManage && !isSelf && member.role !== 'leader' &&
+                      !(isDeputy && member.role === 'deputy')
+                    const canAppoint = isLeader && member.role === 'member' && deputyCount < 3 && !isSelf
+                    const canRemove  = isLeader && member.role === 'deputy' && !isSelf
+                    const hasActions = canKick || canAppoint || canRemove
+                    const isExempt   = member.role === 'leader' || member.role === 'deputy' || member.tax_exempt
+                    const taxEntry   = taxLogToday.find((t) => t.player_id === member.player_id)
+
+                    // Left accent bar color per role
+                    const accentBar =
+                      member.role === 'leader'  ? 'bg-gradient-to-b from-amber-400 to-amber-700' :
+                      member.role === 'deputy'  ? 'bg-gradient-to-b from-purple-400 to-purple-700' :
+                                                  'bg-game-border/40'
+
+                    // Avatar ring color per role
+                    const avatarRing =
+                      member.role === 'leader' ? 'border-amber-500/60 shadow-[0_0_10px_rgba(201,144,26,0.25)]' :
+                      member.role === 'deputy' ? 'border-purple-500/60 shadow-[0_0_10px_rgba(168,85,247,0.2)]' :
+                                                 'border-game-border/50'
+
+                    const avatarText =
+                      member.role === 'leader' ? 'text-game-gold' :
+                      member.role === 'deputy' ? 'text-purple-300' :
+                                                 'text-game-text-secondary'
+
+                    const initials = (mp?.army_name ?? mp?.username ?? '?')
+                      .split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase()
+
+                    return (
+                      <div
+                        key={member.player_id}
+                        className="relative flex items-center gap-4 px-6 py-5 border-b border-game-border/30 last:border-0 hover:bg-game-gold/[0.025] transition-colors group"
+                      >
+                        {/* Left role accent bar */}
+                        <div className={`absolute inset-y-0 start-0 w-[3px] ${accentBar}`} />
+
+                        {/* Avatar */}
+                        <div className={`shrink-0 size-10 rounded-full border-2 ${avatarRing} bg-gradient-to-br from-game-bg/80 to-game-elevated flex items-center justify-center`}>
+                          <span className={`font-heading text-game-xs font-bold ${avatarText}`}>{initials}</span>
+                        </div>
+
+                        {/* Identity */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white leading-tight">
+                              {mp?.army_name ?? 'Unknown Army'}
+                            </p>
+                            {isSelf && (
+                              <span className="text-game-xs text-game-gold/50 font-body">(you)</span>
+                            )}
+                          </div>
+                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                            {mp?.username ?? '—'}
+                            {mp?.power_total != null && (
+                              <span className="ms-2 text-game-text-muted/70 tabular-nums">
+                                · {formatNumber(mp.power_total)} power
+                              </span>
+                            )}
+                          </p>
+                        </div>
+
+                        {/* Role badge */}
+                        <div className="shrink-0">
+                          {member.role === 'leader' && <Badge variant="gold">Leader</Badge>}
+                          {member.role === 'deputy' && <Badge variant="purple">Deputy</Badge>}
+                          {member.role === 'member' && <Badge variant="default">Member</Badge>}
+                        </div>
+
+                        {/* Tax status pill */}
+                        <div className="shrink-0 w-20 text-end">
+                          {isExempt ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-game-xs font-body font-medium bg-blue-900/30 border border-blue-700/30 text-blue-300">
+                              Exempt
+                            </span>
+                          ) : taxEntry === undefined ? (
+                            <span className="text-game-xs text-game-text-muted font-body">—</span>
+                          ) : taxEntry.paid ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-game-xs font-body font-semibold bg-emerald-900/30 border border-emerald-700/30 text-emerald-300">
+                              ✓ Paid
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-game-xs font-body font-semibold bg-red-900/30 border border-red-700/30 text-game-red-bright">
+                              ✗ Unpaid
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Action button — only if canManage and has any action */}
+                        {canManage && (
+                          <div className="shrink-0 w-24 flex justify-end">
+                            {hasActions ? (
+                              <div className="relative z-50">
+                                <button
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-game border border-game-border/60 bg-game-surface/60 text-game-xs font-heading uppercase tracking-wide text-game-text-muted hover:border-game-border-gold/50 hover:text-game-gold hover:bg-game-elevated/60 transition-all cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMenu(openMenu === member.player_id ? null : member.player_id)
+                                  }}
+                                >
+                                  Manage
+                                  <span className="text-[10px] opacity-60">▾</span>
+                                </button>
+
+                                {openMenu === member.player_id && (
+                                  <div className="absolute end-0 top-full mt-1.5 z-50 w-52 bg-[#140f08] border border-game-border-gold/40 rounded-game-lg shadow-[0_12px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(201,144,26,0.06)] overflow-hidden">
+
+                                    {/* Target member info */}
+                                    <div className="px-4 py-2.5 border-b border-game-border/40 bg-game-elevated/30">
+                                      <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold/70 truncate">
+                                        {mp?.army_name ?? '—'}
+                                      </p>
+                                      <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                                        {mp?.username ?? '—'}
+                                      </p>
+                                    </div>
+
+                                    {/* Role actions */}
+                                    {(canAppoint || canRemove) && (
+                                      <div className="py-1">
+                                        {canAppoint && (
+                                          <button
+                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-game-sm font-body text-game-text-secondary hover:bg-purple-900/20 hover:text-purple-200 transition-colors cursor-pointer"
+                                            onClick={() => handleSetRole(member.player_id, 'appoint')}
+                                          >
+                                            <span className="text-purple-400 text-base leading-none">⬆</span>
+                                            Appoint Deputy
+                                          </button>
+                                        )}
+                                        {canRemove && (
+                                          <button
+                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-game-sm font-body text-game-text-secondary hover:bg-game-elevated hover:text-game-text-white transition-colors cursor-pointer"
+                                            onClick={() => handleSetRole(member.player_id, 'remove')}
+                                          >
+                                            <span className="text-game-text-muted text-base leading-none">⬇</span>
+                                            Remove Deputy
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Kick — always separated */}
+                                    {canKick && (
+                                      <>
+                                        {(canAppoint || canRemove) && (
+                                          <div className="border-t border-game-border/40 mx-2" />
+                                        )}
+                                        <div className="py-1">
+                                          <button
+                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-game-sm font-body text-game-red-bright hover:bg-red-950/40 transition-colors cursor-pointer"
+                                            onClick={() => handleKickMember(member.player_id)}
+                                          >
+                                            <span className="text-red-500 text-base leading-none">✕</span>
+                                            Kick Member
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Footer notice */}
+                {isLeader && deputyCount >= 3 && (
+                  <div className="px-6 py-3 border-t border-game-border/30 bg-amber-950/10">
+                    <p className="text-game-xs text-amber-400/70 font-body">
+                      Deputy cap reached (3 / 3). Remove a deputy before appointing another.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* ── Members ─────────────────────────────────────────────────────── */}
-          <div className="panel-ornate rounded-game-lg p-4">
-            <div className="panel-header mb-4">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                Members
-                <span className="ms-2 text-game-xs text-game-text-muted font-body normal-case tracking-normal">
-                  {localMembers.length} / {tribe.max_members}
-                </span>
-              </h2>
-            </div>
+          {/* ── SPELLS ────────────────────────────────────────────────────── */}
+          {activeTab === 'spells' && (
+            <div className="space-y-3">
 
-            <GameTable
-              headers={[
-                'Army',
-                'Player',
-                'Role',
-                'Rep %',
-                ...(canManage ? ['Actions'] : []),
-              ]}
-              striped
-              hoverable
-              rows={localMembers.map(({ member, player: mp }) => {
-                const isSelf   = member.player_id === player.id
-                const canKick  = canManage && !isSelf && member.role !== 'leader' &&
-                  !(isDeputy && member.role === 'deputy')
-                const canAppoint = isLeader && member.role === 'member' && deputyCount < 3 && !isSelf
-                const canRemove  = isLeader && member.role === 'deputy' && !isSelf
-                const canTransfer = isLeader && member.role === 'deputy' && !isSelf
-
-                return [
-                  <span key="army" className="font-heading text-game-sm uppercase text-game-text-white">
-                    {mp?.army_name ?? 'Unknown'}
-                  </span>,
-                  <span key="player" className="text-game-sm font-body text-game-text-secondary">
-                    {mp?.username ?? '—'}
-                  </span>,
-                  <span key="role">{ROLE_BADGE[member.role]}</span>,
-                  <span key="pct" className="text-game-sm font-body tabular-nums">
-                    {member.reputation_pct.toFixed(1)}%
-                  </span>,
-                  ...(canManage
-                    ? [
-                        <div key="actions" className="flex items-center gap-1.5 flex-wrap">
-                          {canTransfer && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              loading={loading === `transfer-${member.player_id}`}
-                              disabled={!!loading}
-                              onClick={() => handleTransferLeadership(member.player_id)}
-                            >
-                              Make Leader
-                            </Button>
-                          )}
-                          {canRemove && !canTransfer && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              loading={loading === `role-remove-${member.player_id}`}
-                              disabled={!!loading}
-                              onClick={() => handleSetRole(member.player_id, 'remove')}
-                            >
-                              Remove Deputy
-                            </Button>
-                          )}
-                          {canAppoint && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              loading={loading === `role-appoint-${member.player_id}`}
-                              disabled={!!loading}
-                              onClick={() => handleSetRole(member.player_id, 'appoint')}
-                            >
-                              Appoint Deputy
-                            </Button>
-                          )}
-                          {canKick && (
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              loading={loading === `kick-${member.player_id}`}
-                              disabled={!!loading}
-                              onClick={() => handleKickMember(member.player_id)}
-                            >
-                              Kick
-                            </Button>
-                          )}
-                          {!canKick && !canAppoint && !canRemove && (
-                            <span className="text-game-xs text-game-text-muted">—</span>
-                          )}
-                        </div>,
-                      ]
-                    : []),
-                ]
-              })}
-            />
-
-            {/* Deputy cap note */}
-            {isLeader && deputyCount >= 3 && (
-              <p className="mt-2 text-game-xs text-amber-400/70 font-body">
-                Deputy cap reached (3/3). Remove a deputy to appoint another.
-              </p>
-            )}
-          </div>
-
-          {/* ── Tribe Spells (leader / deputy only) ─────────────────────────── */}
-          {canManage && (
-            <div className="card-game rounded-game-lg p-4 space-y-4">
-              <div className="panel-header">
-                <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                  Tribe Spells
-                </h2>
-                <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                  Activated using tribe mana. Effects apply to all tribe members.
+              {/* Mana pool + contribute */}
+              <div className="bg-gradient-to-b from-purple-950/40 to-game-surface border border-purple-800/40 rounded-game-lg p-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex-1">
+                    <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400">Tribe Mana Pool</p>
+                    <p className="text-2xl font-body font-bold text-purple-300 tabular-nums mt-0.5">
+                      {formatNumber(localTribeMana)}
+                    </p>
+                    <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                      +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} per tick · regen from members
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Input type="number" placeholder="Mana" value={manaAmount} min={1}
+                      onChange={(e) => setManaAmount(e.target.value)} className="w-24" />
+                    <Button variant="magic" size="sm"
+                      loading={loading === 'contribute-mana'}
+                      disabled={!manaAmount || parseInt(manaAmount) <= 0 || !!loading}
+                      onClick={handleContributeMana}>
+                      Contribute
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-game-xs text-purple-400/50 font-body mt-2.5 pt-2.5 border-t border-purple-800/30">
+                  Contributions are permanent. Only leaders and deputies can cast spells.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Compact spell rows */}
+              <div className="card-game rounded-game-lg overflow-hidden divide-y divide-game-border/40">
                 {V1_SPELLS.map((spellKey) => {
-                  const cfg      = BALANCE.tribe.spells[spellKey]
+                  const cfg         = BALANCE.tribe.spells[spellKey]
                   if (!cfg) return null
-                  const isActive = tribeSpells.some((s) => s.spell_key === spellKey)
+                  const activeSpell = localSpells.find((s) => s.spell_key === spellKey)
+                  const isActive    = !!activeSpell
+                  const accent      = SPELL_ACCENT[spellKey]
 
                   return (
                     <div
                       key={spellKey}
-                      className={`flex items-center justify-between rounded-game-lg border p-3 transition-colors ${
-                        isActive
-                          ? 'bg-purple-900/30 border-purple-700/50'
-                          : 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border'
-                      }`}
+                      className={`flex items-center gap-3 px-4 py-3 border-l-2 ${accent.borderL} ${
+                        isActive ? 'bg-purple-900/10' : 'hover:bg-game-elevated/40'
+                      } transition-colors`}
                     >
-                      <div>
-                        <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-white">
-                          {SPELL_LABELS[spellKey]}
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-heading text-game-sm uppercase tracking-wide ${accent.text}`}>
+                            {SPELL_LABELS[spellKey]}
+                          </span>
+                          {isActive && <Badge variant="purple">Active</Badge>}
+                        </div>
                         <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                          {SPELL_DESC[spellKey]}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <ResourceBadge type="mana" amount={cfg.manaCost} />
-                          {cfg.durationHours > 0 && (
-                            <span className="text-game-xs text-game-text-muted font-body">
-                              {cfg.durationHours}h
+                          {SPELL_EFFECT[spellKey]}
+                          {isActive && activeSpell && (
+                            <span className="text-purple-400/80 ms-2 tabular-nums">
+                              · {formatTimeLeft(activeSpell.expires_at)}
                             </span>
                           )}
-                        </div>
+                        </p>
                       </div>
-                      <Button
-                        variant={isActive ? 'ghost' : 'magic'}
-                        size="sm"
-                        disabled={isActive || localTribeMana < cfg.manaCost || !!loading}
-                        loading={loading === `spell-${spellKey}`}
-                        onClick={() => handleActivateSpell(spellKey)}
-                      >
-                        {isActive ? 'Active' : 'Cast'}
-                      </Button>
+                      <div className="shrink-0 text-end">
+                        <ResourceBadge type="mana" amount={cfg.manaCost} />
+                        <p className="text-game-xs text-game-text-muted font-body mt-0.5">{cfg.durationHours}h</p>
+                      </div>
+                      {canManage && (
+                        <Button
+                          variant={isActive ? 'ghost' : 'magic'}
+                          size="sm"
+                          disabled={isActive || localTribeMana < cfg.manaCost || !!loading}
+                          loading={loading === `spell-${spellKey}`}
+                          onClick={() => handleActivateSpell(spellKey)}
+                        >
+                          {isActive ? 'Active' : 'Cast'}
+                        </Button>
+                      )}
                     </div>
                   )
                 })}
               </div>
 
-              {localTribeMana < Math.min(...V1_SPELLS.map(k => BALANCE.tribe.spells[k]?.manaCost ?? Infinity)) && (
-                <p className="text-game-xs text-amber-400/70 font-body">
-                  Tribe mana is low. Members can contribute personal mana to refill the pool.
+              {!canManage && (
+                <p className="text-game-xs text-game-text-muted font-body text-center py-1">
+                  Only the tribe leader and deputies can activate spells.
                 </p>
               )}
             </div>
           )}
 
-          {/* ── Leader Controls ─────────────────────────────────────────────── */}
-          {isLeader && (
-            <div className="panel-ornate rounded-game-lg p-4 space-y-5">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">
-                Leader Controls
-              </h2>
+          {/* ── CHAT ──────────────────────────────────────────────────────── */}
+          {activeTab === 'chat' && (
+            <div className="flex flex-col gap-0 card-game rounded-game-lg overflow-hidden" style={{ height: '520px' }}>
 
-              {/* Set Daily Tribute */}
-              <div className="space-y-2">
-                <p className="text-game-sm font-heading uppercase tracking-wide text-game-text-secondary">
-                  Set Daily Tribute
-                </p>
-                <p className="text-game-xs text-game-text-muted font-body">
-                  City {tribe.city} limit: {formatNumber(BALANCE.tribe.taxLimits[`city${tribe.city}`] ?? 0)} Gold.
-                  Collected at {BALANCE.tribe.taxCollectionHour}:00 Israel time. Gold comes to your personal account.
-                </p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Gold amount"
-                    value={taxAmount}
-                    min={0}
-                    onChange={(e) => setTaxAmount(e.target.value)}
-                    suffix="Gold"
-                    className="w-44"
-                  />
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    loading={loading === 'set-tax'}
-                    disabled={!taxAmount || !!loading}
-                    onClick={handleSetTax}
-                  >
-                    Update
-                  </Button>
-                </div>
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-game-border/60 bg-game-elevated/40 shrink-0">
+                <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-secondary">
+                  Tribe Chat
+                </span>
+                <span className="text-game-xs text-game-text-muted font-body ms-1">
+                  · {localMembers.length} members
+                </span>
+                <button
+                  className="ms-auto flex items-center gap-1 px-2 py-1 rounded-game text-game-xs text-game-text-muted hover:text-game-text-white hover:bg-game-elevated transition-colors font-body disabled:opacity-40 cursor-pointer"
+                  disabled={chatLoading}
+                  onClick={() => { setChatFetched(false) }}
+                  title="Refresh messages"
+                >
+                  ↻ Refresh
+                </button>
               </div>
 
-              <div className="divider-gold" />
-
-              {/* Transfer Leadership */}
-              <div className="space-y-2">
-                <p className="text-game-sm font-heading uppercase tracking-wide text-game-text-secondary">
-                  Transfer Leadership
-                </p>
-                {deputyCount === 0 ? (
-                  <p className="text-game-xs text-amber-400/80 font-body">
-                    Appoint at least one deputy before transferring leadership.
-                    Use the Actions column in the Members table above.
-                  </p>
-                ) : (
-                  <p className="text-game-xs text-game-text-muted font-body">
-                    Use the &quot;Make Leader&quot; button next to a deputy in the Members table to transfer leadership.
-                    You will become a deputy.
-                  </p>
-                )}
-              </div>
-
-              <div className="divider-gold" />
-
-              {/* Disband Tribe */}
-              <div className="space-y-2">
-                <p className="text-game-sm font-heading uppercase tracking-wide text-game-text-secondary">
-                  Disband Tribe
-                </p>
-                {localMembers.length > 1 ? (
-                  <p className="text-game-xs text-game-text-muted font-body">
-                    Cannot disband while members remain. Kick all members or transfer leadership first.
-                  </p>
-                ) : disbandConfirm ? (
-                  <div className="flex items-center gap-3">
-                    <span className="text-game-xs text-game-red-bright font-body">
-                      Permanently disband this tribe?
-                    </span>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      loading={loading === 'disband'}
-                      onClick={handleDisbandTribe}
-                    >
-                      Yes, Disband
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!!loading}
-                      onClick={() => setDisbandConfirm(false)}
-                    >
-                      Cancel
-                    </Button>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
+                {chatLoading ? (
+                  <div className="h-full flex items-center justify-center text-game-sm text-game-text-muted font-body">
+                    Loading messages…
+                  </div>
+                ) : chatMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
+                    <p className="text-game-sm text-game-text-muted font-body">No messages yet.</p>
+                    <p className="text-game-xs text-game-text-muted font-body">
+                      Be the first to speak — your words echo through the halls of {tribe.name}.
+                    </p>
                   </div>
                 ) : (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    disabled={!!loading}
-                    onClick={() => setDisbandConfirm(true)}
-                  >
-                    Disband Tribe
-                  </Button>
+                  chatMessages.map((msg) => {
+                    const isSelf = msg.player_id === player.id
+                    return (
+                      <div key={msg.id} className={`flex gap-2.5 ${isSelf ? 'flex-row-reverse' : ''}`}>
+                        {/* Avatar initial */}
+                        <div className="shrink-0 size-7 rounded-full flex items-center justify-center text-game-xs font-heading font-bold mt-0.5
+                          bg-gradient-to-br from-game-gold/20 to-game-bg border border-game-border-gold/40 text-game-gold">
+                          {msg.username[0]?.toUpperCase() ?? '?'}
+                        </div>
+                        <div className={`flex-1 max-w-[75%] ${isSelf ? 'items-end' : 'items-start'} flex flex-col`}>
+                          <div className="flex items-baseline gap-2 mb-0.5">
+                            {!isSelf && (
+                              <span className="text-game-xs font-heading text-game-text-secondary uppercase tracking-wide">
+                                {msg.username}
+                              </span>
+                            )}
+                            <span className="text-game-xs text-game-text-muted font-body tabular-nums">
+                              {formatChatTime(msg.created_at)}
+                            </span>
+                          </div>
+                          <div className={`rounded-game-lg px-3 py-2 text-game-sm font-body leading-relaxed break-words
+                            ${isSelf
+                              ? 'bg-game-gold/10 border border-game-border-gold/30 text-game-text-white rounded-tr-none'
+                              : 'bg-game-elevated border border-game-border/40 text-game-text-secondary rounded-tl-none'
+                            }`}>
+                            {msg.id.startsWith('opt-') ? (
+                              <span className="opacity-60">{msg.message}</span>
+                            ) : (
+                              msg.message
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
                 )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Input */}
+              <div className="shrink-0 border-t border-game-border/60 px-4 py-3 bg-game-surface flex items-center gap-2">
+                <input
+                  className="flex-1 bg-game-elevated border border-game-border rounded-game px-3 py-2 text-game-sm font-body text-game-text-white placeholder:text-game-text-muted focus:outline-none focus:border-game-border-active transition-colors"
+                  placeholder="Type a message…"
+                  value={chatInput}
+                  maxLength={500}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat() } }}
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={loading === 'send-chat'}
+                  disabled={!chatInput.trim() || !!loading}
+                  onClick={handleSendChat}
+                >
+                  Send
+                </Button>
               </div>
             </div>
           )}
 
-          {/* ── Leave Tribe (member / deputy) ──────────────────────────────── */}
-          {!isLeader && (
-            <div className="card-game rounded-game-lg p-4">
-              <div className="panel-header mb-3">
-                <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                  Leave Tribe
-                </h2>
-              </div>
-              <p className="text-game-xs text-game-text-muted font-body mb-3">
-                Leaving the tribe is immediate and permanent for this season. Any contributed mana remains with the tribe.
-              </p>
-              <Button
-                variant="danger"
-                size="sm"
-                loading={loading === 'leave'}
-                disabled={!!loading}
-                onClick={handleLeaveTribe}
-              >
-                Leave Tribe
-              </Button>
-            </div>
-          )}
         </>
       )}
+
+      {/* ── MODALS ──────────────────────────────────────────────────────────── */}
+
+      {/* Transfer Leadership modal */}
+      <Modal
+        isOpen={showTransferModal}
+        onClose={() => { setShowTransferModal(false); setTransferTarget(null) }}
+        title="Transfer Leadership"
+        size="sm"
+      >
+        <p className="text-game-sm font-body text-game-text-secondary mb-4">
+          Select a deputy to become the new tribe leader.
+          You will become a deputy after the transfer.
+        </p>
+
+        {deputies.length === 0 ? (
+          <div className="bg-amber-950/30 border border-amber-800/40 rounded-game-lg px-4 py-3 text-game-sm font-body text-amber-400/80">
+            No deputies are currently appointed. Go to the Members tab to appoint a deputy before transferring leadership.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {deputies.map(({ member, player: dp }) => (
+              <div key={member.player_id}
+                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-game-lg border transition-colors cursor-pointer
+                  ${transferTarget === member.player_id
+                    ? 'border-game-border-gold bg-game-gold/5'
+                    : 'border-game-border hover:border-game-border-gold/50 hover:bg-game-elevated/40'
+                  }`}
+                onClick={() => setTransferTarget(member.player_id)}
+              >
+                <div>
+                  <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
+                    {dp?.username ?? '—'}
+                  </p>
+                  <p className="text-game-xs text-game-text-muted font-body mt-0.5">{dp?.army_name ?? '—'}</p>
+                </div>
+                <div className="size-4 rounded-full border-2 border-game-border-gold/50 flex items-center justify-center">
+                  {transferTarget === member.player_id && (
+                    <div className="size-2 rounded-full bg-game-gold" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {transferTarget && (
+          <div className="mt-4 pt-4 border-t border-game-border/40 flex items-center justify-between gap-3">
+            <p className="text-game-xs text-amber-400/70 font-body">
+              This action cannot be undone from this screen.
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="ghost" size="sm" onClick={() => setTransferTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={loading?.startsWith('transfer-')}
+                disabled={!!loading}
+                onClick={() => handleTransferLeadership(transferTarget)}
+              >
+                Confirm Transfer
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Leave Tribe modal */}
+      <Modal
+        isOpen={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        title="Leave Tribe"
+        size="sm"
+      >
+        <p className="text-game-sm font-body text-game-text-secondary">
+          Are you sure you want to leave <span className="text-game-text-white font-semibold">{tribe?.name}</span>?
+        </p>
+        <p className="text-game-xs text-game-text-muted font-body mt-2">
+          This is immediate and permanent for this season. Any mana you contributed stays with the tribe.
+        </p>
+        <div className="flex gap-3 mt-5 justify-end">
+          <Button variant="ghost" size="sm" onClick={() => setShowLeaveModal(false)}>Stay</Button>
+          <Button variant="danger" size="sm" loading={loading === 'leave'} disabled={!!loading}
+            onClick={handleLeaveTribe}>
+            Leave Tribe
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Disband Tribe modal */}
+      <Modal
+        isOpen={showDisbandModal}
+        onClose={() => setShowDisbandModal(false)}
+        title="Disband Tribe"
+        size="sm"
+      >
+        <p className="text-game-sm font-body text-game-text-secondary">
+          Permanently dissolve <span className="text-game-text-white font-semibold">{tribe?.name}</span>?
+        </p>
+        <p className="text-game-xs text-game-text-muted font-body mt-2">
+          All members will be removed. Tribe mana, history, and reputation will be lost. This cannot be undone.
+        </p>
+        <div className="flex gap-3 mt-5 justify-end">
+          <Button variant="ghost" size="sm" onClick={() => setShowDisbandModal(false)}>Cancel</Button>
+          <Button variant="danger" size="sm" loading={loading === 'disband'} disabled={!!loading}
+            onClick={handleDisbandTribe}>
+            Disband Forever
+          </Button>
+        </div>
+      </Modal>
+
     </div>
   )
 }

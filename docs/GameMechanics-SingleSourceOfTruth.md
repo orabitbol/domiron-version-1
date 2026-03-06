@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. Cron schedules corrected: tick `* * * * *` (every minute), tax-collect `0 * * * *` (hourly).
+**Last updated:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Spells / Chat): Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with 3-dot dropdown menu. Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -64,7 +64,7 @@
 
 ## 1. Tick System
 
-**Trigger:** Vercel Cron — `POST /api/tick` every minute (`* * * * *`), authenticated via `x-cron-secret` header.
+**Trigger:** Vercel Cron — `POST /api/tick` every 30 minutes (`*/30 * * * *`), authenticated via `x-cron-secret` header.
 **Files:** `lib/game/tick.ts` → `calcTurnsToAdd()`, `app/api/tick/route.ts`
 
 ### Turn Regen
@@ -307,7 +307,7 @@ const res = await fetch(`http://localhost:${port}/api/tick`, {
 ```
 CRON_SECRET=<any non-empty string, must match between .env and Supabase>
 SUPABASE_SERVICE_ROLE_KEY=<set>
-TICK_INTERVAL_MINUTES=1    # 1-minute debug cadence; change to 30 for production parity
+TICK_INTERVAL_MINUTES=30   # Production cadence; use 1 locally for faster debug iterations
 TICK_DEBUG=1               # Verbose per-player logs
 ```
 
@@ -316,14 +316,14 @@ TICK_DEBUG=1               # Verbose per-player logs
 **Expected terminal output (within 5 seconds):**
 ```
 [INSTRUMENTATION] register() called — NEXT_RUNTIME="undefined" NODE_ENV="development"
-[DEV CRON] Scheduler armed — interval=1min url=http://localhost:3000/api/tick
-[DEV CRON] Auto-tick STARTED (every 1 min / 60s)
+[DEV CRON] Scheduler armed — interval=30min url=http://localhost:3000/api/tick
+[DEV CRON] Auto-tick STARTED (every 30 min / 1800s)
 [DEV CRON] → calling http://localhost:3000/api/tick at 2026-…
 [TICK] auth=ok — tick starting at 2026-…
 [TICK] playersFound=7
 [TICK] Processing 7 player(s) at 2026-…
 [TICK] player[0]=<id> turns: X→Y gold: A→B(+N) freePop: C→D
-[TICK] world_state OK: sent=2026-…Z confirmed=2026-…+00:00 diffSec=60
+[TICK] world_state OK: sent=2026-…Z confirmed=2026-…+00:00 diffSec=1800
 [TICK] Completed: 7 player(s) in Xms — next tick at 2026-…
 [DEV CRON] Tick OK (HTTP 200): {"data":{"processed":7,…}}
 ```
@@ -351,9 +351,9 @@ curl http://localhost:3000/api/tick-status
 [TickCountdown] diff ms  57234  FUTURE ✓
 ```
 
-**To switch to 30-minute production cadence:**
-1. In `.env`: set `TICK_INTERVAL_MINUTES=30`
-2. In `vercel.json`: change tick cron to `*/30 * * * *`
+**To use a faster local dev cadence (1-minute ticks):**
+1. In `.env`: set `TICK_INTERVAL_MINUTES=1`
+2. Production `vercel.json` remains `*/30 * * * *` — do not change.
 
 ---
 
@@ -1172,6 +1172,123 @@ player_hero_effects:
 ## 10. Clan / Tribe System
 
 **Files:** `app/api/tribe/*/route.ts`, `lib/game/combat.ts` → `calculateClanBonus()`, `supabase/migrations/0020_tribe_v1.sql`
+
+### Tribe Page — UI Structure (V1)
+
+> UI/product restructuring. No gameplay mechanics changed.
+> All existing RPCs, routes, and SSOT rules remain authoritative.
+
+The tribe page (`app/(game)/tribe/`) uses tabs when in a tribe.
+If not in a tribe, two-panel "no tribe" state (create + city join list).
+
+**Exact tab structure — 4 tabs:**
+
+| Tab | Key | Purpose | Data source |
+|---|---|---|---|
+| Overview | `overview` | Identity card + stats strip + prominent tribute panel + mana panel + active spells + Tribe Actions section | SSR props + `GET /api/tribe/tax-status` (countdown) |
+| Members | `members` | Tribute header strip + premium roster list (avatar, role accent bar, identity, power, tax pill) + "Manage ▾" action dropdown per row + Transfer Leadership button in panel header (leader only) | SSR props + `taxLogToday` SSR query |
+| Spells | `spells` | Mana pool + contribute form + compact spell rows (left-border accent, name/effect, cost/cast) | SSR props (optimistic mana update) |
+| Chat | `chat` | Tribe-only chat — message list + send form + manual refresh button | Lazy `GET /api/tribe/chat` on first open; manual refresh re-fetches |
+
+**Tabs removed:** Requests, Taxes, Chronicle, Command — all eliminated.
+
+**Tax Today column (Members tab):**
+- `Exempt` badge (blue) — role=leader/deputy or `tax_exempt=true`
+- `✓ Paid` (green) — `paid=true` entry in `tribe_tax_log` for today's Israel date
+- `✗ Unpaid` (red) — `paid=false` entry
+- `—` (dim) — no entry yet (collection not yet run today)
+
+**Tribute panel (Overview):** Prominent amber-accented block. Shows tribute amount (large), animated countdown, "Daily at 20:00 Israel Time" note, last-collected date. Leader inline set-tax form embedded in this panel.
+
+**Leadership transfer — explicit modal flow:**
+- Entry point: "Transfer Leadership" button in Members tab panel header (leader only)
+- Modal opens showing only current deputies (radio-select style)
+- If no deputies: modal explains requirement, no transfer possible
+- On confirm: calls `/api/tribe/transfer-leadership` → `router.refresh()` (full page reload required — role changes affect SSR props)
+- No "Make Leader" button in row actions
+
+**Member roster — visual design:**
+- Each row has a left 3px accent bar: gold gradient (leader), purple gradient (deputy), slate (member)
+- Avatar initials circle with role-colored border ring and glow shadow
+- Identity cell: army name (heading, uppercase) + username + power (secondary line)
+- "(you)" indicator on current user's row
+- Role badge (gold/purple/default) in its own column
+- Tax status: pill-style badge (Exempt/✓ Paid/✗ Unpaid/—) with colored backgrounds
+- Actions: "Manage ▾" button per row (shows only when canManage and row has valid actions)
+- Transfer Leadership button in panel header (not in row actions)
+
+**Member actions — "Manage ▾" dropdown:**
+- Trigger: styled "Manage ▾" text button with border, hover transitions to gold
+- Opens absolute dropdown (z-50); transparent overlay (z-40) closes on click-outside
+- Dropdown header shows target member's army name + username for clarity
+- Actions shown depend on role + permissions:
+  - Appoint Deputy (leader, target=member, deputyCount < 3) — purple ⬆ icon
+  - Remove Deputy (leader, target=deputy) — ⬇ icon
+  - Kick Member (canManage, excluding leaders and peer deputies) — red ✕ icon, separated by divider
+- Deputy cap = 3 enforced in both UI (conditional display) and backend (RPC)
+
+**Leave / Disband — Modal component:**
+- Leave: opens `Modal` with confirmation → calls `/api/tribe/leave` → `router.refresh()`
+- Disband: opens `Modal` with confirmation → calls `/api/tribe/disband` → `router.refresh()`
+  - Disband button only shown when leader is the sole member
+
+### Tribe Chat (V1)
+
+**DB table: `tribe_chat`** (migration `0021_tribe_chat.sql`)
+```
+tribe_chat
+  id         uuid PK
+  tribe_id   uuid FK tribes(id) ON DELETE CASCADE
+  player_id  uuid FK players(id) ON DELETE CASCADE
+  message    text CHECK 1–500 chars
+  created_at timestamptz DEFAULT now()
+```
+Index: `(tribe_id, created_at DESC)`.
+RLS: members read and insert only their own tribe's messages.
+No Supabase Realtime publication — chat is not live/streaming.
+
+**API routes:**
+- `GET /api/tribe/chat` — returns last 100 messages ordered `created_at ASC`, with `username` joined from `players`. Auth + membership check. No season guard (read-only).
+- `POST /api/tribe/chat` — inserts a message. Auth + membership + season freeze guard. `message` trimmed, 1–500 chars enforced. Returns the inserted row with `username`.
+
+**Client behavior:**
+- Fetch: lazy, triggered on first `activeTab === 'chat'` open via `fetchChatMessages()`. `chatFetched` flag prevents redundant re-fetches.
+- Manual refresh: compact `↻ Refresh` button in chat header sets `chatFetched = false`, triggering `fetchChatMessages()` again.
+- Send: optimistic insert with `opt-{timestamp}` id, replaced with real server row on success; rolled back on failure. Input restored on failure.
+- Scroll: `chatBottomRef` scrolled into view when messages change while Chat tab is active.
+- Empty state: message inviting the first speaker.
+- No realtime subscription, no Supabase channel, no live indicator.
+
+**Permission rules:**
+- Only active tribe members can read or send.
+- Enforced at both DB (RLS) and API (membership check) layers.
+- No message editing or deletion in V1.
+
+### Daily Tribute / Tax Schedule — Verified
+
+`vercel.json` cron: `/api/tribe/tax-collect` at `0 * * * *` (every hour at :00).
+
+Route behavior:
+1. Computes Israel local hour via `Intl.DateTimeFormat('Asia/Jerusalem')`.
+2. If `israelHour < BALANCE.tribe.taxCollectionHour` (20) → returns early, no collection.
+3. Filters tribes where `last_tax_collected_date ≠ israelToday` (idempotency).
+4. Per-member: calls `tribe_collect_member_tax()` RPC (deadlock-safe UUID-order locking).
+5. After processing: sets `tribes.last_tax_collected_date = israelToday`.
+
+Result: taxes run at most once per tribe per calendar day, at or after 20:00 Israel time. `GET /api/tribe/tax-status` computes the exact UTC timestamp of the next collection and returns it for the client countdown.
+
+Tax-collect cron (`0 * * * *`) is correct and unchanged. Tick cron was corrected to `*/30 * * * *`.
+
+**Data shape (page.tsx):**
+- `players` select includes `power_total`.
+- `taxLogToday: Array<{ player_id: string; paid: boolean }>` — SSR-queried from `tribe_tax_log` for today's Israel date.
+
+**Tab state:** `useState<TribeTab>` — no URL routing. Consistent with other tabbed pages.
+
+**Dynamic update strategy:**
+- `router.refresh()` (full SSR reload) — used only for structural page-state transitions: create tribe, join tribe, leave tribe, disband tribe, transfer leadership. These change SSR props (tribe/membership context) that can't be patched in place.
+- In-place local state updates (no refresh) — kick member (`setLocalMembers`), set role (`setLocalMembers`), set tax (`setLocalTaxAmount`), activate spell (`setLocalSpells` + `setLocalTribeMana`), contribute mana (`setLocalTribeMana`). All return updated data in the response and apply it immediately.
+- `refresh()` from `usePlayer()` (PlayerContext) — called after mutations that affect sidebar resource values (mana, gold) to sync the resource bar.
 
 ### Clan Rules
 
