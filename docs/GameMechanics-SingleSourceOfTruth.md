@@ -2408,3 +2408,56 @@ Full layout restructure of `app/(game)/training/TrainingClient.tsx`. **No gamepl
 
 #### Inspiration
 Layout hierarchy and row structure inspired by Izra training screen (competitor game). Visual styling, tokens, and theme remain Domiron's own.
+
+### 2026-03-06 — Development Page: Layout Restructure (UI-only, SSOT-safe)
+
+Full layout restructure of `app/(game)/develop/DevelopClient.tsx`. **No gameplay logic, API contracts, formulas, or SSOT rules changed.**
+
+#### New page order
+1. **City Progression** (moved from bottom to top — primary progression CTA)
+2. **Resource strip** (compact horizontal HUD: Gold, Iron, Wood, Food)
+3. **Population** (compact stat row + inline upgrade action)
+4. **Infrastructure Upgrades** (table-style rows, replaced UpgradeCard grid)
+5. **Population Growth Reference** (collapsible — hidden by default)
+
+#### City Progression panel
+- Promoted to top of page as a prominent full-width panel with gold-tinted border
+- Shows current → next city transition bar side by side
+- Requirements grid (5 rows: Soldiers, Gold, Wood, Iron, Food) with have/need columns and color-coded affordability
+- Promote button bottom-right; note "must not be in a tribe · irreversible" inline
+- Max-city state: shows "MAX CITY" badge and current multiplier
+
+#### Resource strip
+- Same design as Training page: gold-tinted horizontal strip, icon → value → label per column
+- Shows: 🪙 Gold | ⚙️ Iron | 🪵 Wood | 🌾 Food
+
+#### Population section
+- Replaced 3 large `PopStat` card blocks with a compact chip row: Untrained | Per Tick | Growth Level
+- Upgrade action inline below: "Lv X → X+1: +N pop/tick · [cost] · [Upgrade button]"
+- Max level shows "MAX" badge + one line of text
+
+#### Infrastructure upgrades
+- Replaced UpgradeCard 2-column grid with a table-style panel (same pattern as Basic/Advanced Training)
+- Each row: Icon + Building name | Level + progress bar | Next cost | Upgrade button
+- Removed verbose description strings — replaced with short `effectLabel` per upgrade type
+- `UpgradeCard` component no longer used on this page
+
+#### Population Growth table
+- Moved to bottom of page
+- Wrapped in a collapsible toggle (hidden by default, shown on demand)
+- Clearly positioned as reference-only information with lower visual weight
+
+#### Components removed from this page
+`UpgradeCard`, `PopStat` (internal helper) — replaced with inline table patterns.
+
+#### Components retained
+`Badge`, `Button`, `GameTable`, `ResourceBadge`, `usePlayer`, `applyPatch`, `refresh`, all API call logic — unchanged.
+
+#### SSOT confirmation
+- `handleUpgrade()` — unchanged
+- `handlePromoteCity()` — unchanged
+- `getUpgradeCost()` — unchanged
+- `canPromote`, `meetsArmy/Gold/Wood/Iron/Food` — unchanged
+- `popCanAfford`, `popIsMaxed`, `popCost` — unchanged
+- All API routes — unchanged (`/api/develop/upgrade`, `/api/city/promote`)
+- `applyPatch` + `refresh()` pattern — unchanged
