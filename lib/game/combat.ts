@@ -570,6 +570,10 @@ export function calculateLoot(
 /**
  * new_turns = min(current_turns + 3, 200)
  * Regen only occurs when current_turns < MAX_TURNS.
+ *
+ * @deprecated The tick system uses calcTurnsToAdd(currentTurns, isVacation) in
+ * lib/game/tick.ts, which applies the vacation multiplier and Math.ceil.
+ * This function models the non-vacation case only and is not called by any live path.
  */
 export function calcTurnsAfterRegen(currentTurns: number): number {
   if (currentTurns >= BALANCE.tick.maxTurns) return BALANCE.tick.maxTurns

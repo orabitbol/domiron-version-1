@@ -4,10 +4,7 @@ import { useState } from 'react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { StatBox } from '@/components/ui/stat-box'
 import { ResourceBadge } from '@/components/ui/resource-badge'
-import { Tabs } from '@/components/ui/tabs'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
@@ -25,22 +22,16 @@ const UNIT_LABELS: Record<BasicUnit, string> = {
 }
 
 const ADVANCED_LABELS: Record<AdvancedType, string> = {
-  attack:  'Attack Training',
-  defense: 'Defense Training',
-  spy:     'Spy Training',
-  scout:   'Scout Training',
+  attack:  'Attack',
+  defense: 'Defense',
+  spy:     'Spy',
+  scout:   'Scout',
 }
 
-const TRAIN_TABS = [
-  { key: 'train',    label: 'Train Units' },
-  { key: 'advanced', label: 'Advanced Training' },
-]
-
 export function TrainingClient() {
-  const { player, army, training, resources, refresh, applyPatch } = usePlayer()
+  const { army, training, resources, refresh, applyPatch } = usePlayer()
   const isFrozen = useFreeze()
 
-  const [activeTab,   setActiveTab]   = useState('train')
   const [trainAmts,   setTrainAmts]   = useState<Record<BasicUnit, string>>({
     soldier: '', slave: '', spy: '', scout: '', cavalry: '',
   })
@@ -67,7 +58,6 @@ export function TrainingClient() {
       } else {
         setMessage({ text: `Trained ${formatNumber(amt)} ${UNIT_LABELS[unit]}(s)`, type: 'success' })
         setTrainAmts((prev) => ({ ...prev, [unit]: '' }))
-        // Immediate store update — UI reflects change before refresh() resolves
         if (data.data?.army)      applyPatch({ army: data.data.army })
         if (data.data?.resources) applyPatch({ resources: data.data.resources })
         refresh()
@@ -94,9 +84,8 @@ export function TrainingClient() {
       if (!res.ok) {
         setMessage({ text: data.error ?? 'Upgrade failed', type: 'error' })
       } else {
-        setMessage({ text: `${ADVANCED_LABELS[type]} upgraded!`, type: 'success' })
+        setMessage({ text: `${ADVANCED_LABELS[type]} upgraded to Lv ${(training?.[`${type}_level` as keyof Training] as number ?? 0) + 1}`, type: 'success' })
         if (data.data?.resources) applyPatch({ resources: data.data.resources })
-        // training levels updated in DB — refresh() to get the updated level
         refresh()
       }
     } catch {
@@ -132,23 +121,29 @@ export function TrainingClient() {
   }
 
   const advCost = BALANCE.training.advancedCost
+  const advMult = BALANCE.training.advancedMultiplierPerLevel
+
+  // Units to show (filter cavalry if disabled)
+  const units = (['soldier', 'slave', 'spy', 'scout', 'cavalry'] as BasicUnit[]).filter(
+    (u) => !(u === 'cavalry' && !BALANCE.training.enableCavalry)
+  )
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-5">
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div>
         <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
           Training Grounds
         </h1>
-        <p className="text-game-text-secondary font-body mt-1">
-          Train your army and upgrade combat skills
+        <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+          Training is permanent and irreversible.
         </p>
       </div>
 
-      {/* Message */}
+      {/* ── Message ─────────────────────────────────────────────────────── */}
       {message && (
         <div
-          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
+          className={`rounded-game-lg border px-4 py-2.5 font-body text-game-sm ${
             message.type === 'success'
               ? 'bg-game-green/10 border-green-900 text-game-green-bright'
               : 'bg-game-red/10 border-red-900 text-game-red-bright'
@@ -158,202 +153,250 @@ export function TrainingClient() {
         </div>
       )}
 
-      {/* Army Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatBox
-          title="Current Army"
-          color="red"
-          stats={[
-            { label: 'Soldiers',         value: army?.soldiers        ?? 0 },
-            ...(BALANCE.training.enableCavalry
-              ? [{ label: 'Cavalry', value: army?.cavalry ?? 0 }]
-              : []),
-            { label: 'Spies',            value: army?.spies           ?? 0 },
-            { label: 'Scouts',           value: army?.scouts          ?? 0 },
-            { label: 'Slaves (workers)', value: army?.slaves          ?? 0 },
-            { label: 'Free Population',  value: army?.free_population ?? 0 },
-          ]}
-        />
-        <div className="space-y-4">
-          {/* Available Population + Slaves panel */}
-          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-4 space-y-2 shadow-emboss">
-            <h3 className="font-heading text-game-sm uppercase tracking-wider text-game-gold">Workforce</h3>
-            <div className="space-y-1 text-game-sm font-body">
-              <div className="flex justify-between">
-                <span className="text-game-text-secondary">Free Population</span>
-                <span className="text-game-text-white font-semibold">{formatNumber(army?.free_population ?? 0)}</span>
-              </div>
-              <p className="text-game-xs text-game-text-muted">
-                Each unit trained costs 1 free population
-                {BALANCE.training.enableCavalry ? ' (cavalry costs 5 each).' : '.'}
-              </p>
-              <div className="divider-ornate my-1" />
-              <div className="flex justify-between pt-1">
-                <span className="text-game-text-secondary">Slaves</span>
-                <span className="text-game-text-white font-semibold">{formatNumber(army?.slaves ?? 0)}</span>
-              </div>
-              <p className="text-game-xs text-game-text-muted">
-                Slaves work mines and produce resources per tick.
-                Allocate them via the Mine page. Training is irreversible.
-              </p>
+      {/* ── Resource Economy Strip ──────────────────────────────────────── */}
+      <div className="rounded-game-lg border border-game-gold/30 bg-gradient-to-r from-game-gold/8 via-game-surface/80 to-game-surface/80 shadow-emboss overflow-hidden">
+        <div className="flex divide-x divide-game-gold/15">
+          {[
+            { icon: '🪙', label: 'Gold', value: resources?.gold ?? 0, color: 'text-res-gold' },
+            { icon: '⚙️', label: 'Iron', value: resources?.iron ?? 0, color: 'text-res-iron' },
+            { icon: '🪵', label: 'Wood', value: resources?.wood ?? 0, color: 'text-res-wood' },
+            { icon: '🌾', label: 'Food', value: resources?.food ?? 0, color: 'text-res-food' },
+          ].map(({ icon, label, value, color }) => (
+            <div key={label} className="flex-1 flex flex-col items-center py-3 px-2 gap-1 min-w-0">
+              <span className="text-base leading-none">{icon}</span>
+              <span className={`font-heading text-game-sm font-bold tabular-nums leading-none ${color}`}>
+                {formatNumber(value)}
+              </span>
+              <span className="text-game-xs text-game-text-muted font-body uppercase tracking-wider leading-none">
+                {label}
+              </span>
             </div>
-          </div>
-
-          {/* Resources */}
-          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 space-y-2 shadow-engrave">
-            <div className="flex justify-between text-game-sm font-body">
-              <span className="text-game-text-secondary font-heading">Gold</span>
-              <ResourceBadge type="gold" amount={resources?.gold ?? 0} />
-            </div>
-            <div className="divider-ornate" />
-            <div className="flex justify-between text-game-sm font-body">
-              <span className="text-game-text-secondary font-heading">Food</span>
-              <ResourceBadge type="food" amount={resources?.food ?? 0} />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs tabs={TRAIN_TABS} activeTab={activeTab} onChange={setActiveTab} />
-
-      {/* ── TRAIN TAB ─────────────────────────────────────────────────────── */}
-      {activeTab === 'train' && (
-        <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
-          <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">Basic Training</h2>
-          </div>
-          <div className="divider-gold mb-4" />
-          <div className="space-y-3">
-            {(['soldier', 'slave', 'spy', 'scout', 'cavalry'] as BasicUnit[]).filter((unit) => {
-              // Hide cavalry row entirely when the feature toggle is off
-              if (unit === 'cavalry' && !BALANCE.training.enableCavalry) return false
-              return true
-            }).map((unit) => {
-              const cfg = unitCost(unit)
-              const amt = parseInt(trainAmts[unit] || '0') || 0
-              const goldTotal = cfg.gold * amt
-              const isCavalry = unit === 'cavalry'
-              const cavCfg = isCavalry ? (cfg as { gold: number; capacityCost: number; popCost: number }) : null
-              const popRequired = isCavalry && cavCfg ? amt * cavCfg.popCost : amt
-
-              return (
-                <div
-                  key={unit}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                      {UNIT_LABELS[unit]}
-                    </p>
-                    <div className="flex flex-wrap gap-3 mt-1 text-game-xs font-body text-game-text-muted">
-                      {unit === 'slave' ? (
-                        <span className="text-game-gold-bright font-semibold">
-                          Free — converts 1 Untrained Population → 1 Idle Slave
-                        </span>
-                      ) : (
-                        <span>
-                          Cost:{' '}
-                          <span className="text-res-gold font-semibold">
-                            {formatNumber(cfg.gold)} Gold
-                          </span>{' '}
-                          each
-                        </span>
-                      )}
-                      {isCavalry && cavCfg ? (
-                        <Badge variant="default">
-                          Costs {cavCfg.popCost} free population each — permanent
-                        </Badge>
-                      ) : (
-                        !isCavalry && <span>Requires 1 free population</span>
-                      )}
-                    </div>
-                    {amt > 0 && (
-                      <p className="text-game-xs font-body mt-1">
-                        <span className="text-game-text-secondary">Total: </span>
-                        <span className={(resources?.gold ?? 0) >= goldTotal ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                          {formatNumber(goldTotal)} Gold
-                        </span>
-                        <span className={(army?.free_population ?? 0) >= popRequired ? ' text-game-green-bright' : ' text-game-red-bright'}>
-                          {' · '}{formatNumber(popRequired)} Pop
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 sm:w-52">
-                    <Input
-                      type="number"
-                      placeholder="Amount"
-                      value={trainAmts[unit]}
-                      min={1}
-                      onChange={(e) => setTrainAmts((prev) => ({ ...prev, [unit]: e.target.value }))}
-                      className="w-28"
-                    />
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      loading={loadingUnit === unit}
-                      disabled={isFrozen || !canAffordTrain(unit) || !!loadingUnit}
-                      onClick={() => trainUnit(unit)}
-                    >
-                      Train
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+      {/* ── Current Army ────────────────────────────────────────────────── */}
+      <div className="rounded-game-lg border border-game-border bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave overflow-hidden">
+        <div className="px-4 py-2 bg-game-bg/50 border-b border-game-border/60 flex items-center gap-2">
+          <span className="text-sm leading-none">⚔️</span>
+          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-secondary">Current Army</span>
         </div>
-      )}
+        <div className="flex flex-wrap gap-2 p-3">
+          {[
+            { icon: '🗡️', label: 'Soldiers', value: army?.soldiers        ?? 0 },
+            ...(BALANCE.training.enableCavalry
+              ? [{ icon: '🐴', label: 'Cavalry', value: army?.cavalry ?? 0 }]
+              : []),
+            { icon: '👁️', label: 'Spies',    value: army?.spies           ?? 0 },
+            { icon: '🧭', label: 'Scouts',   value: army?.scouts          ?? 0 },
+            { icon: '⛏️', label: 'Slaves',   value: army?.slaves          ?? 0 },
+            { icon: '👥', label: 'Free Pop', value: army?.free_population ?? 0 },
+          ].map(({ icon, label, value }) => (
+            <div
+              key={label}
+              className="flex items-center gap-1.5 bg-game-bg/40 border border-game-border/60 rounded-game px-3 py-1.5"
+            >
+              <span className="text-sm leading-none">{icon}</span>
+              <span className="text-game-xs text-game-text-muted font-body">{label}</span>
+              <span className="font-heading text-game-sm text-game-text-white font-semibold tabular-nums">{formatNumber(value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* ── ADVANCED TAB ──────────────────────────────────────────────────── */}
-      {activeTab === 'advanced' && (
-        <div className="panel-ornate rounded-game-lg p-4 shadow-engrave">
-          <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold mb-1">Advanced Training</h2>
-          </div>
-          <p className="text-game-sm text-game-text-muted font-body mb-2">
-            Each level costs {formatNumber(advCost.gold)} Gold + {formatNumber(advCost.food)} Food × (current level + 1).
-            Adds {(BALANCE.training.advancedMultiplierPerLevel * 100).toFixed(0)}% power per level.
+      {/* ── Basic Training ──────────────────────────────────────────────── */}
+      <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
+        <div className="px-4 py-3 border-b border-game-border">
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Basic Training</h2>
+        </div>
+
+        {/* Column headers */}
+        <div className="hidden sm:grid grid-cols-[1fr_80px_140px_180px_auto] gap-3 px-4 py-2 border-b border-game-border/50 bg-game-bg/40">
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Unit</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Owned</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Cost / Unit</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Amount</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted"></span>
+        </div>
+
+        <div className="divide-y divide-game-border/40">
+          {units.map((unit) => {
+            const cfg = unitCost(unit)
+            const amt = parseInt(trainAmts[unit] || '0') || 0
+            const isCavalry = unit === 'cavalry'
+            const cavCfg = isCavalry ? (cfg as { gold: number; capacityCost: number; popCost: number }) : null
+            const popPerUnit = isCavalry && cavCfg ? cavCfg.popCost : 1
+            const goldTotal = cfg.gold * amt
+            const popTotal  = popPerUnit * amt
+            const ownedCount = unit === 'soldier' ? (army?.soldiers ?? 0)
+                             : unit === 'slave'   ? (army?.slaves   ?? 0)
+                             : unit === 'spy'     ? (army?.spies    ?? 0)
+                             : unit === 'scout'   ? (army?.scouts   ?? 0)
+                                                  : (army?.cavalry  ?? 0)
+
+            const goldOk = amt === 0 || (resources?.gold ?? 0) >= goldTotal
+            const popOk  = amt === 0 || (army?.free_population ?? 0) >= popTotal
+
+            return (
+              <div
+                key={unit}
+                className="grid grid-cols-1 sm:grid-cols-[1fr_80px_140px_180px_auto] gap-2 sm:gap-3 items-center px-4 py-3 hover:bg-game-elevated/30 transition-colors"
+              >
+                {/* Unit name */}
+                <div>
+                  <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
+                    {UNIT_LABELS[unit]}
+                  </span>
+                  {/* Mobile: show owned inline */}
+                  <span className="sm:hidden ml-2 text-game-xs text-game-text-muted font-body">
+                    ×{formatNumber(ownedCount)}
+                  </span>
+                </div>
+
+                {/* Owned count (desktop column) */}
+                <div className="hidden sm:flex justify-center">
+                  <span className="font-heading text-game-sm text-game-text-secondary">
+                    {formatNumber(ownedCount)}
+                  </span>
+                </div>
+
+                {/* Cost per unit */}
+                <div className="text-game-xs font-body text-game-text-secondary space-y-0.5">
+                  {unit === 'slave' ? (
+                    <span className="text-game-gold-bright font-semibold">Free</span>
+                  ) : (
+                    <span className="text-res-gold font-semibold">{formatNumber(cfg.gold)} Gold</span>
+                  )}
+                  <span className="block text-game-text-muted">
+                    {popPerUnit === 1 ? '1 Pop' : `${popPerUnit} Pop`}
+                  </span>
+                  {/* Total preview when amount entered */}
+                  {amt > 0 && (
+                    <span className="block pt-0.5">
+                      <span className={goldOk ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                        {formatNumber(goldTotal)}G
+                      </span>
+                      {' · '}
+                      <span className={popOk ? 'text-game-green-bright' : 'text-game-red-bright'}>
+                        {formatNumber(popTotal)} Pop
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Amount input */}
+                <div>
+                  <Input
+                    type="number"
+                    placeholder="Amount"
+                    value={trainAmts[unit]}
+                    min={1}
+                    onChange={(e) => setTrainAmts((prev) => ({ ...prev, [unit]: e.target.value }))}
+                    className="w-full sm:w-36"
+                  />
+                </div>
+
+                {/* Train button */}
+                <div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={loadingUnit === unit}
+                    disabled={isFrozen || !canAffordTrain(unit) || !!loadingUnit}
+                    onClick={() => trainUnit(unit)}
+                    className="w-full sm:w-auto whitespace-nowrap"
+                  >
+                    Train
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Advanced Training ────────────────────────────────────────────── */}
+      <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
+        <div className="px-4 py-3 border-b border-game-border">
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Advanced Training</h2>
+          <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+            Each level costs {formatNumber(advCost.gold)} Gold + {formatNumber(advCost.food)} Food × (level + 1).
           </p>
-          <div className="divider-gold mb-4" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(['attack', 'defense', 'spy', 'scout'] as AdvancedType[]).map((type) => {
-              const level = (training?.[`${type}_level` as keyof Training] as number) ?? 0
-              const nextGold = advCost.gold * (level + 1)
-              const nextFood = advCost.food * (level + 1)
-              const multiplier = (1 + level * BALANCE.training.advancedMultiplierPerLevel).toFixed(2)
-              return (
-                <div key={type} className="p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border shadow-emboss">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                        {ADVANCED_LABELS[type]}
-                      </p>
-                      <p className="text-game-xs text-game-text-secondary font-body mt-0.5">
-                        Level <span className="text-game-gold font-semibold">{level}</span> · ×{multiplier} power
-                      </p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <ResourceBadge type="gold" amount={nextGold} />
-                        <ResourceBadge type="food" amount={nextFood} />
-                      </div>
-                    </div>
-                    <Button
-                      variant="success"
-                      size="sm"
-                      loading={loadingAdv === type}
-                      disabled={isFrozen || !canAffordAdv(type) || !!loadingAdv}
-                      onClick={() => upgradeAdvanced(type)}
-                    >
-                      Upgrade
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
         </div>
-      )}
+
+        {/* Column headers */}
+        <div className="hidden sm:grid grid-cols-[1fr_100px_160px_200px_auto] gap-3 px-4 py-2 border-b border-game-border/50 bg-game-bg/40">
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Skill</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Level</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Next Gain</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Next Cost</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted"></span>
+        </div>
+
+        <div className="divide-y divide-game-border/40">
+          {(['attack', 'defense', 'spy', 'scout'] as AdvancedType[]).map((type) => {
+            const level    = (training?.[`${type}_level` as keyof Training] as number) ?? 0
+            const nextGold = advCost.gold * (level + 1)
+            const nextFood = advCost.food * (level + 1)
+            const currentMult = (1 + level * advMult).toFixed(2)
+            const nextMult    = (1 + (level + 1) * advMult).toFixed(2)
+            const gainPct     = (advMult * 100).toFixed(0)
+
+            return (
+              <div
+                key={type}
+                className="grid grid-cols-1 sm:grid-cols-[1fr_100px_160px_200px_auto] gap-2 sm:gap-3 items-center px-4 py-3 hover:bg-game-elevated/30 transition-colors"
+              >
+                {/* Skill name */}
+                <div>
+                  <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
+                    {ADVANCED_LABELS[type]}
+                  </span>
+                  {/* Mobile: level inline */}
+                  <span className="sm:hidden ml-2 text-game-xs text-game-text-muted font-body">
+                    Lv {level}
+                  </span>
+                </div>
+
+                {/* Current level (desktop) */}
+                <div className="hidden sm:flex justify-center">
+                  <span className="font-heading text-game-base text-game-gold font-semibold">
+                    {level}
+                  </span>
+                </div>
+
+                {/* Next gain */}
+                <div className="text-game-xs font-body space-y-0.5">
+                  <span className="text-game-text-secondary">
+                    ×{currentMult} → <span className="text-game-green-bright font-semibold">×{nextMult}</span>
+                  </span>
+                  <span className="block text-game-text-muted">+{gainPct}% power</span>
+                </div>
+
+                {/* Next cost */}
+                <div className="flex flex-wrap gap-1.5">
+                  <ResourceBadge type="gold" amount={nextGold} />
+                  <ResourceBadge type="food" amount={nextFood} />
+                </div>
+
+                {/* Upgrade button */}
+                <div>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    loading={loadingAdv === type}
+                    disabled={isFrozen || !canAffordAdv(type) || !!loadingAdv}
+                    onClick={() => upgradeAdvanced(type)}
+                    className="w-full sm:w-auto whitespace-nowrap"
+                  >
+                    Upgrade
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

@@ -2359,3 +2359,52 @@ if (attPlayer.last_spy_at &&
 **Types:** `Player.last_attack_at: string | null` and `Player.last_spy_at: string | null` in `types/game.ts`.
 
 **Tests:** `lib/game/rate-limiting.test.ts` — 23 tests across 4 groups: attack structural, spy structural, migration structural, pure-logic gate scenarios.
+
+### 2026-03-06 — Training Page: Layout Restructure (UI-only, SSOT-safe)
+
+Full layout restructure of `app/(game)/training/TrainingClient.tsx`. **No gameplay logic, API contracts, validation, formulas, or SSOT rules changed.**
+
+#### What changed in the UI
+
+**Layout hierarchy (new order):**
+1. Page title + irreversibility notice (once, at top)
+2. Compact resource/workforce dashboard — 4 chips: Free Pop | Slaves | Gold | Food
+3. Army snapshot — horizontal chip row: Soldiers, Cavalry (if enabled), Spies, Scouts, Slaves, Free Pop
+4. Basic Training section — table-style rows (no tabs)
+5. Advanced Training section — table-style rows (no tabs)
+
+**Tabs removed.** Previously Basic Training and Advanced Training were behind `Tabs` (Train Units / Advanced Training). Now both sections are always visible, stacked vertically. This matches the Izra layout pattern where all training info is available at a glance without navigation.
+
+**Basic Training rows restructured to table columns:**
+- `Unit | Owned | Cost / Unit | Amount input | Train button`
+- Cost shows "X Gold · Y Pop" compactly (no prose descriptions)
+- Total cost preview (color-coded green/red for affordability) appears inline within the Cost column only when an amount is entered
+- Desktop: uses CSS grid for aligned columns; Mobile: stacks gracefully
+
+**Advanced Training rows restructured to table columns:**
+- `Skill | Level | Next Gain (×current → ×next, +X% power) | Next Cost (Gold + Food badges) | Upgrade button`
+- Player immediately sees what upgrading gives without reading explanatory text
+- Upgrade cost formula note moved to a single subtitle line under the section header
+
+**Text drastically reduced:**
+- Removed verbose descriptions ("converts 1 Untrained Population → 1 Idle Slave", "Slaves work mines and produce resources per tick. Allocate them via the Mine page")
+- Removed repeated irreversibility reminders (now stated once in page subtitle)
+- Removed tutorial-style badge text for cavalry ("Costs 5 free population each — permanent")
+- Population cost shown as compact "5 Pop" in the Cost column, not a sentence
+
+**Components removed from this page:** `StatBox`, `Badge`, `Tabs` — replaced with inline grid/chip patterns that are more compact and scannable.
+
+**Components retained:** `Button`, `Input`, `ResourceBadge`, `usePlayer`, `useFreeze`, `applyPatch`, `refresh`, all API call logic — unchanged.
+
+#### SSOT confirmation
+- `trainUnit()` — unchanged
+- `upgradeAdvanced()` — unchanged  
+- `canAffordTrain()` — unchanged
+- `canAffordAdv()` — unchanged
+- `BALANCE.training.enableCavalry` filter — unchanged
+- All API routes — unchanged (`/api/training/basic`, `/api/training/advanced`)
+- `applyPatch` + `refresh()` pattern — unchanged
+- `isFrozen` guard on all buttons — unchanged
+
+#### Inspiration
+Layout hierarchy and row structure inspired by Izra training screen (competitor game). Visual styling, tokens, and theme remain Domiron's own.
