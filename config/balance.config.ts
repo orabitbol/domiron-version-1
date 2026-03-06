@@ -387,27 +387,43 @@ export const BALANCE = {
   },
 
   // ═══════════════════════════════════════
-  // TRIBE SPELLS & TAX
+  // TRIBE SYSTEM — SPELLS, TAX, MANA
   //
-  // Tribe spells are activated by the tribe leader and cost tribe mana.
-  // mass_spy is instant (durationHours: 0); all others are timed buffs.
-  // taxLimits caps the per-city maximum daily tax in gold.
+  // V1 spells (tribe mana only — never personal mana):
+  //   war_cry             — offensive ECP multiplier for tribe members
+  //   tribe_shield        — defensive ECP multiplier for tribe members
+  //   production_blessing — slave production multiplier for tribe members
+  //   spy_veil            — scout defense multiplier (improves resistance to spying)
+  //   battle_supply       — attack food cost reduction for tribe members
+  //
+  // taxLimits: per-city cap on daily gold tax (gold → leader personal gold).
+  // taxCollectionHour: Israel local hour (0–23) at which taxes are auto-collected.
+  // creationManaCost: personal mana (hero.mana) spent to found a tribe.
+  // manaPerMemberPerTick: TRIBE mana added per tick per member (separate from personal mana).
   // ═══════════════════════════════════════
   tribe: {
+    // Personal mana cost to create a tribe (deducted from hero.mana at creation)
+    creationManaCost: 50, // [TUNE]
+
+    // Hour of day (0–23) in Israel local time when daily gold taxes are auto-collected
+    taxCollectionHour: 20, // [FIXED] 20:00 Israel time
+
+    // V1 active spells — cost TRIBE mana, activated by leader or deputy
     spells: {
-      combat_boost:        { manaCost: 20, durationHours:  6 }, // [TUNE]
+      war_cry:             { manaCost: 40, durationHours:  4 }, // [TUNE]
       tribe_shield:        { manaCost: 30, durationHours: 12 }, // [TUNE]
       production_blessing: { manaCost: 25, durationHours:  8 }, // [TUNE]
-      mass_spy:            { manaCost: 15, durationHours:  0 }, // [TUNE] instant
-      war_cry:             { manaCost: 40, durationHours:  4 }, // [TUNE]
+      spy_veil:            { manaCost: 20, durationHours:  6 }, // [TUNE]
+      battle_supply:       { manaCost: 35, durationHours:  6 }, // [TUNE]
     } as Record<string, { manaCost: number; durationHours: number }>,
 
-    // Combat and production multipliers applied when the spell is active.
+    // Multipliers/rates applied when each spell is active
     spellEffects: {
-      combat_boost:        { combatMultiplier:     1.15 }, // [TUNE] attacker ECP ×1.15
-      tribe_shield:        { defenseMultiplier:    1.15 }, // [TUNE] defender ECP ×1.15
-      war_cry:             { combatMultiplier:     1.25 }, // [TUNE] attacker ECP ×1.25
-      production_blessing: { productionMultiplier: 1.20 }, // [TUNE] tick production ×1.20
+      war_cry:             { combatMultiplier:        1.25 }, // [TUNE] attacker ECP ×1.25
+      tribe_shield:        { defenseMultiplier:       1.15 }, // [TUNE] defender ECP ×1.15
+      production_blessing: { productionMultiplier:    1.20 }, // [TUNE] slave output ×1.20
+      spy_veil:            { scoutDefenseMultiplier:  1.30 }, // [TUNE] effective scout defense ×1.30
+      battle_supply:       { foodReduction:           0.25 }, // [TUNE] food cost for attacks −25%
     },
 
     taxLimits: {
@@ -418,8 +434,8 @@ export const BALANCE = {
       city5: 20_000, // [TUNE]
     } as Record<string, number>,
 
-    // Tribe mana regeneration per tick, per member.
-    manaPerMemberPerTick: 1, // [TUNE] e.g. 5 members → 5 mana/tick
+    // TRIBE mana regeneration per tick, per member (separate from personal hero.mana)
+    manaPerMemberPerTick: 1, // [TUNE] e.g. 5 members → +5 tribe mana/tick
   },
 
   // ═══════════════════════════════════════

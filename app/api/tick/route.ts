@@ -259,7 +259,63 @@ export async function GET(request: NextRequest) {
       playerIdx++
     }
 
-    // 6. Update tribe mana
+    // 6. Daily tribe tax collection (Israel time)
+    //
+    // Runs when clock in Asia/Jerusalem is at or past taxCollectionHour.
+    // One collection per tribe per calendar day (guarded by last_tax_collected_date).
+    // For each eligible tribe, calls tribe_collect_member_tax() per taxable member.
+    // Idempotency: the RPC's UNIQUE (tribe_id, player_id, collected_date) prevents double-collection.
+    {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Jerusalem',
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+      }).formatToParts(new Date())
+      const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+      const israelDate = `${get('year')}-${get('month')}-${get('day')}`
+      const israelHour = parseInt(get('hour'), 10)
+
+      if (israelHour >= BALANCE.tribe.taxCollectionHour) {
+        const { data: taxTribes } = await supabase
+          .from('tribes')
+          .select('id, leader_id, tax_amount, season_id')
+          .gt('tax_amount', 0)
+          .or(`last_tax_collected_date.is.null,last_tax_collected_date.neq.${israelDate}`)
+
+        if (taxTribes && taxTribes.length > 0) {
+          for (const tribe of taxTribes) {
+            const { data: taxableMembers } = await supabase
+              .from('tribe_members')
+              .select('player_id')
+              .eq('tribe_id', tribe.id)
+              .eq('role', 'member')
+              .eq('tax_exempt', false)
+
+            if (taxableMembers && taxableMembers.length > 0) {
+              await Promise.all(
+                taxableMembers.map(m =>
+                  supabase.rpc('tribe_collect_member_tax', {
+                    p_member_player_id: m.player_id,
+                    p_tribe_id:         tribe.id,
+                    p_leader_id:        tribe.leader_id,
+                    p_tax_amount:       tribe.tax_amount,
+                    p_collected_date:   israelDate,
+                    p_season_id:        tribe.season_id,
+                  })
+                )
+              )
+            }
+
+            await supabase
+              .from('tribes')
+              .update({ last_tax_collected_date: israelDate })
+              .eq('id', tribe.id)
+          }
+          console.log(`[TICK] Tax collected for ${taxTribes.length} tribe(s) on ${israelDate}`)
+        }
+      }
+    }
+
+    // 8. Update tribe mana
     const { data: tribes } = await supabase
       .from('tribes')
       .select('id, mana, tribe_members(count)')
@@ -277,7 +333,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 7. Recalculate power for all players, then update rankings
+    // 9. Recalculate power for all players, then update rankings
     const { data: allPlayers } = await supabase
       .from('players')
       .select('id, city')
@@ -322,7 +378,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 8. Aggregate tribe power_total from current member power_total values (intentional staleness)
+    // 10. Aggregate tribe power_total from current member power_total values (intentional staleness)
     const { data: tribeMembers } = await supabase
       .from('tribe_members')
       .select('tribe_id, players!inner(power_total)')
@@ -340,7 +396,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 9. Compute next_tick_at and persist to world_state (server-authoritative timer)
+    // 11. Compute next_tick_at and persist to world_state (server-authoritative timer)
     //
     // Use UPSERT (not update) so the row is guaranteed to exist even if the
     // migration was never applied or the seed INSERT failed.
@@ -369,7 +425,7 @@ export async function GET(request: NextRequest) {
       console.error('[TICK] world_state MISMATCH — upsert did not persist the value!')
     }
 
-    // 10. Broadcast tick event — includes next_tick_at so clients reset their countdown
+    // 12. Broadcast tick event — includes next_tick_at so clients reset their countdown
     await broadcastTickCompleted(supabase, nextTickAt)
 
     const duration = Date.now() - startTime

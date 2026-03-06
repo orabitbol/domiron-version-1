@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
+import { BALANCE } from '@/lib/game/balance'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
 const schema = z.object({
@@ -51,12 +52,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tribe name already taken' }, { status: 409 })
     }
 
-    // Get player city
-    const { data: player } = await supabase
-      .from('players').select('city').eq('id', playerId).single()
+    // Get player city + hero mana
+    const [{ data: player }, { data: heroData }] = await Promise.all([
+      supabase.from('players').select('city').eq('id', playerId).single(),
+      supabase.from('hero').select('mana').eq('player_id', playerId).single(),
+    ])
 
     if (!player) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })
+    }
+    if (!heroData) {
+      return NextResponse.json({ error: 'Hero not found' }, { status: 404 })
+    }
+
+    const manaCost = BALANCE.tribe.creationManaCost
+    if (heroData.mana < manaCost) {
+      return NextResponse.json({
+        error: `Not enough mana (need ${manaCost}, have ${heroData.mana})`,
+      }, { status: 400 })
     }
 
     const seasonId = activeSeason.id
@@ -79,12 +92,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create tribe' }, { status: 500 })
     }
 
-    // Add leader as member (tax exempt)
-    await supabase.from('tribe_members').insert({
-      tribe_id: tribe.id,
-      player_id: playerId,
-      tax_exempt: true,
-    })
+    // Add leader as member with role='leader' (tax exempt)
+    await Promise.all([
+      supabase.from('tribe_members').insert({
+        tribe_id: tribe.id,
+        player_id: playerId,
+        role: 'leader',
+        tax_exempt: true,
+      }),
+      // Deduct personal mana cost
+      supabase.from('hero')
+        .update({ mana: heroData.mana - manaCost, updated_at: new Date().toISOString() })
+        .eq('player_id', playerId),
+      // Audit log
+      supabase.from('tribe_audit_log').insert({
+        tribe_id: tribe.id,
+        actor_id: playerId,
+        action: 'tribe_created',
+        details: { name: tribe.name, mana_cost: manaCost },
+      }),
+    ])
 
     return NextResponse.json({ data: { tribe } }, { status: 201 })
   } catch (err) {

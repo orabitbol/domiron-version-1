@@ -6,8 +6,10 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
+const V1_SPELL_KEYS = ['war_cry', 'tribe_shield', 'production_blessing', 'spy_veil', 'battle_supply'] as const
+
 const schema = z.object({
-  spell_key: z.enum(['combat_boost', 'tribe_shield', 'production_blessing', 'mass_spy', 'war_cry']),
+  spell_key: z.enum(V1_SPELL_KEYS),
 })
 
 export async function POST(request: NextRequest) {
@@ -28,10 +30,10 @@ export async function POST(request: NextRequest) {
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
 
-    // Get tribe membership
+    // Get tribe membership with role
     const { data: membership } = await supabase
       .from('tribe_members')
-      .select('tribe_id')
+      .select('tribe_id, role')
       .eq('player_id', playerId)
       .single()
 
@@ -39,20 +41,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
     }
 
+    // Only leader or deputy can activate spells
+    if (membership.role !== 'leader' && membership.role !== 'deputy') {
+      return NextResponse.json({ error: 'Only the tribe leader or a deputy can activate spells' }, { status: 403 })
+    }
+
     // Get tribe mana
     const { data: tribe } = await supabase
       .from('tribes')
-      .select('id, mana, leader_id')
+      .select('id, mana')
       .eq('id', membership.tribe_id)
       .single()
 
     if (!tribe) {
       return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
-    }
-
-    // Only leader can activate spells
-    if (tribe.leader_id !== playerId) {
-      return NextResponse.json({ error: 'Only the tribe leader can activate spells' }, { status: 403 })
     }
 
     const spellCfg = BALANCE.tribe.spells[spell_key]
@@ -62,29 +64,24 @@ export async function POST(request: NextRequest) {
 
     if (tribe.mana < spellCfg.manaCost) {
       return NextResponse.json({
-        error: `Not enough mana (need ${spellCfg.manaCost}, have ${tribe.mana})`,
+        error: `Not enough tribe mana (need ${spellCfg.manaCost}, have ${tribe.mana})`,
       }, { status: 400 })
     }
 
-    // Check if a non-mass_spy spell is already active
-    if (spell_key !== 'mass_spy') {
-      const { data: activeSpell } = await supabase
-        .from('tribe_spells')
-        .select('id')
-        .eq('tribe_id', tribe.id)
-        .eq('spell_key', spell_key)
-        .gt('expires_at', new Date().toISOString())
-        .single()
+    // Check if spell is already active
+    const { data: activeSpell } = await supabase
+      .from('tribe_spells')
+      .select('id')
+      .eq('tribe_id', tribe.id)
+      .eq('spell_key', spell_key)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle()
 
-      if (activeSpell) {
-        return NextResponse.json({ error: 'This spell is already active' }, { status: 409 })
-      }
+    if (activeSpell) {
+      return NextResponse.json({ error: 'This spell is already active' }, { status: 409 })
     }
 
-    const now = new Date()
-    const expiresAt = spellCfg.durationHours > 0
-      ? new Date(now.getTime() + spellCfg.durationHours * 60 * 60 * 1000).toISOString()
-      : now.toISOString()  // mass_spy is instant, expires immediately
+    const expiresAt = new Date(Date.now() + spellCfg.durationHours * 3_600_000).toISOString()
 
     await Promise.all([
       supabase.from('tribes').update({ mana: tribe.mana - spellCfg.manaCost }).eq('id', tribe.id),
@@ -93,6 +90,12 @@ export async function POST(request: NextRequest) {
         spell_key,
         activated_by: playerId,
         expires_at: expiresAt,
+      }),
+      supabase.from('tribe_audit_log').insert({
+        tribe_id: tribe.id,
+        actor_id: playerId,
+        action: 'spell_cast',
+        details: { spell_key, mana_cost: spellCfg.manaCost, duration_hours: spellCfg.durationHours },
       }),
     ])
 

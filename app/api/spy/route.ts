@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
       { data: defResources },
       defHero,
       { data: defBank },
+      { data: defTribeMember },
     ] = await Promise.all([
       supabase.from('players').select('city, race, army_name, power_attack, power_defense, power_spy, power_scout, power_total').eq('id', target_id).single(),
       supabase.from('army').select('*').eq('player_id', target_id).single(),
@@ -200,6 +201,7 @@ export async function POST(request: NextRequest) {
       supabase.from('resources').select('gold, iron, wood, food').eq('player_id', target_id).single(),
       getActiveHeroEffects(supabase, target_id),
       supabase.from('bank').select('gold_balance').eq('player_id', target_id).maybeSingle(),
+      supabase.from('tribe_members').select('tribe_id').eq('player_id', target_id).maybeSingle(),
     ])
 
     if (!defPlayer || !defArmy || !defWeapons || !defTraining || !defResources) {
@@ -218,12 +220,28 @@ export async function POST(request: NextRequest) {
       attPlayer.race,
     )
 
-    const scoutDefense = calcScoutDefense(
+    let scoutDefense = calcScoutDefense(
       defArmy.scouts,
       defTraining.scout_level,
       defWeapons as Record<string, number>,
       defPlayer.race,
     )
+
+    // Apply spy_veil tribe spell multiplier (boosts defender's scout defense)
+    if (defTribeMember?.tribe_id) {
+      const { data: spyVeilSpell } = await supabase
+        .from('tribe_spells')
+        .select('id')
+        .eq('tribe_id', defTribeMember.tribe_id)
+        .eq('spell_key', 'spy_veil')
+        .gt('expires_at', now.toISOString())
+        .maybeSingle()
+      if (spyVeilSpell) {
+        scoutDefense = Math.floor(
+          scoutDefense * BALANCE.tribe.spellEffects.spy_veil.scoutDefenseMultiplier
+        )
+      }
+    }
 
     const success = spyPower > scoutDefense
 

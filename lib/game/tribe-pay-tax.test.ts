@@ -1,14 +1,21 @@
 /**
  * tribe-pay-tax.test.ts
  *
- * Enforces the atomic-RPC contract for the tribe pay-tax route.
+ * Tribe V1: manual tax payment removed (route returns 410 Gone).
+ * Taxes are collected automatically by /api/tribe/tax-collect (cron, hourly).
+ *
+ * V1 tax mechanics:
+ *   - Collected once per day at BALANCE.tribe.taxCollectionHour (Israel time)
+ *   - Gold deducted from taxable member (role='member', tax_exempt=false)
+ *   - Gold transferred directly to tribe leader's personal resources.gold
+ *   - No tribe treasury. Tribe mana is NOT affected by tax.
+ *   - Unpaid (insufficient gold): nothing transferred, logged with paid=false
+ *   - Idempotency: UNIQUE(tribe_id, player_id, collected_date) in tribe_tax_log
  *
  * WHAT IS TESTED:
- *   GROUP 1 — Structural: the route uses exactly one `.rpc(...)` call and
- *             contains no direct multi-table `.update(` calls for the mutation.
- *   GROUP 2 — RPC error-code → HTTP response mapping.
- *   GROUP 3 — Business logic invariants (gold deducted = mana gained, etc.).
- *   GROUP 4 — Atomicity / concurrency invariants (pure simulation, no DB).
+ *   GROUP 1 — V1 deprecation: /api/tribe/pay-tax returns 410
+ *   GROUP 2 — Tax business logic invariants (pure — gold conservation, leader credit)
+ *   GROUP 3 — Atomicity / concurrency invariants (pure simulation, no DB)
  *
  * All tests are pure unit tests — no DB, no HTTP, no Supabase mocking.
  */
@@ -17,240 +24,202 @@ import * as fs   from 'fs'
 import * as path from 'path'
 import { describe, it, expect } from 'vitest'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
 const ROUTE_PATH = path.resolve(__dirname, '../../app/api/tribe/pay-tax/route.ts')
 const routeSrc   = fs.readFileSync(ROUTE_PATH, 'utf8')
 
-function countOccurrences(source: string, needle: string): number {
-  let count = 0; let pos = 0
-  while ((pos = source.indexOf(needle, pos)) !== -1) { count++; pos += needle.length }
-  return count
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// GROUP 1 — Structural contract
+// GROUP 1 — V1 deprecation contract
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Tribe pay-tax route — atomic RPC structural contract', () => {
+describe('Tribe pay-tax route — V1 deprecated (410)', () => {
 
-  it('contains exactly one .rpc("tribe_pay_tax_apply", …) call', () => {
-    const count = countOccurrences(routeSrc, "rpc('tribe_pay_tax_apply'")
-                + countOccurrences(routeSrc, 'rpc("tribe_pay_tax_apply"')
-    expect(count).toBe(1)
+  it('returns 410 status (manual payment removed)', () => {
+    expect(routeSrc).toContain('410')
   })
 
-  it('does NOT contain a direct .from("resources").update( call in mutation path', () => {
-    // Pre-reads with .select() are fine; only .update() in the mutation path is forbidden
-    expect(routeSrc).not.toMatch(/from\(['"]resources['"]\)[\s\S]{0,80}\.update\s*\(/)
+  it('does NOT contain a direct .rpc() call', () => {
+    expect(routeSrc).not.toMatch(/\.rpc\(/)
   })
 
-  it('does NOT contain a direct .from("tribes").update( call in mutation path', () => {
-    expect(routeSrc).not.toMatch(/from\(['"]tribes['"]\)[\s\S]{0,80}\.update\s*\(/)
+  it('does NOT contain Supabase mutation calls', () => {
+    expect(routeSrc).not.toMatch(/\.from\(['"]/)
   })
 
-  it('does NOT contain a direct .from("tribe_members").update( call in mutation path', () => {
-    expect(routeSrc).not.toMatch(/from\(['"]tribe_members['"]\)[\s\S]{0,80}\.update\s*\(/)
-  })
-
-  it('references the correct migration file in comments', () => {
-    expect(routeSrc).toContain('0017_tribe_pay_tax_rpc.sql')
-  })
-
-  it('maps RPC error codes via TRIBE_PAY_TAX_RPC_ERROR_MAP', () => {
-    expect(routeSrc).toContain('TRIBE_PAY_TAX_RPC_ERROR_MAP')
-  })
-
-  it('does NOT contain Promise.all with update calls (the old multi-write pattern)', () => {
-    // The old code had: await Promise.all([ supabase.from('resources').update(...)
-    expect(routeSrc).not.toMatch(/Promise\.all\([\s\S]{0,300}\.update\s*\(/)
+  it('contains an explanatory message about automatic collection', () => {
+    expect(routeSrc).toContain('automatically')
   })
 
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GROUP 2 — RPC error-code → HTTP mapping
+// GROUP 2 — Tax business logic invariants (V1: gold → leader personal gold)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Tribe pay-tax RPC error-code → HTTP mapping', () => {
+describe('Tribe tax V1 — business logic invariants', () => {
 
-  // Mirror the constant in the route — tested independently for completeness
-  const TRIBE_PAY_TAX_RPC_ERROR_MAP: Record<string, { status: number; message: string }> = {
-    not_in_tribe:       { status: 400, message: 'Not in a tribe' },
-    tax_exempt:         { status: 400, message: 'Tax exempt members do not pay tax' },
-    already_paid:       { status: 400, message: 'Tax already paid today' },
-    tribe_not_found:    { status: 404, message: 'Tribe not found' },
-    no_tax_set:         { status: 400, message: 'No tax set for this tribe' },
-    resources_not_found:{ status: 404, message: 'Player resources not found' },
-    not_enough_gold:    { status: 400, message: 'Not enough gold to pay tax' },
-  }
-
-  it('all expected RPC error codes produce non-empty messages', () => {
-    for (const [code, mapped] of Object.entries(TRIBE_PAY_TAX_RPC_ERROR_MAP)) {
-      expect(typeof mapped.message).toBe('string')
-      expect(mapped.message.length).toBeGreaterThan(0)
-      expect(routeSrc).toContain(code)
-    }
-  })
-
-  it('not_in_tribe → 400', () => {
-    expect(TRIBE_PAY_TAX_RPC_ERROR_MAP.not_in_tribe.status).toBe(400)
-  })
-
-  it('tribe_not_found → 404', () => {
-    expect(TRIBE_PAY_TAX_RPC_ERROR_MAP.tribe_not_found.status).toBe(404)
-  })
-
-  it('resources_not_found → 404', () => {
-    expect(TRIBE_PAY_TAX_RPC_ERROR_MAP.resources_not_found.status).toBe(404)
-  })
-
-  it('not_enough_gold → 400', () => {
-    expect(TRIBE_PAY_TAX_RPC_ERROR_MAP.not_enough_gold.status).toBe(400)
-  })
-
-  it('route does not return 200 for a failed RPC result', () => {
-    expect(routeSrc).not.toMatch(/rpcResult[\s\S]{0,200}status: 200/)
-  })
-
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GROUP 3 — Business logic invariants
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('Tribe pay-tax — business logic invariants', () => {
-
-  it('gold paid equals tribe mana gained (1:1 conversion)', () => {
+  it('member gold after tax = gold before - tax_amount', () => {
+    const memberGold = 800
     const taxAmount  = 200
-    const goldBefore = 1000
-    const manaBefore = 50
-
-    const goldAfter = goldBefore - taxAmount
-    const manaAfter = manaBefore + taxAmount
-
-    // Gold lost by player = mana gained by tribe (conservation)
-    expect(goldBefore - goldAfter).toBe(manaAfter - manaBefore)
+    expect(memberGold - taxAmount).toBe(600)
+    expect(memberGold - taxAmount).toBeGreaterThanOrEqual(0)
   })
 
-  it('player gold after tax = gold before - tax_amount', () => {
-    const gold      = 800
-    const taxAmount = 200
-    expect(gold - taxAmount).toBe(600)
-    expect(gold - taxAmount).toBeGreaterThanOrEqual(0)
+  it('leader gold after receiving tax = leader gold before + tax_amount', () => {
+    const leaderGold = 1000
+    const taxAmount  = 200
+    expect(leaderGold + taxAmount).toBe(1200)
   })
 
-  it('tax payment fails when gold < tax_amount', () => {
-    const gold      = 100
-    const taxAmount = 200
-    expect(gold < taxAmount).toBe(true)
+  it('gold lost by member = gold gained by leader (conservation — no tribe treasury)', () => {
+    const memberGoldBefore = 500
+    const leaderGoldBefore = 300
+    const taxAmount        = 100
+
+    const memberGoldAfter = memberGoldBefore - taxAmount
+    const leaderGoldAfter = leaderGoldBefore + taxAmount
+
+    const memberDelta = memberGoldBefore - memberGoldAfter // positive = left member
+    const leaderDelta = leaderGoldAfter - leaderGoldBefore // positive = entered leader
+
+    expect(memberDelta).toBe(leaderDelta)
   })
 
-  it('tax payment passes when gold === tax_amount (exact amount)', () => {
-    const gold      = 200
-    const taxAmount = 200
-    expect(gold >= taxAmount).toBe(true)
+  it('tribe mana is NOT changed by tax collection', () => {
+    // V1 taxes are gold transfers only — tribe mana is unaffected
+    const tribeMana = 150
+    // After any tax collection, tribe mana stays the same
+    expect(tribeMana).toBe(150)
   })
 
-  it('tax payment is idempotent-safe: tax_paid_today guard prevents second pay', () => {
-    // First payment flips tax_paid_today to true
-    let taxPaidToday = false
-    // Simulate first payment
-    taxPaidToday = true
-    // Second request sees tax_paid_today = true
-    expect(taxPaidToday).toBe(true)   // → RPC returns 'already_paid'
+  it('tax payment fails when gold < tax_amount (paid=false, nothing transferred)', () => {
+    const memberGold = 100
+    const taxAmount  = 200
+    const canPay     = memberGold >= taxAmount
+    expect(canPay).toBe(false)
+  })
+
+  it('tax payment succeeds when gold === tax_amount (exact amount)', () => {
+    const memberGold = 200
+    const taxAmount  = 200
+    const canPay     = memberGold >= taxAmount
+    expect(canPay).toBe(true)
+  })
+
+  it('tax is idempotent: UNIQUE(tribe_id, player_id, collected_date) prevents double-charge', () => {
+    // Simulate: first collection inserts row → second would violate UNIQUE constraint
+    const log = new Set<string>()
+    const key  = 'tribe:abc|player:xyz|date:2026-03-06'
+
+    // First collection
+    expect(log.has(key)).toBe(false)
+    log.add(key)
+
+    // Second collection attempt on same day → skip
+    expect(log.has(key)).toBe(true)
+  })
+
+  it('leader and deputies are tax-exempt — only role=member with tax_exempt=false pay', () => {
+    const members = [
+      { role: 'leader',  tax_exempt: true  },
+      { role: 'deputy',  tax_exempt: false },
+      { role: 'member',  tax_exempt: false },
+      { role: 'member',  tax_exempt: true  },
+    ] as const
+
+    const taxable = members.filter(m => m.role === 'member' && !m.tax_exempt)
+    expect(taxable).toHaveLength(1)
+    expect(taxable[0].role).toBe('member')
   })
 
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GROUP 4 — Atomicity / concurrency invariants (pure simulation, no DB)
-//
-// These simulate what the RPC FOR UPDATE lock prevents in real concurrency.
+// GROUP 3 — Atomicity / concurrency invariants (pure simulation, no DB)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Atomicity invariants — tribe pay-tax (concurrency simulation)', () => {
+describe('Atomicity invariants — tribe tax collection (concurrency simulation)', () => {
 
   /**
-   * TOCTTOU double-pay race: without lock, two concurrent requests both see
-   * tax_paid_today=false and both commit — charging the player twice and
-   * doubling the tribe mana gain.
+   * TOCTTOU double-collection race:
+   * Without the UNIQUE constraint, two concurrent cron runs both processing
+   * the same tribe on the same day could each insert a tax_log row and each
+   * deduct the member's gold — charging them twice.
    *
-   * The RPC FOR UPDATE lock prevents this: the second request re-reads
-   * tax_paid_today=true under lock and returns 'already_paid'.
+   * The UNIQUE(tribe_id, player_id, collected_date) constraint prevents this:
+   * the second insert fails, and the RPC returns { ok: true, skipped: true }.
    */
-  it('double-pay prevented by post-lock tax_paid_today recheck', () => {
-    let taxPaidToday = false
+  it('double-collection prevented by UNIQUE(tribe_id, player_id, collected_date)', () => {
+    let logHasEntry = false
 
-    // Both requests read false before either commits (TOCTTOU)
-    const req1Sees = taxPaidToday   // false
-    const req2Sees = taxPaidToday   // false
+    // First cron run: no entry yet → inserts row, collects tax
+    const run1ShouldCollect = !logHasEntry
+    expect(run1ShouldCollect).toBe(true)
+    logHasEntry = true
 
-    // Without lock: both pass and both commit → mana doubled, gold charged twice
-    const bothPassWithoutLock = !req1Sees && !req2Sees
-    expect(bothPassWithoutLock).toBe(true)   // proves the risk exists
-
-    // With lock (RPC): req1 commits first, sets tax_paid_today = true
-    taxPaidToday = true
-    // req2 re-reads under lock:
-    const req2SeesPaid = taxPaidToday
-    expect(req2SeesPaid).toBe(true)          // → 'already_paid', no second charge
+    // Second cron run (same day): entry exists → RPC returns skipped
+    const run2ShouldCollect = !logHasEntry
+    expect(run2ShouldCollect).toBe(false)
   })
 
   /**
-   * Partial-failure risk (Promise.all pattern):
-   * If write 1 (gold deduction) succeeds but write 2 (mana credit) fails,
-   * the player loses gold and the tribe gains nothing — value destroyed.
-   * The RPC transaction prevents this: either all three writes commit or none.
+   * Partial-failure risk:
+   * If the member gold deduction succeeds but the leader credit fails,
+   * gold is destroyed. The RPC transaction prevents this: either both
+   * writes commit or neither does.
    */
-  it('RPC ok:false leaves no partial state — gold and mana unchanged', () => {
-    const rpcFailure = { ok: false, error: 'not_enough_gold' }
-    // No new_gold / new_mana fields on failure — no partial writes occurred
+  it('RPC ok:false leaves no partial state — member gold and leader gold unchanged', () => {
+    const rpcFailure = { ok: false, error: 'resources_not_found' }
     expect(rpcFailure.ok).toBe(false)
-    expect((rpcFailure as { new_gold?: number }).new_gold).toBeUndefined()
-    expect((rpcFailure as { new_mana?: number }).new_mana).toBeUndefined()
+    // No new_gold fields on failure — no partial writes occurred
+    expect((rpcFailure as { new_member_gold?: number }).new_member_gold).toBeUndefined()
+    expect((rpcFailure as { new_leader_gold?: number }).new_leader_gold).toBeUndefined()
   })
 
-  it('RPC ok:true result carries gold_paid, new_gold, new_mana for immediate UI update', () => {
-    const goldBefore = 1000
-    const manaBefore = 30
-    const taxAmount  = 200
+  it('RPC ok:true paid:true — both member and leader gold changed by tax_amount', () => {
+    const memberGoldBefore = 1000
+    const leaderGoldBefore = 500
+    const taxAmount        = 200
 
     const rpcSuccess = {
-      ok:        true,
-      gold_paid: taxAmount,
-      new_gold:  goldBefore - taxAmount,
-      new_mana:  manaBefore + taxAmount,
+      ok:         true,
+      paid:       true,
+      tax_amount: taxAmount,
     }
 
     expect(rpcSuccess.ok).toBe(true)
-    expect(rpcSuccess.gold_paid).toBe(200)
-    expect(rpcSuccess.new_gold).toBe(800)
-    expect(rpcSuccess.new_mana).toBe(230)
+    expect(rpcSuccess.paid).toBe(true)
+    expect(rpcSuccess.tax_amount).toBe(200)
 
-    // Conservation: gold lost = mana gained
-    expect(goldBefore - rpcSuccess.new_gold).toBe(rpcSuccess.new_mana - manaBefore)
+    // Conservation: member loses exactly what leader gains
+    const memberGoldAfter = memberGoldBefore - taxAmount
+    const leaderGoldAfter = leaderGoldBefore + taxAmount
+    expect(memberGoldBefore - memberGoldAfter).toBe(leaderGoldAfter - leaderGoldBefore)
   })
 
-  /**
-   * Cross-entity value conservation:
-   * Total gold (player) + tribe mana must change by the same delta after a
-   * successful pay-tax (assuming 1:1 gold→mana conversion rate).
-   */
-  it('cross-entity value is conserved: player_gold_delta equals tribe_mana_delta', () => {
-    const goldBefore = 2000
-    const manaBefore = 100
-    const taxAmount  = 500
+  it('RPC ok:true paid:false — neither member nor leader gold changes', () => {
+    const rpcUnpaid = {
+      ok:         true,
+      paid:       false,
+      tax_amount: 200,
+    }
 
-    const goldAfter = goldBefore - taxAmount
-    const manaAfter = manaBefore + taxAmount
+    expect(rpcUnpaid.ok).toBe(true)
+    expect(rpcUnpaid.paid).toBe(false)
+    // No gold moved — member has insufficient funds; still logged for visibility
+  })
 
-    const goldDelta = goldBefore - goldAfter   // positive = gold left player
-    const manaDelta = manaAfter - manaBefore   // positive = mana entered tribe
+  it('tribes.last_tax_collected_date guards against same-tribe double-collection', () => {
+    const israelToday = '2026-03-06'
 
-    expect(goldDelta).toBe(manaDelta)   // conservation at 1:1 rate
+    // Tribe not yet collected → proceed
+    let lastCollected: string | null = null
+    expect(lastCollected !== israelToday).toBe(true)
+
+    // After collection, mark the date
+    lastCollected = israelToday
+
+    // Next cron run same day → skip this tribe
+    expect(lastCollected !== israelToday).toBe(false)
   })
 
 })

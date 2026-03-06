@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-06 — Spy intel expanded: `SpyRevealedData` now includes `bank_gold`, `attack_weapons`, `defense_weapons`, `spy_level`, `scout_level` (all optional for backward compat with old records). Spy API fetches full weapons row + bank + spy_level for defender. History page redesigned. Hero page redesigned. Mine/Development pages redesigned. Formulas and SSOT mechanics unchanged.
+**Last updated:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. Cron schedules corrected: tick `* * * * *` (every minute), tax-collect `0 * * * *` (hourly).
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -64,7 +64,7 @@
 
 ## 1. Tick System
 
-**Trigger:** Vercel Cron — `GET /api/tick` every 30 minutes, authenticated via `x-cron-secret` header.
+**Trigger:** Vercel Cron — `POST /api/tick` every minute (`* * * * *`), authenticated via `x-cron-secret` header.
 **Files:** `lib/game/tick.ts` → `calcTurnsToAdd()`, `app/api/tick/route.ts`
 
 ### Turn Regen
@@ -351,9 +351,9 @@ curl http://localhost:3000/api/tick-status
 [TickCountdown] diff ms  57234  FUTURE ✓
 ```
 
-**To revert to 30-minute production cadence:**
-1. In `.env`: set `TICK_INTERVAL_MINUTES=30` (or delete the line)
-2. In `vercel.json`: set cron schedule back to `*/30 * * * *`
+**To switch to 30-minute production cadence:**
+1. In `.env`: set `TICK_INTERVAL_MINUTES=30`
+2. In `vercel.json`: change tick cron to `*/30 * * * *`
 
 ---
 
@@ -643,7 +643,7 @@ finalECP = floor(baseECP × tribeMultiplier)
 
 - `heroBonus` = `totalAttackBonus` (attacker) or `totalDefenseBonus` (defender), clamped to [0, 0.50]
 - `raceBonus` = race-specific combat multiplier (orc: 0.10 atk / 0.03 def; human: 0.03 atk; dwarf: 0.15 def; elf: 0)
-- `tribeMultiplier` = active combat spell multiplier (war_cry: 1.25, combat_boost: 1.15, tribe_shield: 1.15, none: 1.0)
+- `tribeMultiplier` = active V1 spell multiplier: `war_cry` → 1.25 (attacker), `tribe_shield` → 1.15 (defender), none → 1.0
 
 **Invariants:**
 - Hero bonus and race bonus multiply PP **only** — never ClanBonus
@@ -1171,7 +1171,7 @@ player_hero_effects:
 
 ## 10. Clan / Tribe System
 
-**Files:** `app/api/tribe/*/route.ts`, `lib/game/combat.ts` → `calculateClanBonus()`
+**Files:** `app/api/tribe/*/route.ts`, `lib/game/combat.ts` → `calculateClanBonus()`, `supabase/migrations/0020_tribe_v1.sql`
 
 ### Clan Rules
 
@@ -1189,32 +1189,92 @@ ClanBonus = floor(min(clan.power_total × EFFICIENCY[clan.level], 0.20 × player
 
 Applied additively to ECP. Never multiplied by hero bonus.
 
+### Role System (V1)
+
+Each tribe member has exactly one role: `leader` | `deputy` | `member`.
+
+| Role | Count | Tax exempt | Cast spells | Manage roles | Transfer leadership |
+|---|---|---|---|---|---|
+| `leader` | Exactly 1 | Yes | Yes | Yes | Yes |
+| `deputy` | 0–3 max | Yes | Yes | No | No |
+| `member` | Any | No (unless `tax_exempt=true`) | No | No | No |
+
+**Leader invariant:**
+- **DB-level (at most one leader):** Partial unique index `uidx_tribe_one_leader ON tribe_members(tribe_id) WHERE role = 'leader'` prevents two rows with `role='leader'` in the same tribe. This fires for any write, including direct DB access bypassing application code.
+- **Route/RPC-level (no zero leaders):** Leave, disband, and transfer-leadership routes each enforce that the tribe cannot reach a state with zero leaders. Transfer requires a deputy target; disband only runs for the last member; leave is blocked for leaders.
+- Together, these two guarantees produce the combined invariant: **exactly one leader per tribe** — the DB prevents more than one, the routes prevent fewer than one.
+
+The leader:
+- Cannot leave like a normal member.
+- If alone → must use `POST /api/tribe/disband` to dissolve the tribe.
+- If others present but no deputies → blocked until a deputy is appointed.
+- If deputies present → must use `POST /api/tribe/transfer-leadership` first.
+
+**Deputy cap:** Max 3 deputies enforced atomically by `tribe_set_member_role_apply()` SQL RPC (locks both membership rows to prevent TOCTOU race).
+
+**Transfer leadership:** Atomic via `tribe_transfer_leadership_apply()` SQL RPC — locks both rows in UUID order, writes all three updates (tribes.leader_id, new leader role, old leader role) in one transaction. Old leader always becomes deputy. One-leader invariant maintained throughout.
+
 ### Tribe Mana
 
 **Regen per tick:**
 ```
-manaGain = max(1, floor(memberCount × 1))
+manaGain = max(1, floor(memberCount × BALANCE.tribe.manaPerMemberPerTick))
 ```
 
 `BALANCE.tribe.manaPerMemberPerTick = 1` [TUNE]
 
-**Tax → Mana conversion:**
-`POST /api/tribe/pay-tax`: `tax_amount` gold deducted from player → `tax_amount` mana added to tribe (1:1).
-Tax limit per city: city1=1000, city2=2500, city3=5000, city4=10000, city5=20000.
+**Contribution:**
+`POST /api/tribe/contribute-mana`: personal hero mana → tribe mana.
+Atomic RPC (`tribe_contribute_mana_apply`). Permanent — no refunds, no withdrawal.
+RPC validates `p_amount > 0` directly (returns `invalid_amount` error if not) — defence in depth beyond route-level Zod schema.
+Returns `{ new_hero_mana, new_tribe_mana, tribe_id }` for immediate UI update without extra query.
 
-### Spells
+### Tax System (V1 — Automated)
 
-| Spell Key | Mana Cost | Duration | Combat/Production Effect |
+Manual tax payment is removed (`POST /api/tribe/pay-tax` returns 410).
+
+**Collection schedule:**
+- Dedicated cron: `POST /api/tribe/tax-collect` runs **hourly** (Vercel: `"0 * * * *"`)
+- Collects only when Israel local time ≥ `BALANCE.tribe.taxCollectionHour` (default: 20)
+- Per-tribe idempotency: `tribes.last_tax_collected_date` prevents double-collection
+- Per-member idempotency: `tribe_tax_log` UNIQUE `(tribe_id, player_id, collected_date)`
+
+**Mechanics:**
+- Tax amount: `tribes.tax_amount` gold (set by leader; city cap enforced)
+- Who pays: `tribe_members` with `role='member'` AND `tax_exempt=false`
+- Leader + deputies are always exempt
+- Payment: gold deducted from member → added directly to **leader's personal `resources.gold`**. No tribe treasury.
+- Unpaid (insufficient gold): no deduction; logged with `paid=false`
+- RPC `tribe_collect_member_tax()`: locks **both** resource rows upfront in deterministic UUID order (smaller UUID first) before any reads or writes — deadlock-safe under concurrency. Explicitly checks leader resources row exists before any deduction; returns `leader_resources_not_found` if missing (no partial deduction). Error codes: `member_resources_not_found` / `leader_resources_not_found`.
+- **Failure handling in route:** `member_resources_not_found` → `console.warn`, skip member, continue. `leader_resources_not_found` → `console.error` (data integrity issue), skip member, continue. In both cases the tribe is still marked `last_tax_collected_date = today` after the member loop — deliberate: retrying next hour cannot fix a missing resources row; a data fix requires manual intervention. Members whose RPC returns `ok:false` are not charged and not logged in `tribe_tax_log`.
+
+**Status endpoint:** `GET /api/tribe/tax-status` → `{ server_now, next_tax_at, last_tax_collected_at }`
+
+Tax limits per city:
+
+| City | Max tax |
+|---|---|
+| 1 | 1,000 |
+| 2 | 2,500 |
+| 3 | 5,000 |
+| 4 | 10,000 |
+| 5 | 20,000 |
+
+### Spells (V1 — active spell keys only)
+
+| Spell Key | Mana Cost | Duration | Effect |
 |---|---|---|---|
-| `combat_boost` | 20 | 6h | Attacker ECP ×1.15 |
+| `war_cry` | 40 | 4h | Attacker ECP ×1.25 |
 | `tribe_shield` | 30 | 12h | Defender ECP ×1.15 |
-| `production_blessing` | 25 | 8h | Tick production ×1.20 |
-| `mass_spy` | 15 | 0h (instant) | (instant; route: `POST /api/tribe/spell`) |
-| `war_cry` | 40 | 4h | Attacker ECP ×1.25 (takes priority over `combat_boost` if both active) |
+| `production_blessing` | 25 | 8h | Slave output ×1.20 |
+| `spy_veil` | 20 | 6h | Scout defense ×1.30 |
+| `battle_supply` | 35 | 6h | Attack food cost −25% |
 
-Activation route: `POST /api/tribe/activate-spell`. Spell multipliers: `BALANCE.tribe.spellEffects.*`.
+Activation route: `POST /api/tribe/activate-spell`. Only leader or deputy can activate. Mana deducted from tribe pool.
+DB constraint: `chk_tribe_spell_key` enforces only these 5 keys.
+Spell multipliers: `BALANCE.tribe.spellEffects.*`.
 
-**combat_boost vs war_cry priority:** If both are active, `war_cry` (1.25) takes priority (checked first in attack route). In practice a tribe cannot activate both simultaneously (different spell keys, but no technical guard against it — the route just picks the higher-priority one).
+Legacy spell keys `combat_boost` and `mass_spy` are fully removed from DB constraints, BALANCE, routes, UI, and tests.
 
 ### Tribe Power
 
@@ -1772,7 +1832,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 4. City rank: filter per city (1..5) from the same sorted list, assign 1-based index → `rank_city`
 5. Batch-write both fields: `Promise.all` of one `UPDATE players SET rank_global=?, rank_city=? WHERE id=?` per player
 
-**Update timing:** Computed and persisted ONLY on tick (every 30 minutes via Vercel Cron). No other route touches these fields.
+**Update timing:** Computed and persisted ONLY on tick (every minute via Vercel Cron, `* * * * *`). No other route touches these fields.
 
 **API:** `GET /api/player` and the server-side `app/(game)/layout.tsx` both SELECT `rank_city,rank_global` explicitly. The `Player` TypeScript type (`types/game.ts:102-103`) defines both as `number | null`.
 

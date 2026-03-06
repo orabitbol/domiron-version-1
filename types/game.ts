@@ -249,27 +249,66 @@ export interface Tribe {
   anthem: string | null
   city: number
   leader_id: string
-  deputy_id: string | null
   level: number
   reputation: number
+  /** TRIBE mana pool — funded by member contributions and tick regen. Separate from personal hero.mana. */
   mana: number
   max_members: number
   tax_amount: number
   power_total: number
+  /** Date string (YYYY-MM-DD) of the last automated tax collection. Null if never collected. */
+  last_tax_collected_date: string | null
   season_id: number
   created_at: string
 }
+
+/** Role of a player within their tribe. Exactly 1 leader, up to 3 deputies, rest are members. */
+export type TribeMemberRole = 'leader' | 'deputy' | 'member'
 
 // ─── tribe_members ─────────────────────────────────────────────────────────
 export interface TribeMember {
   id: string
   tribe_id: string
   player_id: string
+  role: TribeMemberRole
   reputation: number
   reputation_pct: number
-  tax_paid_today: boolean
+  /** Legacy per-member tax exemption override. Role-based exemption (leader/deputy) takes precedence. */
   tax_exempt: boolean
   joined_at: string
+}
+
+// ─── tribe_mana_contributions ──────────────────────────────────────────────
+export interface TribeManaContribution {
+  id: string
+  tribe_id: string
+  player_id: string
+  mana_amount: number
+  season_id: number
+  created_at: string
+}
+
+// ─── tribe_tax_log ─────────────────────────────────────────────────────────
+export interface TribeTaxLog {
+  id: string
+  tribe_id: string
+  player_id: string
+  collected_date: string
+  tax_amount: number
+  paid: boolean
+  season_id: number
+  created_at: string
+}
+
+// ─── tribe_audit_log ───────────────────────────────────────────────────────
+export interface TribeAuditLog {
+  id: string
+  tribe_id: string
+  actor_id: string
+  action: string
+  target_id: string | null
+  details: Record<string, unknown> | null
+  created_at: string
 }
 
 // ─── tribe_spells ──────────────────────────────────────────────────────────
@@ -497,8 +536,8 @@ export type DevelopmentType = 'gold' | 'food' | 'wood' | 'iron' | 'population' |
 // Weapon category
 export type WeaponCategory = 'attack' | 'defense' | 'spy' | 'scout'
 
-// Tribe spell keys
-export type TribeSpellKey = 'combat_boost' | 'tribe_shield' | 'production_blessing' | 'mass_spy' | 'war_cry'
+// Tribe spell keys — V1 spells activated by leader or deputy using TRIBE mana
+export type TribeSpellKey = 'war_cry' | 'tribe_shield' | 'production_blessing' | 'spy_veil' | 'battle_supply'
 
 // Hero shield types
 export type HeroShieldType = 'soldiers' | 'resources'

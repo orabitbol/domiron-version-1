@@ -23,10 +23,13 @@ export default async function TribePage() {
     .from('tribe_members')
     .select('*')
     .eq('player_id', playerId)
-    .single()
+    .maybeSingle()
 
   let tribe = null
-  let members: Array<{ member: { player_id: string; reputation: number; reputation_pct: number; tax_paid_today: boolean; tax_exempt: boolean }, player: { username: string; army_name: string; rank_city: number | null } | null }> = []
+  let members: Array<{
+    member: { player_id: string; role: 'leader' | 'deputy' | 'member'; reputation: number; reputation_pct: number; tax_exempt: boolean }
+    player: { id: string; username: string; army_name: string; rank_city: number | null } | null
+  }> = []
   let tribeSpells: Array<{ spell_key: string; expires_at: string }> = []
 
   if (membership) {
@@ -67,7 +70,15 @@ export default async function TribePage() {
   }
 
   // If not in tribe, fetch joinable tribes in same city
-  let joinableTribes: Array<{ id: string; name: string; anthem: string | null; level: number; max_members: number; member_count: number }> = []
+  let joinableTribes: Array<{
+    id: string
+    name: string
+    anthem: string | null
+    level: number
+    max_members: number
+    member_count: number
+  }> = []
+
   if (!tribe) {
     const { data: cityTribes } = await supabase
       .from('tribes')

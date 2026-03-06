@@ -17,7 +17,7 @@ export async function POST() {
 
     const { data: membership } = await supabase
       .from('tribe_members')
-      .select('tribe_id')
+      .select('tribe_id, role')
       .eq('player_id', playerId)
       .single()
 
@@ -25,27 +25,58 @@ export async function POST() {
       return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
     }
 
-    // Leader cannot leave — must transfer leadership or disband first
-    const { data: tribe } = await supabase
-      .from('tribes')
-      .select('leader_id')
-      .eq('id', membership.tribe_id)
-      .single()
+    const tribeId = membership.tribe_id
 
-    if (tribe?.leader_id === playerId) {
-      return NextResponse.json({ error: 'Leader cannot leave. Transfer leadership or disband first.' }, { status: 400 })
+    if (membership.role === 'leader') {
+      // Count all members to decide outcome
+      const { count: memberCount } = await supabase
+        .from('tribe_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('tribe_id', tribeId)
+
+      if ((memberCount ?? 0) <= 1) {
+        // Solo leader — use /api/tribe/disband instead
+        return NextResponse.json({
+          error: 'You are the only member. Use /api/tribe/disband to disband the tribe.',
+        }, { status: 400 })
+      }
+
+      // Multiple members — check for deputies
+      const { count: deputyCount } = await supabase
+        .from('tribe_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('tribe_id', tribeId)
+        .eq('role', 'deputy')
+
+      if ((deputyCount ?? 0) === 0) {
+        return NextResponse.json({
+          error: 'Appoint at least one deputy before leaving the tribe.',
+        }, { status: 400 })
+      }
+
+      return NextResponse.json({
+        error: 'Transfer leadership to a deputy before leaving. Use /api/tribe/transfer-leadership.',
+      }, { status: 400 })
     }
 
+    // Deputy or member — leave directly
     const { error } = await supabase
       .from('tribe_members')
       .delete()
       .eq('player_id', playerId)
-      .eq('tribe_id', membership.tribe_id)
+      .eq('tribe_id', tribeId)
 
     if (error) {
       console.error('Tribe leave error:', error)
       return NextResponse.json({ error: 'Failed to leave tribe' }, { status: 500 })
     }
+
+    await supabase.from('tribe_audit_log').insert({
+      tribe_id: tribeId,
+      actor_id: playerId,
+      action: 'member_leave',
+      details: { role: membership.role },
+    })
 
     return NextResponse.json({ data: { message: 'Left tribe successfully' } })
   } catch (err) {

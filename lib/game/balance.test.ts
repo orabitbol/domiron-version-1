@@ -137,10 +137,23 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
 
   // ── tribe ─────────────────────────────────────────────────────────────────
   it('tribe paths used by TribeClient + tick', () => {
-    expect(typeof BALANCE.tribe.spells.combat_boost.manaCost).toBe('number')
-    expect(typeof BALANCE.tribe.spells.mass_spy.manaCost).toBe('number')
+    // V1 spell keys
+    expect(typeof BALANCE.tribe.spells.war_cry.manaCost).toBe('number')
+    expect(typeof BALANCE.tribe.spells.tribe_shield.manaCost).toBe('number')
+    expect(typeof BALANCE.tribe.spells.production_blessing.manaCost).toBe('number')
+    expect(typeof BALANCE.tribe.spells.spy_veil.manaCost).toBe('number')
+    expect(typeof BALANCE.tribe.spells.battle_supply.manaCost).toBe('number')
+    // V1 spell effects
+    expect(typeof BALANCE.tribe.spellEffects.war_cry.combatMultiplier).toBe('number')
+    expect(typeof BALANCE.tribe.spellEffects.tribe_shield.defenseMultiplier).toBe('number')
+    expect(typeof BALANCE.tribe.spellEffects.production_blessing.productionMultiplier).toBe('number')
+    expect(typeof BALANCE.tribe.spellEffects.spy_veil.scoutDefenseMultiplier).toBe('number')
+    expect(typeof BALANCE.tribe.spellEffects.battle_supply.foodReduction).toBe('number')
+    // Tax and mana
     expect(typeof BALANCE.tribe.taxLimits.city1).toBe('number')
     expect(typeof BALANCE.tribe.manaPerMemberPerTick).toBe('number')
+    expect(typeof BALANCE.tribe.creationManaCost).toBe('number')
+    expect(typeof BALANCE.tribe.taxCollectionHour).toBe('number')
   })
 
   // ── weapons ───────────────────────────────────────────────────────────────

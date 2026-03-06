@@ -91,7 +91,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Attacker data not found' }, { status: 404 })
     }
 
-    const foodCostRaw = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed
+    // Check if attacker's tribe has battle_supply active (food cost reduction)
+    let foodMultiplier = 1.0
+    if (attTribeMember?.tribe_id) {
+      const { data: bsSpell } = await supabase
+        .from('tribe_spells')
+        .select('id')
+        .eq('tribe_id', attTribeMember.tribe_id)
+        .eq('spell_key', 'battle_supply')
+        .gt('expires_at', now.toISOString())
+        .maybeSingle()
+      if (bsSpell) {
+        foodMultiplier = 1 - BALANCE.tribe.spellEffects.battle_supply.foodReduction
+      }
+    }
+
+    const foodCostRaw = attArmy.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed * foodMultiplier
     const foodCost    = Math.ceil(foodCostRaw)  // BIGINT-safe: always an integer
 
     // Rate limiting — 1 s cooldown between attacks (server authority)
@@ -200,8 +215,6 @@ export async function POST(request: NextRequest) {
       const attSpells = activeTribeSpells.filter(s => s.tribe_id === attTribeMember.tribe_id)
       if (attSpells.some(s => s.spell_key === 'war_cry')) {
         attTribeCombatMult = BALANCE.tribe.spellEffects.war_cry.combatMultiplier
-      } else if (attSpells.some(s => s.spell_key === 'combat_boost')) {
-        attTribeCombatMult = BALANCE.tribe.spellEffects.combat_boost.combatMultiplier
       }
     }
     let defTribeCombatMult = 1
