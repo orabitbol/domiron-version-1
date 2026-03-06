@@ -3,12 +3,12 @@
 import { useState } from 'react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import type { HeroSpell } from '@/types/game'
 import type { PlayerHeroEffect } from '@/lib/game/hero-effects'
+
+// ── Game config (unchanged) ───────────────────────────────────────────────────
 
 const CFG = {
   SOLDIER_MANA:  BALANCE.hero.SOLDIER_SHIELD_MANA  ?? 10,
@@ -17,14 +17,78 @@ const CFG = {
   XP_PER_LEVEL:  BALANCE.hero.xpPerLevel            ?? 100,
 } as const
 
-const SPELL_CATEGORIES = [
-  { key: 'combat',     label: 'Combat',     color: 'text-game-red-bright' },
-  { key: 'defense',    label: 'Defense',    color: 'text-game-gold-bright' },
-  { key: 'spy',        label: 'Espionage',  color: 'text-game-purple-bright' },
-  { key: 'scout',      label: 'Scouting',   color: 'text-blue-400' },
-  { key: 'production', label: 'Production', color: 'text-game-green-bright' },
-  { key: 'utility',    label: 'Utility',    color: 'text-game-text-secondary' },
-]
+// ── Display metadata (UI only — no gameplay meaning) ─────────────────────────
+
+type PathDef = { name: string; tiers: [string, string, string, string, string] }
+
+const MASTERY_PATHS: Record<string, [PathDef, PathDef, PathDef]> = {
+  combat: [
+    { name: "Berserker's Fury",  tiers: ['Fierce Strike',   'Battle Rage',    'Iron Fury',      'War Frenzy',      "Berserker's Wrath"] },
+    { name: "Warlord's Edge",    tiers: ['Tactical Strike', 'Combat Mastery', 'War Command',    'Siege Expertise', "Warlord's Will"]    },
+    { name: 'Blood Oath',        tiers: ['Blood Price',     'Battle Hunger',  "Warrior's Bond", 'Honor Surge',     "Death's Covenant"]  },
+  ],
+  defense: [
+    { name: 'Stone Bastion',     tiers: ['Hardened',        'Ramparts',       'Fortress Mind',  'Granite Ward',    'Unbreakable']       },
+    { name: "Guardian's Oath",   tiers: ['Watch',           'Sentinel',       'Shield Wall',    'Iron Guard',      'Eternal Bastion']   },
+    { name: 'Steel Resolve',     tiers: ['Steady',          'Grit',           'Iron Will',      'Adamant',         'Indomitable']       },
+  ],
+  spy: [
+    { name: 'Shadow Steps',      tiers: ['Light Foot',      'Shadow Blend',   'Phantom Walk',   'Ghost Stride',    'Vanishing Act']     },
+    { name: 'Veil of Deceit',    tiers: ['Misdirection',    'False Trail',    'Mind Trick',     'Deep Cover',      'Master Deceiver']   },
+    { name: 'Eye of the Void',   tiers: ['Keen Eye',        'Night Vision',   'Void Sight',     "Mind's Eye",      'Omniscience']       },
+  ],
+  scout: [
+    { name: "Ranger's Path",     tiers: ['Forest Walk',     'Trail Sense',    'Range Scout',    'Far Reach',       "Eagle's Path"]      },
+    { name: "Eagle's Watch",     tiers: ['High Perch',      'Eagle Eye',      "Hawk's Gaze",    'All-Seeing',      'Transcendent']      },
+    { name: 'Wind Rider',        tiers: ['Swift',           'Fleet Foot',     'Wind Step',      'Gale Rush',       'Storm Rider']       },
+  ],
+  production: [
+    { name: 'Slave Driver',      tiers: ['Overseer',        'Task Master',    'Whip Hand',      'Iron Grip',       'Total Control']     },
+    { name: 'Field Marshal',     tiers: ['Organized',       'Efficient',      'Optimized',      'Peak Output',     'Maximum Yield']     },
+    { name: 'Resource Lord',     tiers: ['Stockpile',       'Hoarding',       'Cache Master',   'Vault Keeper',    'Resource Deity']    },
+  ],
+  utility: [
+    { name: 'Arcane Flow',       tiers: ['Mana Tap',        'Ley Line',       'Flow State',     'Power Channel',   'Mana Flood']        },
+    { name: 'Turn Mastery',      tiers: ['Quick Study',     'Time Sense',     'Action Surge',   'Haste',           'Temporal Lord']     },
+    { name: "Fortune's Favor",   tiers: ['Lucky',           'Blessed',        'Fortune Smiled', 'Fated',           "Destiny's Child"]   },
+  ],
+}
+
+type CategoryMeta = {
+  label: string; icon: string; subtitle: string
+  color: string; glowRgb: string; panelBg: string; headerBg: string
+}
+
+const CATEGORY_META: Record<string, CategoryMeta> = {
+  combat:     { label: 'Combat Mastery', icon: '\u2694\uFE0F',  subtitle: 'Command the Battlefield',
+                color: '#FF5555', glowRgb: '255,85,85',
+                panelBg: 'linear-gradient(160deg, rgba(35,6,6,0.97), rgba(16,3,3,1))',
+                headerBg: 'rgba(255,85,85,0.1)' },
+  defense:    { label: 'Iron Bastion',   icon: '\uD83D\uDEE1\uFE0F',  subtitle: 'Unyielding Protection',
+                color: '#F0C030', glowRgb: '240,192,48',
+                panelBg: 'linear-gradient(160deg, rgba(35,28,3,0.97), rgba(16,13,2,1))',
+                headerBg: 'rgba(240,192,48,0.1)' },
+  spy:        { label: 'Shadow Arts',    icon: '\uD83C\uDF11',  subtitle: 'Master of Deception',
+                color: '#C070FF', glowRgb: '192,112,255',
+                panelBg: 'linear-gradient(160deg, rgba(22,7,40,0.97), rgba(10,3,20,1))',
+                headerBg: 'rgba(192,112,255,0.1)' },
+  scout:      { label: "Ranger's Path",  icon: '\uD83D\uDC41\uFE0F',  subtitle: 'Eyes of the Realm',
+                color: '#60B0FF', glowRgb: '96,176,255',
+                panelBg: 'linear-gradient(160deg, rgba(3,16,38,0.97), rgba(2,8,18,1))',
+                headerBg: 'rgba(96,176,255,0.1)' },
+  production: { label: 'Slave Mastery',  icon: '\u2699\uFE0F',  subtitle: 'Total Resource Control',
+                color: '#48D0A0', glowRgb: '72,208,160',
+                panelBg: 'linear-gradient(160deg, rgba(3,24,18,0.97), rgba(2,11,8,1))',
+                headerBg: 'rgba(72,208,160,0.1)' },
+  utility:    { label: 'Arcane Arts',    icon: '\u2736',   subtitle: 'Secrets of the Unseen',
+                color: '#9898C0', glowRgb: '152,152,192',
+                panelBg: 'linear-gradient(160deg, rgba(10,10,22,0.97), rgba(5,5,14,1))',
+                headerBg: 'rgba(152,152,192,0.1)' },
+}
+
+const CATEGORY_KEYS = ['combat', 'defense', 'spy', 'scout', 'production', 'utility'] as const
+
+// ── Logic helpers (unchanged) ─────────────────────────────────────────────────
 
 function buildSpellKey(category: string, col: number, row: number) {
   return `${category}_${col}_${row}`
@@ -36,6 +100,14 @@ function timeRemaining(endsAt: string): string | null {
   const h = Math.floor(ms / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
   return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+function heroTitle(level: number): string {
+  if (level >= 50) return 'Grand Archmage'
+  if (level >= 25) return 'Archmage'
+  if (level >= 10) return 'Adept'
+  if (level >= 5)  return 'Initiate'
+  return 'Recruit'
 }
 
 type ShieldStatus =
@@ -50,12 +122,10 @@ function getShieldStatus(
   const now = Date.now()
   const matching = effects.filter((e) => e.type === type)
   if (matching.length === 0) return { state: 'available' }
-
   const sorted = [...matching].sort(
     (a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime()
   )
   const latest = sorted[0]
-
   if (now < new Date(latest.ends_at).getTime()) {
     return { state: 'active', endsAt: latest.ends_at }
   }
@@ -65,36 +135,38 @@ function getShieldStatus(
   return { state: 'available' }
 }
 
+// ── Props ─────────────────────────────────────────────────────────────────────
+
 interface Props {
   heroSpells:    HeroSpell[]
   activeEffects: PlayerHeroEffect[]
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function HeroClient({ heroSpells, activeEffects }: Props) {
   const { hero, refresh, applyPatch } = usePlayer()
 
-  // purchasedSpells and localEffects are ephemeral UI state not tracked in PlayerContext
   const [purchasedSpells, setPurchasedSpells] = useState<Set<string>>(
     new Set<string>(heroSpells.map((s) => s.spell_key))
   )
-  const [localEffects, setLocalEffects] = useState<PlayerHeroEffect[]>(activeEffects)
-  const [loading, setLoading]           = useState<string | null>(null)
+  const [localEffects, setLocalEffects]   = useState<PlayerHeroEffect[]>(activeEffects)
+  const [loading, setLoading]             = useState<string | null>(null)
   const [shieldLoading, setShieldLoading] = useState<string | null>(null)
-  const [message, setMessage]           = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [message, setMessage]             = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
   if (!hero) return null
 
-  const xpForNextLevel = hero.level * CFG.XP_PER_LEVEL
-  const xpPct          = Math.min(100, Math.round((hero.xp / xpForNextLevel) * 100))
-  const manaPct        = Math.min(100, Math.round((hero.mana / 100) * 100))
-
+  const xpForNextLevel   = hero.level * CFG.XP_PER_LEVEL
+  const xpPct            = Math.min(100, Math.round((hero.xp / xpForNextLevel) * 100))
+  const manaPct          = Math.min(100, Math.round((hero.mana / 100) * 100))
   const manaPerTickTotal =
     (BALANCE.hero.manaPerTick?.base ?? 1) +
     (hero.level >= 10 ? (BALANCE.hero.manaPerTick?.level10bonus ?? 0) : 0) +
     (hero.level >= 50 ? (BALANCE.hero.manaPerTick?.level50bonus ?? 0) : 0)
 
-  const soldierStatus   = getShieldStatus(localEffects, 'SOLDIER_SHIELD')
-  const resourceStatus  = getShieldStatus(localEffects, 'RESOURCE_SHIELD')
+  const soldierStatus  = getShieldStatus(localEffects, 'SOLDIER_SHIELD')
+  const resourceStatus = getShieldStatus(localEffects, 'RESOURCE_SHIELD')
 
   async function handlePurchaseSpell(spellKey: string) {
     if (hero.spell_points <= 0) return
@@ -112,7 +184,6 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
       } else {
         setMessage({ text: 'Spell learned!', type: 'success' })
         setPurchasedSpells((prev) => new Set<string>([...Array.from(prev), spellKey]))
-        // Immediately deduct spell point from context
         applyPatch({ hero: { ...hero, spell_points: hero.spell_points - 1 } })
         refresh()
       }
@@ -140,10 +211,8 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
       } else {
         const label = shieldType === 'soldier_shield' ? 'Soldier Shield' : 'Resource Shield'
         setMessage({ text: `${label} activated for ${CFG.SHIELD_HOURS}h!`, type: 'success' })
-        // Immediately deduct mana from context
         applyPatch({ hero: { ...hero, mana: hero.mana - manaCost } })
-        // Immediately reflect new shield in local effects so status badge updates
-        const effectType = shieldType === 'soldier_shield' ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD' as const
+        const effectType: 'SOLDIER_SHIELD' | 'RESOURCE_SHIELD' = shieldType === 'soldier_shield' ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD'
         setLocalEffects((prev) => [
           ...prev,
           {
@@ -166,234 +235,548 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide text-title-glow">
-          Hero
-        </h1>
-        <p className="text-game-text-secondary font-body mt-1">
-          Level up your hero and master powerful spells
-        </p>
+    <div className="space-y-5">
+
+      {/* ── Hero Identity ──────────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(160deg, rgba(22,8,42,0.99), rgba(10,4,22,1))',
+        border: '1px solid rgba(192,112,255,0.3)',
+        boxShadow: '0 0 48px rgba(192,112,255,0.1)',
+        borderRadius: 14,
+        overflow: 'hidden',
+      }}>
+        {/* Accent band */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg, transparent 0%, rgba(192,112,255,0.9) 30%, rgba(240,192,48,0.7) 70%, transparent 100%)' }} />
+
+        <div style={{ display: 'flex', gap: 28, padding: '24px 28px', alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* Emblem */}
+          <div style={{ flexShrink: 0, position: 'relative' }}>
+            <div style={{
+              width: 112, height: 112, borderRadius: '50%',
+              background: 'radial-gradient(circle at 38% 30%, rgba(192,112,255,0.28), rgba(8,3,20,1))',
+              border: '2px solid rgba(192,112,255,0.5)',
+              boxShadow: '0 0 36px rgba(192,112,255,0.35), inset 0 0 24px rgba(192,112,255,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 46,
+            }}>
+              {'\u2694\uFE0F'}
+            </div>
+            {/* Outer glow ring */}
+            <div style={{
+              position: 'absolute', inset: -10, borderRadius: '50%',
+              border: '1px solid rgba(240,192,48,0.18)',
+              pointerEvents: 'none',
+            }} />
+            {/* Level badge */}
+            <div style={{
+              position: 'absolute', bottom: -1, right: -4,
+              background: 'linear-gradient(135deg, #7C3AED, #A855F7)',
+              border: '1px solid rgba(240,192,48,0.55)',
+              borderRadius: 20, padding: '2px 9px',
+              fontSize: 11, fontWeight: 700, color: '#fff',
+              fontFamily: 'var(--font-display, serif)',
+              letterSpacing: '0.06em',
+              whiteSpace: 'nowrap',
+            }}>
+              LVL {hero.level}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Title row */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display, serif)', fontSize: 24, fontWeight: 700, color: '#C070FF', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 }}>
+                  Hero
+                </div>
+                <div style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 11, color: 'rgba(192,112,255,0.5)', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 4 }}>
+                  Level {hero.level} {heroTitle(hero.level)}
+                </div>
+              </div>
+              {hero.spell_points > 0 && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(240,192,48,0.18), rgba(180,130,20,0.08))',
+                  border: '1px solid rgba(240,192,48,0.55)',
+                  boxShadow: '0 0 14px rgba(240,192,48,0.2)',
+                  borderRadius: 8, padding: '7px 16px',
+                  fontSize: 12, fontWeight: 700, color: '#F0C030',
+                  fontFamily: 'var(--font-heading, sans-serif)',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {'\u2736'} {hero.spell_points} Spell {hero.spell_points === 1 ? 'Point' : 'Points'} Ready
+                </div>
+              )}
+            </div>
+
+            {/* XP bar */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(192,112,255,0.65)' }}>Experience</span>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.35)' }}>
+                  {formatNumber(hero.xp)} / {formatNumber(xpForNextLevel)} &mdash; {xpPct}% to Level {hero.level + 1}
+                </span>
+              </div>
+              <div style={{ height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 7, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: `${xpPct}%`,
+                  background: 'linear-gradient(90deg, #6D28D9, #A855F7, #C070FF)',
+                  borderRadius: 7,
+                  boxShadow: '0 0 10px rgba(192,112,255,0.6)',
+                  transition: 'width 0.4s ease',
+                }} />
+              </div>
+            </div>
+
+            {/* Mana bar */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(96,176,255,0.65)' }}>Mana</span>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.35)' }}>
+                  {hero.mana} / 100 &nbsp;&middot;&nbsp; +{manaPerTickTotal}/tick
+                  {hero.level >= 10 && <span style={{ color: 'rgba(255,255,255,0.22)' }}> (Lv10+ bonus active)</span>}
+                </span>
+              </div>
+              <div style={{ height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 7, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: `${manaPct}%`,
+                  background: 'linear-gradient(90deg, #1D4ED8, #3B82F6, #60B0FF)',
+                  borderRadius: 7,
+                  boxShadow: '0 0 10px rgba(96,176,255,0.5)',
+                  transition: 'width 0.4s ease',
+                }} />
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
 
-      {/* Message */}
+      {/* ── Message ────────────────────────────────────────────────────────────── */}
       {message && (
-        <div
-          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
-            message.type === 'success'
-              ? 'bg-game-green/10 border-green-900 text-game-green-bright'
-              : 'bg-game-red/10 border-red-900 text-game-red-bright'
-          }`}
-        >
+        <div className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
+          message.type === 'success'
+            ? 'bg-game-green/10 border-green-900 text-game-green-bright'
+            : 'bg-game-red/10 border-red-900 text-game-red-bright'
+        }`}>
           {message.text}
         </div>
       )}
 
-      {/* Hero Stats */}
-      <div className="panel-ornate rounded-game-lg p-5 space-y-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="font-heading text-game-xl text-game-purple-bright uppercase tracking-wide">
-              Level {hero.level}
-            </h2>
-            {hero.spell_points > 0 && (
-              <Badge variant="gold" className="mt-1">{hero.spell_points} Spell Points Available</Badge>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Mana</p>
-            <ResourceBadge type="mana" amount={hero.mana} />
-            <p className="text-game-xs text-game-text-muted font-body mt-0.5">+{manaPerTickTotal}/tick</p>
-          </div>
+      {/* ── Active Powers ─────────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(160deg, rgba(10,10,22,0.98), rgba(5,5,14,1))',
+        border: '1px solid rgba(255,255,255,0.09)',
+        borderRadius: 14,
+        overflow: 'hidden',
+      }}>
+        {/* Section header */}
+        <div style={{
+          padding: '12px 20px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 14 }}>{'\u26A1'}</span>
+          <span style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>
+            Active Powers
+          </span>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginInlineStart: 2 }}>
+            Arcane abilities that shape the battlefield
+          </span>
         </div>
 
-        {/* XP Bar */}
-        <div>
-          <div className="flex justify-between text-game-xs font-body text-game-text-muted mb-1">
-            <span className="font-heading">XP</span>
-            <span>{formatNumber(hero.xp)} / {formatNumber(xpForNextLevel)}</span>
-          </div>
-          <div className="progress-bar">
-            <div className="progress-fill progress-fill-purple" style={{ width: `${xpPct}%` }} />
-          </div>
-          <p className="text-game-xs text-game-text-muted font-body mt-1">{xpPct}% to level {hero.level + 1}</p>
-        </div>
-
-        {/* Mana Bar */}
-        <div>
-          <div className="flex justify-between text-game-xs font-body text-game-text-muted mb-1">
-            <span className="font-heading">Mana</span>
-            <span>{hero.mana} / 100</span>
-          </div>
-          <div className="progress-bar">
-            <div className="progress-fill progress-fill-blue" style={{ width: `${manaPct}%` }} />
-          </div>
-        </div>
-
-        <div className="divider-ornate" />
-        <div className="grid grid-cols-3 gap-3 text-game-xs font-body text-game-text-muted">
-          <div><span className="font-semibold text-game-text">Base: </span>+{BALANCE.hero.manaPerTick?.base ?? 1}/tick</div>
-          {hero.level >= 10 && (
-            <div><span className="font-semibold text-game-text">Lvl 10+: </span>+{BALANCE.hero.manaPerTick?.level10bonus ?? 0}/tick</div>
-          )}
-          {hero.level >= 50 && (
-            <div><span className="font-semibold text-game-text">Lvl 50+: </span>+{BALANCE.hero.manaPerTick?.level50bonus ?? 0}/tick</div>
-          )}
-        </div>
-      </div>
-
-      {/* Shields */}
-      <div className="card-game rounded-game-lg p-4">
-        <div className="panel-header mb-3">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Active Shields</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <ShieldCard
+        {/* Shield cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+          <ShieldAbility
+            icon={'\uD83D\uDDE1\uFE0F'}
             label="Soldier Shield"
-            description={`Protects soldiers from attack losses for ${CFG.SHIELD_HOURS}h`}
-            accentClass="text-game-red-bright"
+            lore={`Forges an arcane barrier around your army, preventing all soldier losses in combat for ${CFG.SHIELD_HOURS} hours.`}
+            accentColor="#FF5555"
+            glowRgb="255,85,85"
             manaCost={CFG.SOLDIER_MANA}
             currentMana={hero.mana}
             status={soldierStatus}
             loading={shieldLoading === 'soldier_shield'}
             onActivate={() => handleActivateShield('soldier_shield')}
-            buttonVariant="danger"
+            hasDivider
           />
-          <ShieldCard
+          <ShieldAbility
+            icon={'\uD83D\uDCB0'}
             label="Resource Shield"
-            description={`Protects resources from theft for ${CFG.SHIELD_HOURS}h`}
-            accentClass="text-game-gold-bright"
+            lore={`Seals your treasury with ancient magic, making your gold and resources untouchable for ${CFG.SHIELD_HOURS} hours.`}
+            accentColor="#F0C030"
+            glowRgb="240,192,48"
             manaCost={CFG.RESOURCE_MANA}
             currentMana={hero.mana}
             status={resourceStatus}
             loading={shieldLoading === 'resource_shield'}
             onActivate={() => handleActivateShield('resource_shield')}
-            buttonVariant="primary"
+            hasDivider={false}
           />
         </div>
-        <p className="text-game-xs text-game-text-muted font-body mt-3">
-          Shield duration: {CFG.SHIELD_HOURS}h active + {BALANCE.hero.SHIELD_COOLDOWN_HOURS ?? 1}h cooldown.
-          Your shield status is visible to other players (active/inactive only — no timer shown).
-        </p>
+
+        {/* Footer note */}
+        <div style={{ padding: '8px 20px 12px', fontSize: 10, color: 'rgba(255,255,255,0.22)', fontFamily: 'var(--font-body, sans-serif)' }}>
+          Shield lasts {CFG.SHIELD_HOURS}h active &middot; {BALANCE.hero.SHIELD_COOLDOWN_HOURS ?? 1}h cooldown before next cast &middot; Shield status is visible to other players (no timer shown)
+        </div>
       </div>
 
-      {/* Spell Tree */}
-      <div className="card-game rounded-game-lg p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Spell Tree</h2>
-          <Badge variant={hero.spell_points > 0 ? 'gold' : 'default'}>{hero.spell_points} Points</Badge>
+      {/* ── Power Domains ─────────────────────────────────────────────────────── */}
+      <div>
+        {/* Section heading */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.6)', marginBottom: 4 }}>
+              Spell Mastery
+            </div>
+            <div style={{ fontFamily: 'var(--font-display, serif)', fontSize: 20, color: '#F0C030', letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1 }}>
+              Power Domains
+            </div>
+          </div>
+          {hero.spell_points > 0 && (
+            <div style={{
+              fontSize: 11, color: 'rgba(240,192,48,0.75)',
+              fontFamily: 'var(--font-body, sans-serif)',
+              background: 'rgba(240,192,48,0.08)',
+              border: '1px solid rgba(240,192,48,0.22)',
+              borderRadius: 6, padding: '5px 12px',
+              whiteSpace: 'nowrap',
+            }}>
+              {hero.spell_points} point{hero.spell_points !== 1 ? 's' : ''} to spend
+            </div>
+          )}
         </div>
 
-        <div className="space-y-6">
-          {SPELL_CATEGORIES.map((category) => (
-            <div key={category.key}>
-              <h3 className={`font-heading text-game-sm uppercase tracking-wider mb-3 ${category.color}`}>
-                {category.label}
-              </h3>
-              <div className="grid grid-cols-3 gap-2">
-                {[1, 2, 3].map((col) => (
-                  <div key={col} className="space-y-2">
-                    {[1, 2, 3, 4, 5].map((row) => {
-                      const spellKey    = buildSpellKey(category.key, col, row)
-                      const isPurchased = purchasedSpells.has(spellKey)
-                      const prevKey     = row > 1 ? buildSpellKey(category.key, col, row - 1) : null
-                      const isUnlocked  = !prevKey || purchasedSpells.has(prevKey)
-
-                      return (
-                        <button
-                          key={row}
-                          disabled={isPurchased || !isUnlocked || hero.spell_points <= 0 || loading === spellKey}
-                          onClick={() => handlePurchaseSpell(spellKey)}
-                          className={`w-full rounded-game-lg border p-2 text-center transition-colors duration-150 font-body text-game-xs cursor-pointer disabled:cursor-not-allowed ${
-                            isPurchased
-                              ? 'bg-game-purple/30 border-game-purple text-game-purple-bright'
-                              : isUnlocked && hero.spell_points > 0
-                              ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border text-game-text hover:border-game-border-gold hover:text-game-text-white'
-                              : 'bg-game-bg border-game-border/50 text-game-text-muted opacity-50'
-                          }`}
-                        >
-                          {isPurchased ? '✓' : isUnlocked ? `Tier ${row}` : '🔒'}
-                          <span className="block text-game-xs opacity-70">
-                            {category.key.slice(0, 3)} {col}-{row}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Category panels */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {CATEGORY_KEYS.map((catKey) => (
+            <MasteryPanel
+              key={catKey}
+              catKey={catKey}
+              meta={CATEGORY_META[catKey]}
+              paths={MASTERY_PATHS[catKey]}
+              purchasedSpells={purchasedSpells}
+              hasSpellPoints={hero.spell_points > 0}
+              loading={loading}
+              onPurchase={handlePurchaseSpell}
+            />
           ))}
         </div>
 
-        <p className="text-game-xs text-game-text-muted font-body mt-4">
-          Unlock spells from top to bottom in each column. Each spell costs 1 spell point (gained on level up).
-        </p>
+        <div style={{ marginTop: 14, fontSize: 10, color: 'rgba(255,255,255,0.2)', fontFamily: 'var(--font-body, sans-serif)', textAlign: 'center' }}>
+          Each tier within a path must be unlocked in order &middot; Each spell costs 1 spell point &middot; Points are earned on level up
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
+// ── ShieldAbility ─────────────────────────────────────────────────────────────
+
+interface ShieldAbilityProps {
+  icon:         string
+  label:        string
+  lore:         string
+  accentColor:  string
+  glowRgb:      string
+  manaCost:     number
+  currentMana:  number
+  status:       ShieldStatus
+  loading:      boolean
+  onActivate:   () => void
+  hasDivider:   boolean
+}
+
+function ShieldAbility({
+  icon, label, lore, accentColor, glowRgb,
+  manaCost, currentMana, status, loading, onActivate, hasDivider,
+}: ShieldAbilityProps) {
+  const canActivate = status.state === 'available' && currentMana >= manaCost && !loading
+
+  return (
+    <div style={{
+      borderInlineEnd: hasDivider ? '1px solid rgba(255,255,255,0.06)' : 'none',
+      padding: '18px 20px',
+      display: 'flex', gap: 16, alignItems: 'flex-start',
+      background: status.state === 'active' ? `rgba(${glowRgb},0.04)` : 'transparent',
+      transition: 'background 0.3s ease',
+    }}>
+
+      {/* Icon box */}
+      <div style={{
+        width: 52, height: 52, borderRadius: 12, flexShrink: 0,
+        background: status.state === 'active'
+          ? `radial-gradient(circle, rgba(${glowRgb},0.35), rgba(${glowRgb},0.05))`
+          : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${status.state === 'active' ? accentColor : 'rgba(255,255,255,0.1)'}`,
+        boxShadow: status.state === 'active' ? `0 0 18px rgba(${glowRgb},0.45)` : 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 24, transition: 'all 0.3s ease',
+      }}>
+        {icon}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+
+        {/* Title + status badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+          <span style={{
+            fontFamily: 'var(--font-heading, sans-serif)', fontSize: 13, fontWeight: 700,
+            color: accentColor, letterSpacing: '0.07em', textTransform: 'uppercase',
+          }}>
+            {label}
+          </span>
+          {status.state === 'active' && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontSize: 10, color: '#50D080',
+              background: 'rgba(80,208,128,0.1)', border: '1px solid rgba(80,208,128,0.3)',
+              borderRadius: 4, padding: '1px 7px',
+              fontFamily: 'var(--font-body, sans-serif)',
+            }}>
+              <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: '#50D080', boxShadow: '0 0 5px #50D080' }} />
+              Active
+            </span>
+          )}
+          {status.state === 'cooldown' && (
+            <span style={{
+              fontSize: 10, color: 'rgba(255,255,255,0.35)',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 4, padding: '1px 7px',
+              fontFamily: 'var(--font-body, sans-serif)',
+            }}>
+              Cooldown
+            </span>
+          )}
+        </div>
+
+        {/* Lore */}
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', fontFamily: 'var(--font-body, sans-serif)', lineHeight: 1.55, marginBottom: 10 }}>
+          {lore}
+        </div>
+
+        {/* Timer */}
+        {status.state === 'active' && (
+          <div style={{ fontSize: 11, color: '#50D080', fontFamily: 'var(--font-body, sans-serif)', marginBottom: 10 }}>
+            Expires in {timeRemaining(status.endsAt) ?? 'soon'}
+          </div>
+        )}
+        {status.state === 'cooldown' && (
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', fontFamily: 'var(--font-body, sans-serif)', marginBottom: 10 }}>
+            Available in {timeRemaining(status.cooldownEndsAt) ?? 'soon'}
+          </div>
+        )}
+
+        {/* Mana + button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize: 11, color: 'rgba(96,176,255,0.75)',
+            background: 'rgba(96,176,255,0.08)', border: '1px solid rgba(96,176,255,0.2)',
+            borderRadius: 5, padding: '3px 10px',
+            fontFamily: 'var(--font-body, sans-serif)',
+          }}>
+            {'\uD83D\uDD2E'} {manaCost} Mana
+          </span>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!canActivate}
+            loading={loading}
+            onClick={onActivate}
+          >
+            {status.state === 'active'   ? 'Shielded'  :
+             status.state === 'cooldown' ? 'Cooldown'  : 'Activate'}
+          </Button>
+        </div>
       </div>
     </div>
   )
 }
 
-interface ShieldCardProps {
-  label:         string
-  description:   string
-  accentClass:   string
-  manaCost:      number
-  currentMana:   number
-  status:        ShieldStatus
-  loading:       boolean
-  onActivate:    () => void
-  buttonVariant: 'danger' | 'primary'
+// ── MasteryPanel ──────────────────────────────────────────────────────────────
+
+interface MasteryPanelProps {
+  catKey:          string
+  meta:            CategoryMeta
+  paths:           [PathDef, PathDef, PathDef]
+  purchasedSpells: Set<string>
+  hasSpellPoints:  boolean
+  loading:         string | null
+  onPurchase:      (key: string) => void
 }
 
-function ShieldCard({
-  label, description, accentClass,
-  manaCost, currentMana, status,
-  loading, onActivate, buttonVariant,
-}: ShieldCardProps) {
-  const canActivate = status.state === 'available' && currentMana >= manaCost && !loading
+function MasteryPanel({ catKey, meta, paths, purchasedSpells, hasSpellPoints, loading, onPurchase }: MasteryPanelProps) {
+  const totalPurchased = paths.reduce((acc, _, colIdx) => {
+    for (let row = 1; row <= 5; row++) {
+      if (purchasedSpells.has(buildSpellKey(catKey, colIdx + 1, row))) acc++
+    }
+    return acc
+  }, 0)
 
   return (
-    <div className="p-3 rounded-game-lg bg-gradient-to-b from-game-elevated to-game-surface border border-game-border">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className={`font-heading text-game-sm uppercase tracking-wide ${accentClass}`}>{label}</p>
-            {status.state === 'active' && (
-              <span className="inline-flex items-center gap-1 text-game-xs text-game-green-bright font-body">
-                <span className="inline-block w-2 h-2 rounded-full bg-game-green-bright" /> Active
-              </span>
-            )}
-            {status.state === 'cooldown' && (
-              <span className="text-game-xs text-game-text-muted font-body">Cooldown</span>
-            )}
-          </div>
-          <p className="text-game-xs text-game-text-muted font-body mt-0.5">{description}</p>
-          {status.state === 'active' && (
-            <p className="text-game-xs text-game-green-bright font-body mt-1">
-              Expires in {timeRemaining(status.endsAt) ?? 'soon'}
-            </p>
-          )}
-          {status.state === 'cooldown' && (
-            <p className="text-game-xs text-game-text-muted font-body mt-1">
-              Available in {timeRemaining(status.cooldownEndsAt) ?? 'soon'}
-            </p>
-          )}
-          <div className="mt-2">
-            <ResourceBadge type="mana" amount={manaCost} showLabel />
+    <div style={{
+      background: meta.panelBg,
+      border: `1px solid rgba(${meta.glowRgb},0.2)`,
+      borderRadius: 12,
+      overflow: 'hidden',
+    }}>
+      {/* Category header */}
+      <div style={{
+        background: meta.headerBg,
+        borderBottom: `1px solid rgba(${meta.glowRgb},0.12)`,
+        padding: '11px 18px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 17 }}>{meta.icon}</span>
+          <div>
+            <div style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 12, fontWeight: 700, color: meta.color, letterSpacing: '0.09em', textTransform: 'uppercase', lineHeight: 1 }}>
+              {meta.label}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.32)', fontFamily: 'var(--font-body, sans-serif)', letterSpacing: '0.05em', marginTop: 2 }}>
+              {meta.subtitle}
+            </div>
           </div>
         </div>
-        <Button
-          variant={buttonVariant}
-          size="sm"
-          disabled={!canActivate}
-          loading={loading}
-          onClick={onActivate}
-        >
-          {status.state === 'active'   ? 'Active'   :
-           status.state === 'cooldown' ? 'Cooldown' : 'Activate'}
-        </Button>
+        <div style={{
+          fontSize: 10, color: 'rgba(255,255,255,0.28)',
+          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 5, padding: '3px 9px',
+          fontFamily: 'var(--font-body, sans-serif)',
+        }}>
+          {totalPurchased} / 15 learned
+        </div>
+      </div>
+
+      {/* Paths */}
+      <div style={{ padding: '4px 0' }}>
+        {paths.map((path, colIdx) => {
+          const col = colIdx + 1
+          const tierStates = [0, 1, 2, 3, 4].map((idx) => {
+            const row         = idx + 1
+            const key         = buildSpellKey(catKey, col, row)
+            const isPurchased = purchasedSpells.has(key)
+            const prevKey     = row > 1 ? buildSpellKey(catKey, col, row - 1) : null
+            const isUnlocked  = !prevKey || purchasedSpells.has(prevKey)
+            return { key, row, isPurchased, isUnlocked, name: path.tiers[idx] }
+          })
+
+          const nextAvailable   = tierStates.find((t) => !t.isPurchased && t.isUnlocked)
+          const isFullyMastered = tierStates.every((t) => t.isPurchased)
+          const purchasedCount  = tierStates.filter((t) => t.isPurchased).length
+
+          return (
+            <div
+              key={col}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 18px',
+                borderBottom: colIdx < 2 ? `1px solid rgba(${meta.glowRgb},0.07)` : 'none',
+              }}
+            >
+              {/* Path name */}
+              <div style={{ width: 148, flexShrink: 0 }}>
+                <div style={{
+                  fontSize: 12, fontFamily: 'var(--font-heading, sans-serif)',
+                  color: isFullyMastered ? meta.color : 'rgba(255,255,255,0.6)',
+                  fontWeight: 600, letterSpacing: '0.03em',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {path.name}
+                </div>
+                {purchasedCount > 0 && !isFullyMastered && (
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-body, sans-serif)', marginTop: 2 }}>
+                    Tier {purchasedCount} learned
+                  </div>
+                )}
+              </div>
+
+              {/* Progress dots */}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {tierStates.map((t) => {
+                  const isNext = nextAvailable?.key === t.key
+                  const size   = t.isPurchased ? 13 : isNext ? 12 : 9
+                  return (
+                    <div
+                      key={t.row}
+                      title={t.name}
+                      style={{
+                        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+                        background: t.isPurchased
+                          ? meta.color
+                          : isNext
+                          ? `rgba(${meta.glowRgb},0.35)`
+                          : 'rgba(255,255,255,0.07)',
+                        border: t.isPurchased
+                          ? `1px solid ${meta.color}`
+                          : isNext
+                          ? `1px solid rgba(${meta.glowRgb},0.75)`
+                          : '1px solid rgba(255,255,255,0.1)',
+                        boxShadow: t.isPurchased
+                          ? `0 0 7px rgba(${meta.glowRgb},0.75)`
+                          : isNext
+                          ? `0 0 9px rgba(${meta.glowRgb},0.55)`
+                          : 'none',
+                        transition: 'all 0.2s ease',
+                      }}
+                    />
+                  )
+                })}
+              </div>
+
+              {/* Action */}
+              <div style={{ flexShrink: 0, width: 172 }}>
+                {isFullyMastered ? (
+                  <span style={{
+                    fontSize: 11, color: meta.color, opacity: 0.8,
+                    fontFamily: 'var(--font-heading, sans-serif)',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                  }}>
+                    {'\u2736'} Mastered
+                  </span>
+                ) : nextAvailable ? (
+                  <button
+                    disabled={!hasSpellPoints || loading === nextAvailable.key}
+                    onClick={() => onPurchase(nextAvailable.key)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '5px 12px', borderRadius: 7,
+                      background: hasSpellPoints
+                        ? `linear-gradient(135deg, rgba(${meta.glowRgb},0.22), rgba(${meta.glowRgb},0.08))`
+                        : 'rgba(255,255,255,0.03)',
+                      border: hasSpellPoints
+                        ? `1px solid rgba(${meta.glowRgb},0.5)`
+                        : '1px solid rgba(255,255,255,0.08)',
+                      color: hasSpellPoints ? meta.color : 'rgba(255,255,255,0.25)',
+                      fontSize: 11, fontFamily: 'var(--font-body, sans-serif)', fontWeight: 600,
+                      cursor: hasSpellPoints && loading !== nextAvailable.key ? 'pointer' : 'not-allowed',
+                      opacity: loading === nextAvailable.key ? 0.55 : 1,
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: 172,
+                    }}
+                  >
+                    {loading === nextAvailable.key ? (
+                      <span style={{ opacity: 0.6 }}>{'\u2026'}</span>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 9, flexShrink: 0 }}>{'\u2736'}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Learn: {nextAvailable.name}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

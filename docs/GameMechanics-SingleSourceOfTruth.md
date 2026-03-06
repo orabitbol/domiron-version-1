@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-06 — UI-only restructure: Mine (Slave Workforce) and Development pages redesigned. No gameplay logic changed. Prior: BIGINT fix: food formula now uses `Math.ceil`; GROUP 7 rounding tests added.
+**Last updated:** 2026-03-06 — UI-only restructure: Hero page fully redesigned (cinematic identity panel, Active Powers shields, Power Domains mastery panels). Prior: Mine and Development pages redesigned. No gameplay logic changed in any of these updates.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
