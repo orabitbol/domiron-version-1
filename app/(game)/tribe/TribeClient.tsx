@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
@@ -187,8 +188,9 @@ export function TribeClient({
   const [showDisbandModal,  setShowDisbandModal]  = useState(false)
   const [showLeaveModal,    setShowLeaveModal]    = useState(false)
   const [transferTarget,    setTransferTarget]    = useState<string | null>(null)
-  // Member actions dropdown
+  // Member actions dropdown + portal position
   const [openMenu,         setOpenMenu]         = useState<string | null>(null)
+  const [menuPos,          setMenuPos]          = useState<{ top: number; right: number } | null>(null)
   // Chat
   const [chatMessages,     setChatMessages]     = useState<ChatMessage[]>([])
   const [chatInput,        setChatInput]        = useState('')
@@ -353,8 +355,13 @@ export function TribeClient({
     finally { setLoading(null) }
   }
 
-  async function handleKickMember(memberId: string) {
+  function closeMenu() {
     setOpenMenu(null)
+    setMenuPos(null)
+  }
+
+  async function handleKickMember(memberId: string) {
+    closeMenu()
     setLoading(`kick-${memberId}`)
     setMessage(null)
     try {
@@ -423,7 +430,7 @@ export function TribeClient({
   }
 
   async function handleSetRole(targetId: string, action: 'appoint' | 'remove') {
-    setOpenMenu(null)
+    closeMenu()
     setLoading(`role-${action}-${targetId}`)
     setMessage(null)
     try {
@@ -839,11 +846,11 @@ export function TribeClient({
                 </div>
               </div>
 
-              {/* Roster panel */}
-              <div className="panel-ornate rounded-game-lg overflow-hidden">
+              {/* Roster panel — NO overflow-hidden so portal menus can escape cleanly */}
+              <div className="panel-ornate rounded-game-lg">
 
-                {/* Panel header */}
-                <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-game-elevated/80 to-transparent border-b border-game-border-gold/40">
+                {/* Panel header — gets its own rounded top corners clip */}
+                <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-game-elevated/80 to-transparent border-b border-game-border-gold/40 rounded-t-game-lg overflow-hidden">
                   <div className="flex items-center gap-3">
                     <h2 className="font-heading text-game-base uppercase tracking-widest text-game-gold-bright">
                       Roster
@@ -863,9 +870,9 @@ export function TribeClient({
                   )}
                 </div>
 
-                {/* Click-outside overlay */}
+                {/* Click-outside overlay — closes portal menu */}
                 {openMenu && (
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
+                  <div className="fixed inset-0 z-[998]" onClick={closeMenu} />
                 )}
 
                 {/* Member list */}
@@ -880,16 +887,14 @@ export function TribeClient({
                     const isExempt   = member.role === 'leader' || member.role === 'deputy' || member.tax_exempt
                     const taxEntry   = taxLogToday.find((t) => t.player_id === member.player_id)
 
-                    // Left accent bar color per role
                     const accentBar =
-                      member.role === 'leader'  ? 'bg-gradient-to-b from-amber-400 to-amber-700' :
-                      member.role === 'deputy'  ? 'bg-gradient-to-b from-purple-400 to-purple-700' :
-                                                  'bg-game-border/40'
+                      member.role === 'leader' ? 'bg-gradient-to-b from-amber-400 to-amber-700' :
+                      member.role === 'deputy' ? 'bg-gradient-to-b from-purple-400 to-purple-700' :
+                                                 'bg-game-border/40'
 
-                    // Avatar ring color per role
                     const avatarRing =
-                      member.role === 'leader' ? 'border-amber-500/60 shadow-[0_0_10px_rgba(201,144,26,0.25)]' :
-                      member.role === 'deputy' ? 'border-purple-500/60 shadow-[0_0_10px_rgba(168,85,247,0.2)]' :
+                      member.role === 'leader' ? 'border-amber-500/60 shadow-[0_0_12px_rgba(201,144,26,0.3)]' :
+                      member.role === 'deputy' ? 'border-purple-500/60 shadow-[0_0_12px_rgba(168,85,247,0.25)]' :
                                                  'border-game-border/50'
 
                     const avatarText =
@@ -903,136 +908,146 @@ export function TribeClient({
                     return (
                       <div
                         key={member.player_id}
-                        className="relative flex items-center gap-4 px-6 py-5 border-b border-game-border/30 last:border-0 hover:bg-game-gold/[0.025] transition-colors group"
+                        className="relative flex items-center gap-5 ps-9 pe-6 py-5 border-b border-game-border/25 last:border-0 hover:bg-game-gold/[0.03] transition-colors"
                       >
                         {/* Left role accent bar */}
                         <div className={`absolute inset-y-0 start-0 w-[3px] ${accentBar}`} />
 
                         {/* Avatar */}
-                        <div className={`shrink-0 size-10 rounded-full border-2 ${avatarRing} bg-gradient-to-br from-game-bg/80 to-game-elevated flex items-center justify-center`}>
+                        <div className={`shrink-0 size-11 rounded-full border-2 ${avatarRing} bg-gradient-to-br from-game-bg/80 to-game-elevated flex items-center justify-center`}>
                           <span className={`font-heading text-game-xs font-bold ${avatarText}`}>{initials}</span>
                         </div>
 
                         {/* Identity */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white leading-tight">
+                          <div className="flex items-center gap-2">
+                            <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white leading-tight truncate">
                               {mp?.army_name ?? 'Unknown Army'}
                             </p>
                             {isSelf && (
-                              <span className="text-game-xs text-game-gold/50 font-body">(you)</span>
+                              <span className="shrink-0 text-game-xs text-game-gold/50 font-body">(you)</span>
                             )}
                           </div>
-                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                          <p className="text-game-xs text-game-text-muted font-body mt-0.5 truncate">
                             {mp?.username ?? '—'}
                             {mp?.power_total != null && (
-                              <span className="ms-2 text-game-text-muted/70 tabular-nums">
-                                · {formatNumber(mp.power_total)} power
+                              <span className="ms-2 text-game-text-muted/60 tabular-nums">
+                                · {formatNumber(mp.power_total)} pwr
                               </span>
                             )}
                           </p>
                         </div>
 
                         {/* Role badge */}
-                        <div className="shrink-0">
+                        <div className="shrink-0 min-w-[72px] flex justify-center">
                           {member.role === 'leader' && <Badge variant="gold">Leader</Badge>}
                           {member.role === 'deputy' && <Badge variant="purple">Deputy</Badge>}
                           {member.role === 'member' && <Badge variant="default">Member</Badge>}
                         </div>
 
                         {/* Tax status pill */}
-                        <div className="shrink-0 w-20 text-end">
+                        <div className="shrink-0 min-w-[80px] flex justify-end">
                           {isExempt ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-game-xs font-body font-medium bg-blue-900/30 border border-blue-700/30 text-blue-300">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-game-xs font-body font-medium bg-blue-900/30 border border-blue-700/30 text-blue-300">
                               Exempt
                             </span>
                           ) : taxEntry === undefined ? (
-                            <span className="text-game-xs text-game-text-muted font-body">—</span>
+                            <span className="text-game-xs text-game-text-muted/50 font-body">—</span>
                           ) : taxEntry.paid ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-game-xs font-body font-semibold bg-emerald-900/30 border border-emerald-700/30 text-emerald-300">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-game-xs font-body font-semibold bg-emerald-900/30 border border-emerald-700/30 text-emerald-300">
                               ✓ Paid
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-game-xs font-body font-semibold bg-red-900/30 border border-red-700/30 text-game-red-bright">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-game-xs font-body font-semibold bg-red-900/30 border border-red-700/30 text-game-red-bright">
                               ✗ Unpaid
                             </span>
                           )}
                         </div>
 
-                        {/* Action button — only if canManage and has any action */}
-                        {canManage && (
-                          <div className="shrink-0 w-24 flex justify-end">
-                            {hasActions ? (
-                              <div className="relative z-50">
-                                <button
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-game border border-game-border/60 bg-game-surface/60 text-game-xs font-heading uppercase tracking-wide text-game-text-muted hover:border-game-border-gold/50 hover:text-game-gold hover:bg-game-elevated/60 transition-all cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setOpenMenu(openMenu === member.player_id ? null : member.player_id)
-                                  }}
-                                >
-                                  Manage
-                                  <span className="text-[10px] opacity-60">▾</span>
-                                </button>
+                        {/* "Manage" action trigger — portal dropdown */}
+                        {canManage && hasActions && (
+                          <div className="shrink-0">
+                            <button
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-game border border-game-border/60 bg-game-surface/40 text-game-xs font-heading uppercase tracking-wide text-game-text-muted hover:border-game-border-gold/60 hover:text-game-gold hover:bg-game-elevated/80 active:scale-95 transition-all cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (openMenu === member.player_id) {
+                                  closeMenu()
+                                  return
+                                }
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                const dropdownH = 200
+                                const top = rect.bottom + 6 + dropdownH > window.innerHeight
+                                  ? rect.top - dropdownH - 6
+                                  : rect.bottom + 6
+                                setMenuPos({ top, right: window.innerWidth - rect.right })
+                                setOpenMenu(member.player_id)
+                              }}
+                            >
+                              Manage
+                              <span className="text-[9px] opacity-50 leading-none">▾</span>
+                            </button>
 
-                                {openMenu === member.player_id && (
-                                  <div className="absolute end-0 top-full mt-1.5 z-50 w-52 bg-[#140f08] border border-game-border-gold/40 rounded-game-lg shadow-[0_12px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(201,144,26,0.06)] overflow-hidden">
+                            {/* Portal: renders into document.body, escapes all overflow-hidden ancestors */}
+                            {openMenu === member.player_id && menuPos && typeof document !== 'undefined' && createPortal(
+                              <div
+                                style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+                                className="w-56 bg-[#130e07] border border-game-border-gold/50 rounded-game-lg shadow-[0_16px_48px_rgba(0,0,0,0.85),0_0_0_1px_rgba(201,144,26,0.08)] overflow-hidden"
+                              >
+                                {/* Target identity header */}
+                                <div className="px-4 py-3 border-b border-game-border/40 bg-gradient-to-b from-game-elevated/50 to-transparent">
+                                  <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold/80 truncate leading-tight">
+                                    {mp?.army_name ?? '—'}
+                                  </p>
+                                  <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                                    {mp?.username ?? '—'}
+                                  </p>
+                                </div>
 
-                                    {/* Target member info */}
-                                    <div className="px-4 py-2.5 border-b border-game-border/40 bg-game-elevated/30">
-                                      <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold/70 truncate">
-                                        {mp?.army_name ?? '—'}
-                                      </p>
-                                      <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                                        {mp?.username ?? '—'}
-                                      </p>
-                                    </div>
-
-                                    {/* Role actions */}
-                                    {(canAppoint || canRemove) && (
-                                      <div className="py-1">
-                                        {canAppoint && (
-                                          <button
-                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-game-sm font-body text-game-text-secondary hover:bg-purple-900/20 hover:text-purple-200 transition-colors cursor-pointer"
-                                            onClick={() => handleSetRole(member.player_id, 'appoint')}
-                                          >
-                                            <span className="text-purple-400 text-base leading-none">⬆</span>
-                                            Appoint Deputy
-                                          </button>
-                                        )}
-                                        {canRemove && (
-                                          <button
-                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-game-sm font-body text-game-text-secondary hover:bg-game-elevated hover:text-game-text-white transition-colors cursor-pointer"
-                                            onClick={() => handleSetRole(member.player_id, 'remove')}
-                                          >
-                                            <span className="text-game-text-muted text-base leading-none">⬇</span>
-                                            Remove Deputy
-                                          </button>
-                                        )}
-                                      </div>
+                                {/* Role actions */}
+                                {(canAppoint || canRemove) && (
+                                  <div className="py-1.5">
+                                    {canAppoint && (
+                                      <button
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-game-sm font-body text-game-text-secondary hover:bg-purple-950/50 hover:text-purple-200 transition-colors cursor-pointer"
+                                        onClick={() => handleSetRole(member.player_id, 'appoint')}
+                                      >
+                                        <span className="shrink-0 size-5 rounded-full bg-purple-900/60 border border-purple-700/50 flex items-center justify-center text-[10px] text-purple-300">↑</span>
+                                        Appoint Deputy
+                                      </button>
                                     )}
-
-                                    {/* Kick — always separated */}
-                                    {canKick && (
-                                      <>
-                                        {(canAppoint || canRemove) && (
-                                          <div className="border-t border-game-border/40 mx-2" />
-                                        )}
-                                        <div className="py-1">
-                                          <button
-                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-game-sm font-body text-game-red-bright hover:bg-red-950/40 transition-colors cursor-pointer"
-                                            onClick={() => handleKickMember(member.player_id)}
-                                          >
-                                            <span className="text-red-500 text-base leading-none">✕</span>
-                                            Kick Member
-                                          </button>
-                                        </div>
-                                      </>
+                                    {canRemove && (
+                                      <button
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-game-sm font-body text-game-text-secondary hover:bg-game-elevated/60 hover:text-game-text-white transition-colors cursor-pointer"
+                                        onClick={() => handleSetRole(member.player_id, 'remove')}
+                                      >
+                                        <span className="shrink-0 size-5 rounded-full bg-game-border/50 border border-game-border flex items-center justify-center text-[10px] text-game-text-muted">↓</span>
+                                        Remove Deputy
+                                      </button>
                                     )}
                                   </div>
                                 )}
-                              </div>
-                            ) : null}
+
+                                {/* Kick action — visually separated */}
+                                {canKick && (
+                                  <>
+                                    {(canAppoint || canRemove) && (
+                                      <div className="h-px bg-game-border/40 mx-3" />
+                                    )}
+                                    <div className="py-1.5">
+                                      <button
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-game-sm font-body text-game-red-bright hover:bg-red-950/50 transition-colors cursor-pointer"
+                                        onClick={() => handleKickMember(member.player_id)}
+                                      >
+                                        <span className="shrink-0 size-5 rounded-full bg-red-950/70 border border-red-800/50 flex items-center justify-center text-[10px] text-red-400">✕</span>
+                                        Kick Member
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>,
+                              document.body
+                            )}
                           </div>
                         )}
                       </div>
@@ -1040,11 +1055,11 @@ export function TribeClient({
                   })}
                 </div>
 
-                {/* Footer notice */}
+                {/* Footer — deputy cap warning */}
                 {isLeader && deputyCount >= 3 && (
-                  <div className="px-6 py-3 border-t border-game-border/30 bg-amber-950/10">
+                  <div className="px-6 py-3 border-t border-game-border/25 rounded-b-game-lg overflow-hidden bg-amber-950/10">
                     <p className="text-game-xs text-amber-400/70 font-body">
-                      Deputy cap reached (3 / 3). Remove a deputy before appointing another.
+                      Deputy cap reached (3/3). Remove a deputy before appointing another.
                     </p>
                   </div>
                 )}

@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Spells / Chat): Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with 3-dot dropdown menu. Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
+**Last updated:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Spells / Chat): Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with "Manage ▾" portal dropdown (React Portal, immune to overflow-hidden clipping). Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -1208,24 +1208,30 @@ If not in a tribe, two-panel "no tribe" state (create + city join list).
 - No "Make Leader" button in row actions
 
 **Member roster — visual design:**
-- Each row has a left 3px accent bar: gold gradient (leader), purple gradient (deputy), slate (member)
-- Avatar initials circle with role-colored border ring and glow shadow
-- Identity cell: army name (heading, uppercase) + username + power (secondary line)
-- "(you)" indicator on current user's row
-- Role badge (gold/purple/default) in its own column
-- Tax status: pill-style badge (Exempt/✓ Paid/✗ Unpaid/—) with colored backgrounds
-- Actions: "Manage ▾" button per row (shows only when canManage and row has valid actions)
-- Transfer Leadership button in panel header (not in row actions)
+- Panel has no `overflow-hidden` at the outer wrapper level (required so the portal dropdown can render visually above it). Header and footer clips use `rounded-t/b-game-lg overflow-hidden` on those specific sub-elements.
+- Each row: `ps-9 pe-6 py-5` — left padding accounts for the 3px accent bar
+- Left 3px accent bar: gold gradient (leader), purple gradient (deputy), slate/transparent (member)
+- Avatar circle (`size-11`): role-colored border ring + glow `box-shadow`; initials in role-matching text color
+- Identity cell (flex-1): army name (heading uppercase, truncated) + "(you)" badge + secondary line with username and power
+- Role badge (`min-w-[72px]` centered): gold/purple/default
+- Tax status (`min-w-[80px]` end-aligned): pill badges with background colors (blue=Exempt, emerald=Paid, red=Unpaid, dim dash=none yet)
+- "Manage ▾" trigger only shown when `canManage && hasActions`
+- Transfer Leadership button lives in the panel header right-side (leader only)
+- Footer shown only when `isLeader && deputyCount >= 3`
 
-**Member actions — "Manage ▾" dropdown:**
-- Trigger: styled "Manage ▾" text button with border, hover transitions to gold
-- Opens absolute dropdown (z-50); transparent overlay (z-40) closes on click-outside
-- Dropdown header shows target member's army name + username for clarity
+**Member actions — "Manage ▾" portal dropdown:**
+- Trigger: "Manage ▾" text button with border; hover transitions border and text to gold; `active:scale-95`
+- On click: reads `getBoundingClientRect()` of the trigger, calculates portal position. If dropdown would overflow the viewport bottom, it opens upward instead.
+- Dropdown rendered via **`createPortal(…, document.body)`** — completely outside the roster panel DOM, immune to any ancestor `overflow: hidden`. Position set with `position: fixed` at calculated `{ top, right }`.
+- Background overlay (`fixed inset-0 z-[998]`) closes menu on outside click; portal renders at `z-index: 9999`.
+- Dropdown content: dark-gold themed, identity header (army name + username), then action rows
 - Actions shown depend on role + permissions:
-  - Appoint Deputy (leader, target=member, deputyCount < 3) — purple ⬆ icon
-  - Remove Deputy (leader, target=deputy) — ⬇ icon
-  - Kick Member (canManage, excluding leaders and peer deputies) — red ✕ icon, separated by divider
+  - Appoint Deputy (leader, target=member, deputyCount < 3) — icon circle (↑ purple)
+  - Remove Deputy (leader, target=deputy) — icon circle (↓ slate)
+  - Kick Member (canManage, excluding leaders and peer deputies) — icon circle (✕ red), separated by `h-px` divider
+- "Manage" button only rendered if `canManage && hasActions` (no empty trigger for rows with no available actions)
 - Deputy cap = 3 enforced in both UI (conditional display) and backend (RPC)
+- `closeMenu()` helper clears both `openMenu` and `menuPos` state atomically
 
 **Leave / Disband — Modal component:**
 - Leave: opens `Modal` with confirmation → calls `/api/tribe/leave` → `router.refresh()`
@@ -1949,7 +1955,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 4. City rank: filter per city (1..5) from the same sorted list, assign 1-based index → `rank_city`
 5. Batch-write both fields: `Promise.all` of one `UPDATE players SET rank_global=?, rank_city=? WHERE id=?` per player
 
-**Update timing:** Computed and persisted ONLY on tick (every minute via Vercel Cron, `* * * * *`). No other route touches these fields.
+**Update timing:** Computed and persisted ONLY on tick (every 30 minutes via Vercel Cron, `*/30 * * * *`). No other route touches these fields.
 
 **API:** `GET /api/player` and the server-side `app/(game)/layout.tsx` both SELECT `rank_city,rank_global` explicitly. The `Player` TypeScript type (`types/game.ts:102-103`) defines both as `number | null`.
 
