@@ -112,13 +112,45 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
           Power Ratio: <span className="font-semibold text-game-text-white">{report.ratio.toFixed(2)}×</span>
         </p>
         <div className="grid grid-cols-2 gap-3 mt-2">
+          {/* Your Attack breakdown */}
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Your Attack</p>
-            <p className={`font-semibold text-game-lg ${outcomeColor}`}>{formatNumber(report.attacker.ecp_attack)}</p>
+            <div className="space-y-0.5">
+              <p className="text-game-xs text-game-text-muted font-body">
+                Power <span className="text-game-text-secondary">{formatNumber(report.attacker.pp_attack)}</span>
+              </p>
+              {report.attacker.clan_bonus_attack > 0 && (
+                <p className="text-game-xs text-blue-400 font-body">
+                  Clan <span className="font-semibold">+{formatNumber(report.attacker.clan_bonus_attack)}</span>
+                </p>
+              )}
+              {report.attacker.ecp_attack !== report.attacker.base_ecp_attack && (
+                <p className="text-game-xs text-game-gold font-body">
+                  Tribe <span className="font-semibold">+{formatNumber(report.attacker.ecp_attack - report.attacker.base_ecp_attack)}</span>
+                </p>
+              )}
+              <p className={`font-semibold text-game-lg ${outcomeColor}`}>{formatNumber(report.attacker.ecp_attack)}</p>
+            </div>
           </div>
+          {/* Enemy Defense breakdown */}
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">Enemy Defense</p>
-            <p className="font-semibold text-game-lg text-game-text-white">{formatNumber(report.defender.ecp_defense)}</p>
+            <div className="space-y-0.5">
+              <p className="text-game-xs text-game-text-muted font-body">
+                Power <span className="text-game-text-secondary">{formatNumber(report.defender.pp_defense)}</span>
+              </p>
+              {report.defender.clan_bonus_defense > 0 && (
+                <p className="text-game-xs text-blue-400 font-body">
+                  Clan <span className="font-semibold">+{formatNumber(report.defender.clan_bonus_defense)}</span>
+                </p>
+              )}
+              {report.defender.ecp_defense !== report.defender.base_ecp_defense && (
+                <p className="text-game-xs text-amber-400 font-body">
+                  Tribe <span className="font-semibold">+{formatNumber(report.defender.ecp_defense - report.defender.base_ecp_defense)}</span>
+                </p>
+              )}
+              <p className="font-semibold text-game-lg text-game-text-white">{formatNumber(report.defender.ecp_defense)}</p>
+            </div>
           </div>
         </div>
       </div>

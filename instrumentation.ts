@@ -14,8 +14,9 @@
  *   - Skip when NEXT_RUNTIME === 'edge' (Edge runtime — no setInterval)
  *   - Allow when NEXT_RUNTIME is undefined OR 'nodejs' (both are Node.js in dev)
  *
- * To revert to 30-minute ticks: set TICK_INTERVAL_MINUTES=30 in .env
- * (or remove the env var) AND change vercel.json cron schedule back to every-30-min.
+ * To revert to 30-minute ticks: remove TICK_INTERVAL_MINUTES from .env
+ * (or set it to 30). Do NOT change vercel.json — it only controls the production
+ * Vercel Cron and must stay at "*\/30 * * * *" at all times.
  */
 
 // Module-level flag prevents duplicate intervals across HMR reloads.
@@ -44,9 +45,12 @@ export async function register() {
   }
   devCronStarted = true
 
+  // Mirror the dev-mode logic in app/api/tick/route.ts: env var overrides BALANCE value.
+  // NOTE: instrumentation.ts only runs in development (guard above), so no production guard needed here.
   const rawInterval = Number(process.env.TICK_INTERVAL_MINUTES)
   const intervalMinutes =
     Number.isFinite(rawInterval) && rawInterval > 0 ? rawInterval : 30
+  // 30 === BALANCE.tick.intervalMinutes — kept as literal to avoid importing BALANCE here.
   const intervalMs = intervalMinutes * 60_000
 
   const secret = process.env.CRON_SECRET

@@ -23,7 +23,9 @@
 | Tick status (server clock) | `app/api/tick-status/route.ts` |
 | Dev auto-tick scheduler | `instrumentation.ts` |
 | Supabase server clients | `lib/supabase/server.ts` |
-| Countdown UI component | `components/layout/Sidebar.tsx` → `TickCountdown` |
+| Countdown hook (shared) | `lib/hooks/useTickCountdown.ts` → `useTickCountdown()` |
+| Countdown UI — desktop | `components/layout/Sidebar.tsx` → `TickCountdown` |
+| Countdown UI — mobile | `components/game/ResourceBar.tsx` → `MobileTickCountdown` |
 | Registration | `app/api/auth/register/route.ts` |
 | DB schema | `supabase/migrations/0001_initial.sql` |
 | World-state timer seed | `supabase/migrations/0008_world_state.sql` |
@@ -301,13 +303,35 @@ const res = await fetch(`http://localhost:${port}/api/tick`, {
 
 ---
 
+#### Tick Interval — Single Source of Truth (End-to-End)
+
+The following describes exactly how the tick interval flows from config to DB to UI. Every layer must be consistent with every other.
+
+| Layer | Location | Value | Notes |
+|---|---|---|---|
+| Canonical interval | `BALANCE.tick.intervalMinutes` | `30` | **The SSOT.** All other layers derive from this. |
+| Vercel Cron schedule | `vercel.json` → `"*/30 * * * *"` | 30 min | Fires the GET /api/tick handler in production. Must always match `BALANCE.tick.intervalMinutes`. **Never change this for local testing.** |
+| Dev auto-tick | `instrumentation.ts` → `setInterval(intervalMs)` | env var or 30 | Only runs in `NODE_ENV=development`. Reads `TICK_INTERVAL_MINUTES` env var, falls back to 30. In dev you can set `TICK_INTERVAL_MINUTES=1` for faster iteration. |
+| Tick route interval | `app/api/tick/route.ts` → `TICK_INTERVAL_MINUTES` const | 30 in prod | **Production: always `BALANCE.tick.intervalMinutes`, env var ignored.** Dev: reads env var. |
+| DB timestamp | `world_state.next_tick_at` | ISO timestamp | Set by tick route: `tickDoneAt + TICK_INTERVAL_MINUTES * 60_000`. In production this is always +30 min. |
+| Server API | `GET /api/tick-status` | `{ server_now, next_tick_at }` | Reads `world_state` row. `force-dynamic` + `noStore()` prevents caching. |
+| Client hook | `useTickCountdown()` | `ms` until next tick | Syncs from `/api/tick-status` on mount, every 5 min (heartbeat), and on Realtime broadcast. Falls back to `getTimeUntilNextTick()` (local clock, :00/:30 assumption) only when server returns `null`. |
+| Display | `TickCountdown` (Sidebar) / `MobileTickCountdown` (ResourceBar) | `mm:ss` | Both use `useTickCountdown()`. Show `--:--` before first sync. |
+
+**What was wrong (Bug 5):** If `TICK_INTERVAL_MINUTES=1` was set in Vercel env vars (leftover from debug session), the tick route wrote `next_tick_at = now + 1 min` while Vercel Cron fires every 30 min. Countdown showed 1 minute, hit 00:00, stayed stuck for 29 minutes.
+
+**Fix:** In production (`NODE_ENV !== 'development'`), `TICK_INTERVAL_MINUTES` env var is completely ignored — the IIFE always returns `BALANCE.tick.intervalMinutes`. See `app/api/tick/route.ts`.
+
+---
+
 #### How to Verify the Full Tick Pipeline
 
 **Required `.env` values:**
 ```
 CRON_SECRET=<any non-empty string, must match between .env and Supabase>
 SUPABASE_SERVICE_ROLE_KEY=<set>
-TICK_INTERVAL_MINUTES=30   # Production cadence; use 1 locally for faster debug iterations
+TICK_INTERVAL_MINUTES=1    # Development only — omit for 30-min cadence.
+                           # NEVER set this on Vercel; production ignores it (Bug 5 fix).
 TICK_DEBUG=1               # Verbose per-player logs
 ```
 
@@ -353,7 +377,8 @@ curl http://localhost:3000/api/tick-status
 
 **To use a faster local dev cadence (1-minute ticks):**
 1. In `.env`: set `TICK_INTERVAL_MINUTES=1`
-2. Production `vercel.json` remains `*/30 * * * *` — do not change.
+2. Production `vercel.json` remains `*/30 * * * *` — do **not** change.
+3. Do **not** set `TICK_INTERVAL_MINUTES` on Vercel — production ignores it by design (see Bug 5).
 
 ---
 
@@ -843,6 +868,17 @@ Each target row shows 4 status dots in the `Status` column (formerly `Shields`).
 `is_protected` and `kill_cooldown_active` are computed server-side in `app/(game)/attack/page.tsx`:
 - `is_protected`: `isNewPlayerProtected(target.created_at, activeSeason.starts_at, now)` — requires `created_at` on cityPlayers query and active season from `getActiveSeason(admin)`
 - `kill_cooldown_active`: batch query `attacks WHERE attacker_id=$attacker AND defender_id IN ($targets) AND defender_losses>0 AND created_at >= (now − 6h)`
+
+### Battle Report — Power Breakdown
+
+`POST /api/attack` returns `battleReport.attacker.ecp_attack` (final ECP) and `battleReport.attacker.base_ecp_attack` (ECP before tribe spell multiplier). The same pair exists for the defender (`ecp_defense` / `base_ecp_defense`).
+
+**UI behaviour in `BattleReportModal`:**
+- When `ecp_attack === base_ecp_attack` (no tribe spell active): shows only the final ECP value.
+- When `ecp_attack !== base_ecp_attack` (war_cry active): shows three lines — Base / Tribe +N / Final.
+- Same logic applies to the defender side (tribe_shield).
+
+`CombatResolutionResult` in `lib/game/combat.ts` now exports both `baseAttackerECP` and `baseDefenderECP` alongside the final `attackerECP` / `defenderECP`.
 
 ### Battle Report Flags and UI Mapping
 
@@ -2644,3 +2680,103 @@ Full layout restructure of `app/(game)/develop/DevelopClient.tsx`. **No gameplay
 - `popCanAfford`, `popIsMaxed`, `popCost` — unchanged
 - All API routes — unchanged (`/api/develop/upgrade`, `/api/city/promote`)
 - `applyPatch` + `refresh()` pattern — unchanged
+
+---
+
+### 2026-03-06 — Tribe Integration Audit + Power Breakdown Fix
+
+Full end-to-end audit of all tribe mechanics vs. existing player mechanics. No integration bugs found. One stale comment fixed. Power breakdown added to battle report UI.
+
+**Audit findings (all ✅ correct):**
+- `production_blessing`: tick/route.ts batches active tribe spells once, applies `tribeProdMult` to all 4 resources per player. No double-count with hero slave bonus.
+- `war_cry`: attack/route.ts fetches active spell, passes `attackerTribeMultiplier: 1.25` to `resolveCombat()`. Applied after ECP formula, on full baseECP. Does not touch ClanBonus.
+- `tribe_shield`: same pattern as war_cry for defender side (`defenderTribeMultiplier: 1.15`).
+- `spy_veil`: spy/route.ts fetches active spell for defender's tribe, multiplies `scoutDefense` by `scoutDefenseMultiplier`. Correctly isolated from attack path.
+- `battle_supply`: attack/route.ts applies `foodMultiplier = 1 - 0.25 = 0.75` to food cost before deduction. Correctly isolated from combat ECP.
+- Hero effects (`totalAttackBonus`, `totalSlaveBonus`, etc.) and tribe spells are completely separate — no shared code paths, no double-counting.
+- `tribes.power_total` is meaningful: sum of member `power_total` values, updated once per tick (step 10). Used as `ClanContext.totalClanPP` in combat. Intentionally stale by up to one tick.
+- `TICK_INTERVAL_MINUTES` in production is now **ignored** — production always uses `BALANCE.tick.intervalMinutes` (30 minutes). See Bug 5 below.
+
+**Changes made (2026-03-06 session — Tribe Integration Audit):**
+
+- `app/api/tick/route.ts` — Fixed stale debug comment (line 21 referenced old `"* * * * *"` cron). Now says: set `TICK_INTERVAL_MINUTES=1` env var; do NOT change vercel.json.
+- `lib/game/combat.ts` — `CombatResolutionResult` now includes `baseAttackerECP: number` and `baseDefenderECP: number` (ECP before tribe spell multiplier). `resolveCombat()` returns both. All existing fields unchanged; additive-only change.
+- `types/game.ts` — `BattleReport.attacker` gains `base_ecp_attack: number`; `BattleReport.defender` gains `base_ecp_defense: number`.
+- `app/api/attack/route.ts` — Populates `base_ecp_attack: result.baseAttackerECP` and `base_ecp_defense: result.baseDefenderECP` in the battle report.
+- `app/(game)/attack/AttackClient.tsx` — `BattleReportModal` power breakdown: when `ecp_attack !== base_ecp_attack`, shows Base / Tribe +N / Final (three lines). When no tribe spell active, shows just the final ECP as before (zero visual change for clanless players).
+- `docs/GameMechanics-SingleSourceOfTruth.md` — Added "Battle Report — Power Breakdown" section documenting `base_ecp_attack`/`base_ecp_defense` fields and UI conditional rendering.
+
+---
+
+### 2026-03-06 — Tick Countdown Bug 5 + Full Combat Breakdown Fix
+
+#### Bug 5 — `TICK_INTERVAL_MINUTES` env var misaligns countdown from Vercel Cron in production
+
+**Files:** `app/api/tick/route.ts`, `instrumentation.ts`
+
+**Symptom:** Countdown displays ~1 minute in the Sidebar/ResourceBar, then drops to 00:00 and stays there for ~29 minutes before resetting. The interval shown (1 min) does not match the actual tick cadence (30 min).
+
+**Root cause:** `app/api/tick/route.ts` computed `next_tick_at = tickDoneAt + TICK_INTERVAL_MINUTES * 60_000` where `TICK_INTERVAL_MINUTES` read the env var first. If `TICK_INTERVAL_MINUTES=1` was set on Vercel (e.g. from a debugging session that was never cleaned up), the DB stored `next_tick_at = now + 1 minute` after every tick. But Vercel Cron fires every 30 minutes. The UI faithfully counted down from 1 minute (as the DB said), hit 00:00, then polled every 5 seconds until the actual cron fired 29 minutes later.
+
+**Stale comment:** `instrumentation.ts` had "AND change vercel.json cron schedule back to every-30-min" — implying the developer should modify vercel.json when switching between dev and prod cadences. This was **wrong** and contradicted the (newer, correct) guidance in `tick/route.ts` which says "do NOT change vercel.json".
+
+**Fix — `app/api/tick/route.ts`:** IIFE-style constant that ignores `TICK_INTERVAL_MINUTES` in production:
+```ts
+const TICK_INTERVAL_MINUTES: number = (() => {
+  if (process.env.NODE_ENV !== 'development') {
+    return BALANCE.tick.intervalMinutes  // Production: always 30 — matches vercel.json
+  }
+  const raw = Number(process.env.TICK_INTERVAL_MINUTES)
+  return Number.isFinite(raw) && raw > 0 ? raw : BALANCE.tick.intervalMinutes
+})()
+```
+
+**Fix — `instrumentation.ts`:** Removed "AND change vercel.json" from the revert instructions. vercel.json is never changed for dev/prod tick cadence switching — only the `.env` env var changes.
+
+**Result:** In production `world_state.next_tick_at = tickDoneAt + 30 minutes` always, regardless of any env var. Countdown now correctly reflects the real 30-minute Vercel Cron cadence.
+
+---
+
+#### Full Combat Power Breakdown in Battle Report
+
+**Files:** `types/game.ts`, `app/api/attack/route.ts`, `app/(game)/attack/AttackClient.tsx`
+
+**Problem:** The battle report only showed `base_ecp` (ECP before tribe spell) and `final_ecp`. It did not break out Personal Power (PP), Clan Bonus, or Tribe Spell Bonus as separate items. Players could not see where their effective power came from.
+
+**ECP full stack (for reference):**
+```
+PP           = calculatePersonalPower(army, weapons, training, development)
+ClanBonus    = min(TotalClanPP × EfficiencyRate, 0.20 × PP)  [0 if no clan]
+baseECP      = floor(PP × (1 + heroBonus) × (1 + raceBonus)) + ClanBonus
+tribeBonus   = baseECP × (tribeMultiplier - 1)   [0 if no tribe spell active]
+finalECP     = floor(baseECP × tribeMultiplier)
+```
+
+**Fix — `types/game.ts`:** Added 4 new fields to `BattleReport`:
+- `attacker.pp_attack: number` — raw personal power
+- `attacker.clan_bonus_attack: number` — clan additive bonus (0 if no clan)
+- `defender.pp_defense: number` — raw personal power
+- `defender.clan_bonus_defense: number` — clan additive bonus (0 if no clan)
+
+**Fix — `app/api/attack/route.ts`:** Imports `calculateClanBonus` and calls it separately for both sides (after PP is computed). Values passed into `battleReport`. No impact on `resolveCombat()` — combat engine unchanged.
+
+**Fix — `app/(game)/attack/AttackClient.tsx`:** `BattleReportModal` power panels now show:
+```
+Power     [pp_attack]           ← always shown
+Clan +N   [clan_bonus_attack]   ← shown only when > 0
+Tribe +N  [ecp - base_ecp]     ← shown only when tribe spell active
+═══════════════════════════
+Final ECP [ecp_attack]          ← always shown
+```
+
+No double-counting: `calculateClanBonus` is called for reporting only — `resolveCombat()` calls it internally via `calculateECP()`. Both calls use the same `attackerPP` and `attClanCtx`, so they produce identical values.
+
+**Tribe spell audit (re-confirmed):**
+- `war_cry` → `attackerTribeMultiplier = BALANCE.tribe.spellEffects.war_cry.combatMultiplier = 1.25`. Applied as `Math.floor(baseAttackerECP × 1.25)`. Does not touch ClanBonus.
+- `tribe_shield` → `defenderTribeMultiplier = BALANCE.tribe.spellEffects.tribe_shield.defenseMultiplier = 1.15`. Same pattern on defender side.
+- Tribe multiplier and ClanBonus are completely separate. No double-counting.
+
+**Tribe power audit (re-confirmed):**
+- `tribes.power_total` = sum of member `power_total` values, updated per tick (step 10).
+- Used as `ClanContext.totalClanPP` in combat (`attClanCtx`, `defClanCtx`).
+- `calculateClanBonus` caps the result at `0.20 × playerPP` — never unbounded.

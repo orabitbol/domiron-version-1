@@ -154,13 +154,19 @@ export interface CombatResolutionInputs {
 }
 
 export interface CombatResolutionResult {
-  outcome:        CombatOutcome
-  ratio:          number
-  attackerECP:    number
-  defenderECP:    number
-  attackerLosses: number
-  defenderLosses: number
-  loot:           UnbankedResources
+  outcome:          CombatOutcome
+  ratio:            number
+  /** ECP before tribe spell multiplier is applied. */
+  baseAttackerECP:  number
+  /** ECP before tribe spell multiplier is applied. */
+  baseDefenderECP:  number
+  /** Final ECP after tribe spell multiplier (= baseAttackerECP when no tribe spell active). */
+  attackerECP:      number
+  /** Final ECP after tribe spell multiplier (= baseDefenderECP when no tribe spell active). */
+  defenderECP:      number
+  attackerLosses:   number
+  defenderLosses:   number
+  loot:             UnbankedResources
 }
 
 // ─────────────────────────────────────────
@@ -642,6 +648,8 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
   return {
     outcome,
     ratio,
+    baseAttackerECP,
+    baseDefenderECP,
     attackerECP,
     defenderECP,
     attackerLosses: losses.attackerLosses,

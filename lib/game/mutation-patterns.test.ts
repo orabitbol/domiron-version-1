@@ -77,6 +77,7 @@ describe('Immediate update contract (no-refresh pattern)', () => {
         attacker: {
           name: 'Iron Legion',
           ecp_attack: 1000,
+          base_ecp_attack: 1000,
           turns_spent: 3,
           food_spent: 3,
           losses: { soldiers: 10, cavalry: 0 },
@@ -86,6 +87,7 @@ describe('Immediate update contract (no-refresh pattern)', () => {
         defender: {
           name: 'Shadow Guard',
           ecp_defense: 700,
+          base_ecp_defense: 700,
           losses: { soldiers: 50, cavalry: 0 },
           before: { ...snapshot, gold: 500, soldiers: 100 },
           after:  { ...snapshot, gold: 300, soldiers: 50 },

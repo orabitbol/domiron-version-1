@@ -53,20 +53,34 @@ export interface BattleReport {
   outcome: 'WIN' | 'LOSS'
   ratio:   number
   attacker: {
-    name:        string
-    ecp_attack:  number
-    turns_spent: number
-    food_spent:  number
-    losses:      { soldiers: number; cavalry: number }
-    before:      BattleReportSnapshot
-    after:       BattleReportSnapshot
+    name:         string
+    /** Raw Personal Power (PP) — before hero, race, clan, or tribe spell modifiers. */
+    pp_attack:       number
+    /** Clan bonus additive contribution — min(TotalClanPP × EffRate, 0.20 × PP). 0 if no clan. */
+    clan_bonus_attack: number
+    /** ECP before tribe spell multiplier: (PP × (1+hero) × (1+race)) + ClanBonus. */
+    base_ecp_attack: number
+    /** Final ECP including tribe spell multiplier. */
+    ecp_attack:   number
+    turns_spent:  number
+    food_spent:   number
+    losses:       { soldiers: number; cavalry: number }
+    before:       BattleReportSnapshot
+    after:        BattleReportSnapshot
   }
   defender: {
-    name:        string
-    ecp_defense: number
-    losses:      { soldiers: number; cavalry: number }
-    before:      BattleReportSnapshot
-    after:       BattleReportSnapshot
+    name:         string
+    /** Raw Personal Power (PP) — before hero, race, clan, or tribe spell modifiers. */
+    pp_defense:      number
+    /** Clan bonus additive contribution — min(TotalClanPP × EffRate, 0.20 × PP). 0 if no clan. */
+    clan_bonus_defense: number
+    /** ECP before tribe spell multiplier: (PP × (1+hero) × (1+race)) + ClanBonus. */
+    base_ecp_defense: number
+    /** Final ECP including tribe spell multiplier. */
+    ecp_defense:  number
+    losses:       { soldiers: number; cavalry: number }
+    before:       BattleReportSnapshot
+    after:        BattleReportSnapshot
   }
   gained: {
     loot:     { gold: number; iron: number; wood: number; food: number }

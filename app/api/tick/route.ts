@@ -17,17 +17,26 @@ import { broadcastTickCompleted } from '@/lib/game/realtime'
 const TICK_DEBUG = process.env.TICK_DEBUG === '1'
 
 // How many minutes until the next tick after this one completes.
-// Production: 30  (match vercel.json "*/30 * * * *")
-// Debug:       1  (match vercel.json "* * * * *" AND set TICK_INTERVAL_MINUTES=1)
-// Switching back: set TICK_INTERVAL_MINUTES=30 (or remove env var) + change vercel.json.
 //
-// NOTE: uses || not ?? so that empty string ("") also falls back to the balance default.
-//       Number("") = 0 which is falsy, so || correctly rejects it.
-const _rawInterval = Number(process.env.TICK_INTERVAL_MINUTES)
-const TICK_INTERVAL_MINUTES =
-  Number.isFinite(_rawInterval) && _rawInterval > 0
-    ? _rawInterval
-    : BALANCE.tick.intervalMinutes
+// PRODUCTION: always uses BALANCE.tick.intervalMinutes (30).
+//   The env var is intentionally IGNORED in production to prevent any
+//   misconfiguration from causing the countdown to diverge from the actual
+//   Vercel Cron schedule ("*/30 * * * *" in vercel.json).
+//
+// DEVELOPMENT: set TICK_INTERVAL_MINUTES=1 in .env for faster local iterations.
+//   instrumentation.ts reads the same env var to fire its setInterval at the
+//   matching cadence. Do NOT change vercel.json — it only affects production.
+//
+// Switching back to production cadence: remove TICK_INTERVAL_MINUTES from .env.
+const TICK_INTERVAL_MINUTES: number = (() => {
+  if (process.env.NODE_ENV !== 'development') {
+    // Production: always match the Vercel Cron schedule — ignore any env var override.
+    return BALANCE.tick.intervalMinutes
+  }
+  // Development: allow env var override for faster tick iteration.
+  const raw = Number(process.env.TICK_INTERVAL_MINUTES)
+  return Number.isFinite(raw) && raw > 0 ? raw : BALANCE.tick.intervalMinutes
+})()
 
 // GET /api/tick — called by Vercel Cron (see vercel.json for schedule)
 // Protected by CRON_SECRET header

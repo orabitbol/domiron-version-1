@@ -28,7 +28,14 @@ export function getCatchUpMultiplier(seasonStartDate: Date): number {
   return 20
 }
 
-// Calculate time until next tick (30-minute intervals from :00 and :30)
+// Local-clock fallback estimate of time until next tick.
+// Assumes the cron fires at :00 and :30 of every hour (vercel.json "*/30 * * * *").
+// Only accurate when the cron is on-schedule and the tick processes in < 1 second.
+//
+// IMPORTANT — fallback only. The authoritative countdown source is
+// world_state.next_tick_at, exposed by GET /api/tick-status and consumed by
+// useTickCountdown (lib/hooks/useTickCountdown.ts).
+// Never use this as the primary countdown source — it will drift from the server timer.
 export function getTimeUntilNextTick(): number {
   const now = new Date()
   const minutes = now.getMinutes()

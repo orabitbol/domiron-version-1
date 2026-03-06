@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import {
   calculatePersonalPower,
+  calculateClanBonus,
   calculateCaptives,
   resolveCombat,
   isNewPlayerProtected,
@@ -239,6 +240,12 @@ export async function POST(request: NextRequest) {
       development: defDev,
     })
 
+    // ClanBonus — computed separately so it can be reported in the BattleReport breakdown.
+    // These values are also used internally by calculateECP() inside resolveCombat(),
+    // so computing them here is for reporting only — no double-counting.
+    const attClanBonus = calculateClanBonus(attackerPP, attClanCtx)
+    const defClanBonus = calculateClanBonus(defenderPP, defClanCtx)
+
     // Resolve full combat
     const result = resolveCombat({
       attackerPP,
@@ -452,11 +459,14 @@ export async function POST(request: NextRequest) {
       outcome: outcomeMap[result.outcome],
       ratio:   result.ratio,
       attacker: {
-        name:        attPlayer.army_name,
-        ecp_attack:  result.attackerECP,
-        turns_spent: turnsUsed,
-        food_spent:  foodCost,
-        losses:      { soldiers: attLossesScaled, cavalry: 0 },
+        name:              attPlayer.army_name,
+        pp_attack:         attackerPP,
+        clan_bonus_attack: attClanBonus,
+        base_ecp_attack:   result.baseAttackerECP,
+        ecp_attack:        result.attackerECP,
+        turns_spent:       turnsUsed,
+        food_spent:       foodCost,
+        losses:           { soldiers: attLossesScaled, cavalry: 0 },
         before: {
           gold: attResources.gold, iron: attResources.iron,
           wood: attResources.wood, food: attResources.food,
@@ -469,9 +479,12 @@ export async function POST(request: NextRequest) {
         },
       },
       defender: {
-        name:        defPlayer.army_name,
-        ecp_defense: result.defenderECP,
-        losses:      { soldiers: safeDefLosses, cavalry: 0 },
+        name:               defPlayer.army_name,
+        pp_defense:         defenderPP,
+        clan_bonus_defense: defClanBonus,
+        base_ecp_defense:   result.baseDefenderECP,
+        ecp_defense:        result.defenderECP,
+        losses:            { soldiers: safeDefLosses, cavalry: 0 },
         before: {
           gold: defResources.gold, iron: defResources.iron,
           wood: defResources.wood, food: defResources.food,
