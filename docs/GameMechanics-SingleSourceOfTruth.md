@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-05 — BIGINT fix: food formula now uses `Math.ceil`; GROUP 7 rounding tests added. Prior: rate limiting 1 s cooldown on attack/spy.
+**Last updated:** 2026-03-06 — UI-only restructure: Mine (Slave Workforce) and Development pages redesigned. No gameplay logic changed. Prior: BIGINT fix: food formula now uses `Math.ceil`; GROUP 7 rounding tests added.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---

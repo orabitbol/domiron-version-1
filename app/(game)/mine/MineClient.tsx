@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
-import { ResourceBadge } from '@/components/ui/resource-badge'
 import { formatNumber, isVipActive } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
@@ -61,11 +60,17 @@ export function MineClient() {
     slaves_food: ctxArmy?.slaves_food ?? 0,
   }
 
+  // ── Persistent assignments — what is actually allocated (sent to server on Save)
   const [assignments, setAssignments] = useState<Record<JobKey, number>>({
     gold: army.slaves_gold,
     iron: army.slaves_iron,
     wood: army.slaves_wood,
     food: army.slaves_food,
+  })
+
+  // ── Temporary adjustments — how many to send/return right now (resets after each action)
+  const [adjustments, setAdjustments] = useState<Record<JobKey, number>>({
+    gold: 0, iron: 0, wood: 0, food: 0,
   })
 
   const [loading, setLoading] = useState(false)
@@ -75,26 +80,45 @@ export function MineClient() {
   const totalAssigned = assignments.gold + assignments.iron + assignments.wood + assignments.food
   const idleSlaves    = totalSlaves - totalAssigned
 
-  const adjust = useCallback((job: JobKey, delta: number) => {
+  // ── Send: add adjustment amount to a job's assignment, clamp to idle, reset adjustment
+  function handleSend(job: JobKey) {
+    const adj = adjustments[job]
+    if (adj <= 0) return
     setAssignments(prev => {
-      const prevTotal = prev.gold + prev.iron + prev.wood + prev.food
-      const newVal    = Math.max(0, prev[job] + delta)
-      const newTotal  = prevTotal - prev[job] + newVal
-      if (newTotal > totalSlaves) return prev
-      return { ...prev, [job]: newVal }
+      const currentIdle = totalSlaves - (prev.gold + prev.iron + prev.wood + prev.food)
+      const toAdd       = Math.min(adj, Math.max(0, currentIdle))
+      if (toAdd <= 0) return prev
+      return { ...prev, [job]: prev[job] + toAdd }
     })
-  }, [totalSlaves])
+    setAdjustments(prev => ({ ...prev, [job]: 0 }))
+  }
 
-  const handleInput = useCallback((job: JobKey, raw: string) => {
+  // ── Return: subtract adjustment amount from a job's assignment, clamp to 0, reset adjustment
+  function handleReturn(job: JobKey) {
+    const adj = adjustments[job]
+    if (adj <= 0) return
+    setAssignments(prev => ({
+      ...prev,
+      [job]: Math.max(0, prev[job] - adj),
+    }))
+    setAdjustments(prev => ({ ...prev, [job]: 0 }))
+  }
+
+  // ── Step the temporary adjustment input
+  function stepAdjust(job: JobKey, delta: number) {
+    setAdjustments(prev => ({ ...prev, [job]: Math.max(0, prev[job] + delta) }))
+  }
+
+  // ── Set adjustment from typed input
+  function setAdjustInput(job: JobKey, raw: string) {
     const parsed = parseInt(raw, 10)
-    const val    = Number.isNaN(parsed) ? 0 : Math.max(0, parsed)
-    setAssignments(prev => {
-      const otherAssigned = prev.gold + prev.iron + prev.wood + prev.food - prev[job]
-      const clamped = Math.min(val, totalSlaves - otherAssigned)
-      return { ...prev, [job]: clamped }
-    })
-  }, [totalSlaves])
+    setAdjustments(prev => ({
+      ...prev,
+      [job]: Number.isNaN(parsed) ? 0 : Math.max(0, parsed),
+    }))
+  }
 
+  // ── Save to server — identical logic, also resets all adjustments on success
   async function handleSave() {
     if (isFrozen) return
     setLoading(true)
@@ -121,6 +145,8 @@ export function MineClient() {
             food: typeof a.slaves_food === 'number' ? a.slaves_food : 0,
           })
         }
+        // Reset all temporary adjustments after successful save
+        setAdjustments({ gold: 0, iron: 0, wood: 0, food: 0 })
         refresh()
       }
     } catch {
@@ -130,9 +156,9 @@ export function MineClient() {
     }
   }
 
-  const city      = player?.city ?? 1
-  const vipUntil  = player?.vip_until ?? null
-  const playerRace = player?.race ?? ''
+  const city            = player?.city ?? 1
+  const vipUntil        = player?.vip_until ?? null
+  const playerRace      = player?.race ?? ''
   // Race gold bonus: human +15%, dwarf +3% — mirrors tick.ts logic exactly
   const baseRaceGoldBonus = playerRace === 'human' ? BALANCE.raceBonuses.human.goldProductionBonus
                           : playerRace === 'dwarf'  ? BALANCE.raceBonuses.dwarf.goldProductionBonus
@@ -141,7 +167,7 @@ export function MineClient() {
   let grandMin = 0
   let grandMax = 0
   for (const job of JOBS) {
-    const devLevel    = ((development?.[job.devLevelField] as number) || 1)
+    const devLevel     = ((development?.[job.devLevelField] as number) || 1)
     const jobRaceBonus = job.key === 'gold' ? baseRaceGoldBonus : 0
     const { min, max } = calcSlaveProduction(assignments[job.key], devLevel, city, vipUntil, jobRaceBonus, 0)
     grandMin += min
@@ -149,180 +175,298 @@ export function MineClient() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4">
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div>
         <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
           Slave Workforce
         </h1>
-        <p className="text-game-text-secondary font-body mt-1">
-          Assign slaves to resource jobs. Each slave produces only one resource per tick.
-        </p>
       </div>
 
-      {/* Message */}
+      {/* ── Message ─────────────────────────────────────────────────────── */}
       {message && (
-        <div
-          className={`rounded-game-lg border px-4 py-3 font-body text-game-sm ${
-            message.type === 'success'
-              ? 'bg-game-green/10 border-green-900 text-game-green-bright'
-              : 'bg-game-red/10 border-red-900 text-game-red-bright'
-          }`}
-        >
+        <div className={`rounded-game-lg border px-4 py-2.5 font-body text-game-sm ${
+          message.type === 'success'
+            ? 'bg-game-green/10 border-green-900 text-game-green-bright'
+            : 'bg-game-red/10 border-red-900 text-game-red-bright'
+        }`}>
           {message.text}
         </div>
       )}
 
-      {/* Slave summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="card-game p-3 text-center">
-          <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Total Slaves</p>
-          <p className="text-game-xl text-game-gold font-body font-semibold mt-0.5">{formatNumber(totalSlaves)}</p>
-        </div>
-        <div className="card-game p-3 text-center">
-          <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Idle Slaves</p>
-          <p className={`text-game-xl font-body font-semibold mt-0.5 ${idleSlaves < 0 ? 'text-game-red-bright' : 'text-game-gold'}`}>
-            {formatNumber(Math.max(0, idleSlaves))}
-          </p>
-        </div>
-        <div className="card-game p-3 text-center">
-          <p className="text-game-xs text-game-text-secondary font-heading uppercase tracking-wide">Assigned</p>
-          <p className="text-game-xl text-game-gold font-body font-semibold mt-0.5">{formatNumber(totalAssigned)}</p>
+      {/* ── Workforce summary strip ──────────────────────────────────────── */}
+      <div className="rounded-game-lg border border-game-border overflow-hidden bg-gradient-to-b from-game-elevated to-game-surface">
+        <div className="flex divide-x divide-game-border/50">
+          {[
+            { label: 'Total',    value: totalSlaves,             color: 'text-game-gold' },
+            { label: 'Assigned', value: totalAssigned,           color: 'text-game-text-white' },
+            { label: 'Idle',     value: Math.max(0, idleSlaves), color: idleSlaves > 0 ? 'text-amber-400' : 'text-game-text-muted' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="flex-1 flex flex-col items-center py-3 px-2 gap-0.5 min-w-0">
+              <span className={`font-heading text-game-lg font-bold tabular-nums leading-none ${color}`}>
+                {formatNumber(value)}
+              </span>
+              <span className="text-game-xs text-game-text-muted font-body uppercase tracking-wider leading-none mt-0.5">
+                {label}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Assignment rows */}
-      <div className="panel-ornate p-5 space-y-4">
-        <h2 className="panel-header text-game-gold">Job Assignment</h2>
-        <div className="divider-gold" />
+      {/* ── Workforce allocation panel ───────────────────────────────────── */}
+      <div className="rounded-game-lg border border-game-border overflow-hidden bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave">
 
-        <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-4 px-1 text-game-xs font-heading uppercase tracking-wider text-game-text-muted">
-          <span>Job</span>
-          <span className="text-center w-32">Assigned</span>
-          <span className="text-right w-36">Rate / Slave</span>
-          <span className="text-right w-36">Total / Tick</span>
+        {/* Desktop column headers */}
+        <div className="hidden sm:grid grid-cols-[1fr_96px_136px_152px] gap-0 px-4 py-2 bg-game-bg/55 border-b border-game-border/60">
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Job</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Assigned</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Amount</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Action</span>
         </div>
 
-        {JOBS.map((job) => {
-          const devLevel     = ((development?.[job.devLevelField] as number) || 1)
-          const assigned     = assignments[job.key]
-          const jobRaceBonus = job.key === 'gold' ? baseRaceGoldBonus : 0
-          const { min, max } = calcSlaveProduction(assigned, devLevel, city, vipUntil, jobRaceBonus, 0)
+        {/* Job allocation rows */}
+        <div className="divide-y divide-game-border/40">
+          {JOBS.map((job) => {
+            const devLevel     = ((development?.[job.devLevelField] as number) || 1)
+            const assigned     = assignments[job.key]
+            const adjAmt       = adjustments[job.key]
+            const jobRaceBonus = job.key === 'gold' ? baseRaceGoldBonus : 0
+            const atMax        = devLevel >= MAX_DEV_LEVEL
+            const currentRate  = perSlaveRateAt(devLevel, city, vipUntil, jobRaceBonus)
+            const canSend      = adjAmt > 0 && idleSlaves > 0
+            const canReturn    = adjAmt > 0 && assigned > 0
 
-          const currentRate = perSlaveRateAt(devLevel, city, vipUntil, jobRaceBonus)
-          const atMax       = devLevel >= MAX_DEV_LEVEL
-          const nextRate    = atMax ? null : perSlaveRateAt(devLevel + 1, city, vipUntil, jobRaceBonus)
-
-          return (
-            <div
-              key={job.key}
-              className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-3 sm:gap-4 items-center p-3 rounded-game-lg card-game"
-            >
-              <div>
-                <p className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                  {job.icon} {job.label}
-                </p>
-                <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                  Dev Level {devLevel} · <ResourceBadge type={job.resourceType} amount={0} showLabel compact />
-                </p>
-                {nextRate && (
-                  <p className="text-game-xs text-game-text-muted font-body mt-1">
-                    Next level ({devLevel}→{devLevel + 1}):{' '}
-                    <span className="text-game-green-bright font-semibold">{nextRate}</span>
-                    {' '}
-                    <span className="opacity-60">(+0.5 per slave)</span>
-                  </p>
-                )}
-                {atMax && (
-                  <p className="text-game-xs text-game-green-bright font-body mt-1">Max development reached</p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 w-36">
+            // Shared adjustment stepper control
+            const adjControl = (
+              <div className="flex items-center gap-1 justify-center">
                 <button
-                  className="w-7 h-7 rounded-game border border-game-border bg-game-elevated text-game-text-white font-bold text-game-sm hover:border-game-gold hover:text-game-gold transition-colors disabled:opacity-40"
-                  onClick={() => adjust(job.key, -1)}
-                  disabled={assigned <= 0}
-                  aria-label={`Decrease ${job.label} assignment`}
+                  type="button"
+                  className="w-6 h-6 rounded border border-game-border bg-game-bg text-game-text-white font-bold text-xs hover:border-game-gold/50 hover:text-game-gold transition-colors disabled:opacity-30 flex items-center justify-center"
+                  onClick={() => stepAdjust(job.key, -1)}
+                  disabled={adjAmt <= 0}
+                  aria-label="Decrease"
                 >
                   −
                 </button>
                 <input
                   type="number"
                   min={0}
-                  max={totalSlaves}
-                  value={assigned}
-                  onChange={(e) => handleInput(job.key, e.target.value)}
-                  className="w-16 text-center bg-game-surface border border-game-border rounded-game text-game-sm text-game-text-white font-body py-1 focus:outline-none focus:border-game-gold"
+                  value={adjAmt}
+                  onChange={(e) => setAdjustInput(job.key, e.target.value)}
+                  className="w-12 text-center bg-game-surface border border-game-border/70 rounded text-game-sm text-game-text-white font-body py-0.5 focus:outline-none focus:border-game-gold/60"
                 />
                 <button
-                  className="w-7 h-7 rounded-game border border-game-border bg-game-elevated text-game-text-white font-bold text-game-sm hover:border-game-gold hover:text-game-gold transition-colors disabled:opacity-40"
-                  onClick={() => adjust(job.key, 1)}
-                  disabled={idleSlaves <= 0}
-                  aria-label={`Increase ${job.label} assignment`}
+                  type="button"
+                  className="w-6 h-6 rounded border border-game-border bg-game-bg text-game-text-white font-bold text-xs hover:border-game-gold/50 hover:text-game-gold transition-colors disabled:opacity-30 flex items-center justify-center"
+                  onClick={() => stepAdjust(job.key, 1)}
+                  disabled={false}
+                  aria-label="Increase"
                 >
                   +
                 </button>
               </div>
+            )
 
-              <div className="text-game-sm font-body text-right w-36">
-                <span className="text-game-text-muted">Rate: </span>
-                <span className="text-game-gold-bright font-semibold">{currentRate}</span>
-              </div>
+            return (
+              <div key={job.key} className="hover:bg-game-elevated/20 transition-colors">
 
-              <div className="text-game-sm font-body text-right w-36">
-                {assigned === 0 ? (
-                  <span className="text-game-text-muted">—</span>
-                ) : (
-                  <span className="text-game-gold font-semibold">
-                    {formatNumber(min)}–{formatNumber(max)}/tick
-                  </span>
-                )}
+                {/* ── Desktop row ── */}
+                <div className="hidden sm:grid grid-cols-[1fr_96px_136px_152px] items-center px-4 py-3 gap-0">
+
+                  {/* Job name + dev level + rate */}
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">{job.icon}</span>
+                      <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
+                        {job.label}
+                      </span>
+                      <span className={`text-game-xs font-heading px-1.5 py-0.5 rounded border ${
+                        atMax
+                          ? 'border-game-gold/40 text-game-gold bg-game-gold/8'
+                          : 'border-game-border/60 text-game-text-muted bg-game-bg/40'
+                      }`}>
+                        Lv {devLevel}
+                      </span>
+                    </div>
+                    <span className="text-game-xs text-game-text-muted font-body ps-6">
+                      {currentRate} / worker
+                    </span>
+                  </div>
+
+                  {/* Currently assigned — static, prominent */}
+                  <div className="flex flex-col items-center justify-center gap-0.5">
+                    <span className={`font-heading text-game-xl font-bold tabular-nums leading-none ${
+                      assigned > 0 ? 'text-game-gold' : 'text-game-text-muted'
+                    }`}>
+                      {formatNumber(assigned)}
+                    </span>
+                    <span className="text-game-xs text-game-text-muted font-body leading-none">
+                      {assigned === 1 ? 'worker' : 'workers'}
+                    </span>
+                  </div>
+
+                  {/* Adjustment input — temporary */}
+                  {adjControl}
+
+                  {/* Send / Return action buttons */}
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSend(job.key)}
+                      disabled={!canSend || isFrozen}
+                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                        border-game-gold/35 bg-game-gold/8 text-game-gold
+                        hover:bg-game-gold/18 hover:border-game-gold/55 enabled:cursor-pointer"
+                    >
+                      + Send
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReturn(job.key)}
+                      disabled={!canReturn || isFrozen}
+                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                        border-game-border bg-game-elevated text-game-text-muted
+                        hover:border-game-border-hover hover:text-game-text-secondary enabled:cursor-pointer"
+                    >
+                      − Ret
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Mobile row ── */}
+                <div className="sm:hidden px-3 py-3 space-y-2">
+                  {/* Line 1: job name + dev level (left) | assigned count (right) */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-base leading-none flex-shrink-0">{job.icon}</span>
+                      <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white truncate">
+                        {job.label}
+                      </span>
+                      <span className={`text-game-xs font-heading px-1.5 py-0.5 rounded border flex-shrink-0 ${
+                        atMax
+                          ? 'border-game-gold/40 text-game-gold bg-game-gold/8'
+                          : 'border-game-border/60 text-game-text-muted bg-game-bg/40'
+                      }`}>
+                        Lv {devLevel}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <span className={`font-heading text-game-base font-bold tabular-nums ${
+                        assigned > 0 ? 'text-game-gold' : 'text-game-text-muted'
+                      }`}>
+                        {formatNumber(assigned)}
+                      </span>
+                      <span className="text-game-xs text-game-text-muted font-body">workers</span>
+                    </div>
+                  </div>
+                  {/* Line 2: adjustment stepper + action buttons */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {adjControl}
+                    <button
+                      type="button"
+                      onClick={() => handleSend(job.key)}
+                      disabled={!canSend || isFrozen}
+                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30
+                        border-game-gold/35 bg-game-gold/8 text-game-gold
+                        hover:bg-game-gold/18 hover:border-game-gold/55"
+                    >
+                      + Send
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReturn(job.key)}
+                      disabled={!canReturn || isFrozen}
+                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30
+                        border-game-border bg-game-elevated text-game-text-muted
+                        hover:border-game-border-hover hover:text-game-text-secondary"
+                    >
+                      − Ret
+                    </button>
+                    <span className="text-game-xs text-game-text-muted font-body ms-1">
+                      {currentRate}/worker
+                    </span>
+                  </div>
+                </div>
+
               </div>
+            )
+          })}
+        </div>
+
+        {/* ── Footer: idle warning + grand total + save ── */}
+        <div className="border-t border-game-gold/15 bg-game-bg/45 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted">Total / tick</span>
+              <span className="font-heading text-game-base font-bold tabular-nums text-game-gold-bright">
+                {formatNumber(grandMin)}–{formatNumber(grandMax)}
+              </span>
             </div>
-          )
-        })}
-
-        <div className="divider-gold" />
-
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-game-sm font-heading text-game-text-white uppercase tracking-wide">
-              Grand Total Production / Tick
-            </p>
-            <p className="text-game-xl font-body font-semibold text-game-gold-bright">
-              {formatNumber(grandMin)}–{formatNumber(grandMax)}
-            </p>
+            {idleSlaves > 0 && (
+              <span className="text-game-xs font-body text-amber-400/80">
+                ⚠ {formatNumber(idleSlaves)} idle
+              </span>
+            )}
           </div>
-
-          {idleSlaves > 0 && (
-            <div className="text-game-xs font-body text-amber-400/80 border border-amber-900/40 rounded-game-lg px-3 py-2 bg-amber-950/20">
-              ⚠ {formatNumber(idleSlaves)} idle slave{idleSlaves !== 1 ? 's' : ''} — not producing
-            </div>
-          )}
-        </div>
-
-        <Button variant="primary" disabled={isFrozen || loading} loading={loading} onClick={handleSave}>
-          Save Assignment
-        </Button>
-      </div>
-
-      {/* Production reference */}
-      <div className="panel-ornate p-4">
-        <h2 className="panel-header text-game-gold mb-3">Production Reference</h2>
-        <div className="space-y-2 text-game-sm font-body text-game-text-secondary">
-          <p>
-            Each assigned slave produces <strong className="text-game-text-white">one resource</strong> per tick. Idle slaves produce nothing.
-          </p>
-          <p>
-            Output per slave = random({BALANCE.production.baseMin}–{BALANCE.production.baseMax}) × City Mult × Dev Offset × VIP Mult
-          </p>
-          <p className="text-game-xs text-game-text-muted">
-            Dev Offset: each development level adds +0.5 to the production range (Level 1 = 1.0–3.0, Level 2 = 1.5–3.5, …).
-            City multiplier is applied after all offsets. VIP and hero slave bonuses are additional tick-side multipliers.
-          </p>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={isFrozen || loading}
+            loading={loading}
+            onClick={handleSave}
+            className="shrink-0"
+          >
+            Save Assignment
+          </Button>
         </div>
       </div>
+
+      {/* ── Output summary — compact always-visible reference grid ────────── */}
+      <div className="rounded-game-lg border border-game-border/50 overflow-hidden">
+        <div className="px-4 py-2 bg-game-bg/50 border-b border-game-border/50 flex items-center gap-2">
+          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted">Output Summary</span>
+        </div>
+        <div className="divide-y divide-game-border/30">
+          {JOBS.map((job) => {
+            const devLevel     = ((development?.[job.devLevelField] as number) || 1)
+            const assigned     = assignments[job.key]
+            const jobRaceBonus = job.key === 'gold' ? baseRaceGoldBonus : 0
+            const { min, max } = calcSlaveProduction(assigned, devLevel, city, vipUntil, jobRaceBonus, 0)
+            const rate         = perSlaveRateAt(devLevel, city, vipUntil, jobRaceBonus)
+            return (
+              <div
+                key={job.key}
+                className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2"
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm leading-none flex-shrink-0">{job.icon}</span>
+                  <span className="font-body text-game-xs text-game-text-secondary truncate">{job.label}</span>
+                  <span className="text-game-xs text-game-text-muted font-body flex-shrink-0">Lv {devLevel}</span>
+                </div>
+                <span className="text-game-xs text-game-text-muted font-body tabular-nums flex-shrink-0">
+                  {rate}/worker
+                </span>
+                <span className={`text-game-xs font-heading tabular-nums flex-shrink-0 text-right min-w-[80px] ${
+                  assigned > 0 ? 'text-game-gold' : 'text-game-text-muted'
+                }`}>
+                  {assigned > 0 ? `${formatNumber(min)}–${formatNumber(max)}/tick` : '—'}
+                </span>
+              </div>
+            )
+          })}
+          {/* Grand total row */}
+          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2 bg-game-bg/30">
+            <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">Grand Total</span>
+            <span />
+            <span className="text-game-xs font-heading tabular-nums text-game-gold-bright text-right min-w-[80px]">
+              {formatNumber(grandMin)}–{formatNumber(grandMax)}/tick
+            </span>
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }
