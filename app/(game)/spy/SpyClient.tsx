@@ -280,7 +280,23 @@ export function SpyClient({ targets }: Props) {
 
 // ─── Revealed intel panel ──────────────────────────────────────────────────
 
+const ATK_WEAPON_LABELS: Record<string, string> = {
+  slingshot: 'Slingshot', boomerang: 'Boomerang', pirate_knife: 'P.Knife',
+  axe: 'Axe', master_knife: 'M.Knife', knight_axe: 'K.Axe', iron_ball: 'Iron Ball',
+}
+const DEF_WEAPON_LABELS: Record<string, string> = {
+  wood_shield: 'W.Shield', iron_shield: 'I.Shield', leather_armor: 'L.Armor',
+  chain_armor: 'C.Armor', plate_armor: 'Plate', mithril_armor: 'Mithril', gods_armor: "God's",
+}
+
 function RevealedIntel({ data }: { data: SpyRevealedData }) {
+  const atkWeapons = data.attack_weapons ?? {}
+  const defWeapons = data.defense_weapons ?? {}
+  const hasAtkWeapons = Object.values(atkWeapons).some((v) => v > 0)
+  const hasDefWeapons = Object.values(defWeapons).some((v) => v > 0)
+  const hasWeapons = hasAtkWeapons || hasDefWeapons
+  const hasTraining = data.spy_level !== undefined || data.scout_level !== undefined
+
   return (
     <div className="pt-3 space-y-3">
       <div className="divider-ornate mb-3" />
@@ -288,6 +304,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
         Intelligence Report — {data.army_name}
       </p>
 
+      {/* Army */}
       <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
         <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Army</p>
         <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-game-xs font-body">
@@ -299,6 +316,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
         </div>
       </div>
 
+      {/* Resources */}
       <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
         <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Resources</p>
         <div className="flex flex-wrap gap-3">
@@ -306,9 +324,15 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
           <ResourceBadge type="iron" amount={data.iron} showLabel />
           <ResourceBadge type="wood" amount={data.wood} showLabel />
           <ResourceBadge type="food" amount={data.food} showLabel />
+          {data.bank_gold !== undefined && (
+            <span className="text-game-xs font-body text-game-text-muted">
+              Bank: <span className="text-game-gold">{formatNumber(data.bank_gold)}</span> gold
+            </span>
+          )}
         </div>
       </div>
 
+      {/* Power */}
       <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
         <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Power</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-game-xs font-body">
@@ -323,6 +347,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
         </div>
       </div>
 
+      {/* Shields */}
       <div className="flex gap-4 text-game-xs font-body">
         <div className="flex items-center gap-1.5">
           <span className={`inline-block w-2.5 h-2.5 rounded-full border ${data.soldier_shield ? 'bg-blue-400 border-blue-400' : 'bg-transparent border-game-border'}`} />
@@ -337,6 +362,47 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
           </span>
         </div>
       </div>
+
+      {/* Weapons (new — only present on missions after 2026-03-06) */}
+      {hasWeapons && (
+        <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
+          <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">Weapons</p>
+          <div className="space-y-1.5 text-game-xs font-body">
+            {hasAtkWeapons && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-game-text-muted w-14 shrink-0">Attack:</span>
+                {Object.entries(atkWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
+                  <span key={key} className="bg-game-red/10 border border-game-red/30 rounded px-1.5 py-0.5 text-game-red-bright">
+                    {ATK_WEAPON_LABELS[key] ?? key} &times;{qty}
+                  </span>
+                ))}
+              </div>
+            )}
+            {hasDefWeapons && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-game-text-muted w-14 shrink-0">Defense:</span>
+                {Object.entries(defWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
+                  <span key={key} className="bg-game-gold/10 border border-game-gold/30 rounded px-1.5 py-0.5 text-game-gold">
+                    {DEF_WEAPON_LABELS[key] ?? key} &times;{qty}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Training levels (new — only present on missions after 2026-03-06) */}
+      {hasTraining && (
+        <div className="flex gap-4 text-game-xs font-body text-game-text-muted">
+          {data.spy_level !== undefined && (
+            <span>Spy Training: <span className="text-game-text-white">Lv {data.spy_level}</span></span>
+          )}
+          {data.scout_level !== undefined && (
+            <span>Scout Training: <span className="text-game-text-white">Lv {data.scout_level}</span></span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

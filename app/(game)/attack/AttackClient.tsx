@@ -35,6 +35,44 @@ interface Props {
   targets: Target[]
 }
 
+const ATTACK_PAGE_SIZE = 20
+
+function buildPageRange(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | null)[] = [1]
+  if (current > 3) pages.push(null)
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p)
+  }
+  if (current < total - 2) pages.push(null)
+  pages.push(total)
+  return pages
+}
+
+function AtkPageBtn({ label, onClick, disabled, active }: { label: string; onClick: () => void; disabled?: boolean; active?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || active}
+      style={{
+        minWidth: 32, height: 32,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6,
+        border: active ? '1px solid rgba(240,192,48,0.5)' : '1px solid rgba(255,255,255,0.08)',
+        background: active ? 'rgba(240,192,48,0.12)' : disabled ? 'transparent' : 'rgba(255,255,255,0.03)',
+        color: active ? '#F0C030' : disabled ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)',
+        fontSize: 12,
+        fontFamily: 'var(--font-body, sans-serif)',
+        fontWeight: active ? 700 : 400,
+        cursor: (disabled || active) ? 'default' : 'pointer',
+        transition: 'all 0.12s ease',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 const OUTCOME_COLORS: Record<string, string> = {
   WIN:  'text-game-green-bright',
   LOSS: 'text-game-red-bright',
@@ -280,6 +318,7 @@ export function AttackClient({ targets }: Props) {
   const isFrozen = useFreeze()
 
   const [search, setSearch] = useState('')
+  const [attackPage, setAttackPage] = useState(1)
   // localTargets: updated optimistically after battle to reflect fight result (soldiers/gold).
   const [localTargets, setLocalTargets] = useState<Target[]>(targets)
   const [dialogTarget, setDialogTarget] = useState<Target | null>(null)
@@ -295,6 +334,12 @@ export function AttackClient({ targets }: Props) {
     () => localTargets.filter((t) => t.army_name.toLowerCase().includes(search.toLowerCase())),
     [localTargets, search]
   )
+
+  const totalAttackPages = Math.max(1, Math.ceil(filtered.length / ATTACK_PAGE_SIZE))
+  const paginated = useMemo(() => {
+    const from = (attackPage - 1) * ATTACK_PAGE_SIZE
+    return filtered.slice(from, from + ATTACK_PAGE_SIZE)
+  }, [filtered, attackPage])
 
   async function executeAttack(turns: number) {
     if (!dialogTarget || !player || !army || !resources) return
@@ -380,7 +425,7 @@ export function AttackClient({ targets }: Props) {
             Attack
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
-            City {player?.city ?? '—'} — {filtered.filter((t) => t.id !== player?.id).length} targets available
+            City {player?.city ?? '—'} — {filtered.length} targets available
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -408,7 +453,7 @@ export function AttackClient({ targets }: Props) {
       )}
 
       {/* Search */}
-      <Input placeholder="Search by army name..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <Input placeholder="Search by army name..." value={search} onChange={(e) => { setSearch(e.target.value); setAttackPage(1) }} />
 
       {/* Status legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-game-xs font-body text-game-text-muted">
@@ -432,7 +477,7 @@ export function AttackClient({ targets }: Props) {
             headers={['Rank', 'Army Name', 'Tribe', 'Soldiers', 'Gold', 'Status', 'Action']}
             striped
             hoverable
-            rows={filtered.map((target) => {
+            rows={paginated.map((target) => {
               const isSelf = target.id === player?.id
 
               return [
@@ -462,6 +507,24 @@ export function AttackClient({ targets }: Props) {
           />
         )}
       </div>
+
+      {/* Pagination */}
+      {totalAttackPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-body, sans-serif)' }}>
+            Page {attackPage} of {totalAttackPages} &middot; {filtered.length} targets
+          </span>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <AtkPageBtn label="&#8249;" onClick={() => setAttackPage((p) => Math.max(1, p - 1))} disabled={attackPage <= 1} />
+            {buildPageRange(attackPage, totalAttackPages).map((p, i) =>
+              p === null
+                ? <span key={`ellipsis-${i}`} style={{ padding: '0 4px', color: 'rgba(255,255,255,0.2)', fontSize: 12, fontFamily: 'var(--font-body, sans-serif)' }}>&#8230;</span>
+                : <AtkPageBtn key={p} label={String(p)} onClick={() => setAttackPage(p)} active={p === attackPage} />
+            )}
+            <AtkPageBtn label="&#8250;" onClick={() => setAttackPage((p) => Math.min(totalAttackPages, p + 1))} disabled={attackPage >= totalAttackPages} />
+          </div>
+        </div>
+      )}
 
       {/* Attack / Spy dialog */}
       <AttackDialog

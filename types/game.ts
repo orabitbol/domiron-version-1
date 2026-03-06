@@ -444,6 +444,17 @@ export interface SpyRevealedData {
   power_total:     number
   soldier_shield:  boolean
   resource_shield: boolean
+  // ── Extended intel (added 2026-03-06) — absent in legacy spy history records ──
+  /** Gold currently deposited in the target's bank */
+  bank_gold?:        number
+  /** Attack weapons owned (key = weapon slug, value = quantity) */
+  attack_weapons?:   Record<string, number>
+  /** Defense weapons owned (key = weapon slug, value = quantity) */
+  defense_weapons?:  Record<string, number>
+  /** Target's spy training level */
+  spy_level?:        number
+  /** Target's scout training level */
+  scout_level?:      number
 }
 
 // Ranked player (rankings page)

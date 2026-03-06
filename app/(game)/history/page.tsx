@@ -16,7 +16,7 @@ export default async function HistoryPage({
 
   const tab = searchParams.tab ?? 'outgoing'
   const page = Math.max(1, parseInt(searchParams.page ?? '1') || 1)
-  const PAGE_SIZE = 15
+  const PAGE_SIZE = 20
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
@@ -39,7 +39,7 @@ export default async function HistoryPage({
   // Fetch spy history
   const { data: spyHistory, count: spyCount } = await supabase
     .from('spy_history')
-    .select('*, target:players!spy_history_target_id_fkey(army_name)', { count: 'exact' })
+    .select('*, target:players!spy_history_target_id_fkey(army_name, username)', { count: 'exact' })
     .eq('spy_owner_id', playerId)
     .order('created_at', { ascending: false })
     .range(from, to)

@@ -191,13 +191,15 @@ export async function POST(request: NextRequest) {
       { data: defTraining },
       { data: defResources },
       defHero,
+      { data: defBank },
     ] = await Promise.all([
       supabase.from('players').select('city, race, army_name, power_attack, power_defense, power_spy, power_scout, power_total').eq('id', target_id).single(),
       supabase.from('army').select('*').eq('player_id', target_id).single(),
-      supabase.from('weapons').select('scout_boots, scout_cloak, elven_boots').eq('player_id', target_id).single(),
-      supabase.from('training').select('scout_level').eq('player_id', target_id).single(),
+      supabase.from('weapons').select('*').eq('player_id', target_id).single(),
+      supabase.from('training').select('scout_level, spy_level').eq('player_id', target_id).single(),
       supabase.from('resources').select('gold, iron, wood, food').eq('player_id', target_id).single(),
       getActiveHeroEffects(supabase, target_id),
+      supabase.from('bank').select('gold_balance').eq('player_id', target_id).maybeSingle(),
     ])
 
     if (!defPlayer || !defArmy || !defWeapons || !defTraining || !defResources) {
@@ -236,6 +238,8 @@ export async function POST(request: NextRequest) {
     const seasonId = activeSeason.id
 
     // ── Build revealed data (only on success) ─────────────────────────────
+    const w = defWeapons as Record<string, number>
+    const t = defTraining as Record<string, number>
     const revealed = success ? {
       army_name:       defPlayer.army_name,
       soldiers:        defArmy.soldiers,
@@ -254,6 +258,28 @@ export async function POST(request: NextRequest) {
       power_total:     defPlayer.power_total,
       soldier_shield:  defHero.soldierShieldActive,
       resource_shield: defHero.resourceShieldActive,
+      // ── Extended intel ──────────────────────────────────────────────────
+      bank_gold:       defBank?.gold_balance ?? 0,
+      attack_weapons: {
+        slingshot:    w.slingshot    ?? 0,
+        boomerang:    w.boomerang    ?? 0,
+        pirate_knife: w.pirate_knife ?? 0,
+        axe:          w.axe          ?? 0,
+        master_knife: w.master_knife ?? 0,
+        knight_axe:   w.knight_axe   ?? 0,
+        iron_ball:    w.iron_ball    ?? 0,
+      },
+      defense_weapons: {
+        wood_shield:   w.wood_shield   ?? 0,
+        iron_shield:   w.iron_shield   ?? 0,
+        leather_armor: w.leather_armor ?? 0,
+        chain_armor:   w.chain_armor   ?? 0,
+        plate_armor:   w.plate_armor   ?? 0,
+        mithril_armor: w.mithril_armor ?? 0,
+        gods_armor:    w.gods_armor    ?? 0,
+      },
+      spy_level:   t.spy_level   ?? 0,
+      scout_level: t.scout_level ?? 0,
     } : null
 
     // ── Atomic DB write via RPC ───────────────────────────────────────────────

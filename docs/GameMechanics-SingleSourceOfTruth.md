@@ -1,7 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-06 — UI-only restructure: Hero page fully redesigned (cinematic identity panel, Active Powers shields, Power Domains mastery panels). Prior: Mine and Development pages redesigned. No gameplay logic changed in any of these updates.
+**Last updated:** 2026-03-06 — Spy intel expanded: `SpyRevealedData` now includes `bank_gold`, `attack_weapons`, `defense_weapons`, `spy_level`, `scout_level` (all optional for backward compat with old records). Spy API fetches full weapons row + bank + spy_level for defender. History page redesigned. Hero page redesigned. Mine/Development pages redesigned. Formulas and SSOT mechanics unchanged.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
