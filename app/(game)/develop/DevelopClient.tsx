@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { BALANCE } from "@/lib/game/balance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,10 +114,161 @@ function getUpgradeCost(
   };
 }
 
+// ── City Promotion sub-components ─────────────────────────────────────────
+
+function SectionDivider({
+  label,
+  met,
+  metLabel,
+  unmetLabel,
+}: {
+  label: string;
+  met: boolean;
+  metLabel: string;
+  unmetLabel: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        marginBottom: "0.375rem",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "Cinzel, serif",
+          fontSize: "0.56rem",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          color: "rgba(139,90,47,0.75)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
+      <div style={{ flex: 1, height: "1px", background: "rgba(46,32,16,0.55)" }} />
+      <span
+        style={{
+          fontFamily: "Cinzel, serif",
+          fontSize: "0.53rem",
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: met ? "rgba(80,200,80,0.85)" : "rgba(200,80,80,0.75)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {met ? `✓ ${metLabel}` : `✗ ${unmetLabel}`}
+      </span>
+    </div>
+  );
+}
+
+function ReqTableHeader() {
+  const cellStyle: React.CSSProperties = {
+    fontSize: "0.56rem",
+    fontFamily: "Cinzel, serif",
+    letterSpacing: "0.12em",
+    color: "rgba(90,64,32,0.8)",
+    textTransform: "uppercase",
+  };
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 96px 96px 26px",
+        padding: "5px 12px",
+        background: "rgba(8,6,3,0.75)",
+        borderBottom: "1px solid rgba(30,22,10,0.5)",
+        gap: "8px",
+      }}
+    >
+      <span style={cellStyle}>Requirement</span>
+      <span style={{ ...cellStyle, textAlign: "right" }}>Have</span>
+      <span style={{ ...cellStyle, textAlign: "right" }}>Need</span>
+      <span />
+    </div>
+  );
+}
+
+function ReqRow({
+  icon,
+  label,
+  have,
+  need,
+  meets,
+  last,
+}: {
+  icon: string;
+  label: string;
+  have: number;
+  need: number;
+  meets: boolean;
+  last?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 96px 96px 26px",
+        padding: "7px 12px",
+        gap: "8px",
+        alignItems: "center",
+        borderBottom: last ? "none" : "1px solid rgba(20,15,6,0.6)",
+        borderLeft: `3px solid ${meets ? "rgba(60,160,60,0.55)" : "rgba(180,50,50,0.45)"}`,
+        background: meets ? "rgba(20,50,20,0.1)" : "rgba(50,15,15,0.08)",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.73rem",
+          color: "rgba(170,130,80,0.9)",
+          fontFamily: "Source Sans 3, sans-serif",
+          fontWeight: 500,
+        }}
+      >
+        {icon} {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.78rem",
+          fontFamily: "monospace",
+          fontWeight: 700,
+          textAlign: "right",
+          color: meets ? "rgba(80,200,80,0.95)" : "rgba(220,70,70,0.95)",
+        }}
+      >
+        {formatNumber(have)}
+      </span>
+      <span
+        style={{
+          fontSize: "0.76rem",
+          fontFamily: "monospace",
+          textAlign: "right",
+          color: "rgba(100,72,36,0.65)",
+        }}
+      >
+        {formatNumber(need)}
+      </span>
+      <span
+        style={{
+          fontSize: "0.85rem",
+          textAlign: "center",
+          color: meets ? "rgba(80,200,80,0.9)" : "rgba(70,40,20,0.4)",
+          fontWeight: 700,
+        }}
+      >
+        {meets ? "✓" : "·"}
+      </span>
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function DevelopClient() {
-  const { player, development, resources, army, refresh, applyPatch } =
+  const { player, development, resources, army, tribe, refresh, applyPatch } =
     usePlayer();
   const [loading, setLoading] = useState<string | null>(null);
   const [loadingCity, setLoadingCity] = useState(false);
@@ -214,18 +365,18 @@ export function DevelopClient() {
     ? BALANCE.cities.promotion.resourceCostByCity[nextCityNum]
     : null;
 
+  const inTribe = tribe !== null;
   const meetsArmy = nextReq != null && (army?.soldiers ?? 0) >= nextReq;
   const meetsGold = nextCost != null && (resources?.gold ?? 0) >= nextCost.gold;
   const meetsWood = nextCost != null && (resources?.wood ?? 0) >= nextCost.wood;
   const meetsIron = nextCost != null && (resources?.iron ?? 0) >= nextCost.iron;
   const meetsFood = nextCost != null && (resources?.food ?? 0) >= nextCost.food;
+  const meetsAllCosts = meetsGold && meetsWood && meetsIron && meetsFood;
   const canPromote =
     hasNextCity &&
+    !inTribe &&
     meetsArmy &&
-    meetsGold &&
-    meetsWood &&
-    meetsIron &&
-    meetsFood;
+    meetsAllCosts;
 
   const popLevel = development?.population_level ?? 0;
   const popPerTick = BALANCE.training.populationPerTick[popLevel] ?? 1;
@@ -907,53 +1058,42 @@ export function DevelopClient() {
               </div>
             </div>
 
-            {/* ── Campaign Objectives (requirements) ── */}
+            {/* ── Requirements & Cost ── */}
             <div style={{ padding: "0.875rem 1rem 0" }}>
-              {/* Section label */}
+
+              {/* ── Requirements block (soldiers) ── */}
+              <SectionDivider
+                label="Requirements"
+                met={meetsArmy}
+                metLabel="Met"
+                unmetLabel="Not Met"
+              />
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  marginBottom: "0.5rem",
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                  border: "1px solid rgba(30,22,10,0.7)",
+                  marginBottom: "0.75rem",
                 }}
               >
-                <span
-                  style={{
-                    fontFamily: "Cinzel, serif",
-                    fontSize: "0.56rem",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                    color: "rgba(139,90,47,0.75)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Campaign Objectives
-                </span>
-                <div
-                  style={{
-                    flex: 1,
-                    height: "1px",
-                    background: "rgba(46,32,16,0.55)",
-                  }}
+                <ReqTableHeader />
+                <ReqRow
+                  icon="⚔️"
+                  label="Soldiers"
+                  have={army?.soldiers ?? 0}
+                  need={nextReq}
+                  meets={meetsArmy}
+                  last
                 />
-                <span
-                  style={{
-                    fontFamily: "Cinzel, serif",
-                    fontSize: "0.53rem",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: canPromote
-                      ? "rgba(80,200,80,0.85)"
-                      : "rgba(200,80,80,0.75)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {canPromote ? "✓ READY" : "✗ NOT MET"}
-                </span>
               </div>
 
-              {/* Requirements table */}
+              {/* ── Cost block (resources) ── */}
+              <SectionDivider
+                label="Cost"
+                met={meetsAllCosts}
+                metLabel="Can Afford"
+                unmetLabel="Insufficient"
+              />
               <div
                 style={{
                   borderRadius: "6px",
@@ -961,153 +1101,54 @@ export function DevelopClient() {
                   border: "1px solid rgba(30,22,10,0.7)",
                 }}
               >
-                {/* Table header */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 90px 90px 28px",
-                    padding: "5px 10px",
-                    background: "rgba(8,6,3,0.75)",
-                    borderBottom: "1px solid rgba(30,22,10,0.5)",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.56rem",
-                      fontFamily: "Cinzel, serif",
-                      letterSpacing: "0.12em",
-                      color: "rgba(90,64,32,0.8)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Requirement
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.56rem",
-                      fontFamily: "Cinzel, serif",
-                      letterSpacing: "0.12em",
-                      color: "rgba(90,64,32,0.8)",
-                      textTransform: "uppercase",
-                      textAlign: "right",
-                    }}
-                  >
-                    Have
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.56rem",
-                      fontFamily: "Cinzel, serif",
-                      letterSpacing: "0.12em",
-                      color: "rgba(90,64,32,0.8)",
-                      textTransform: "uppercase",
-                      textAlign: "right",
-                    }}
-                  >
-                    Need
-                  </span>
-                  <span />
-                </div>
-
-                {/* Requirement rows */}
+                <ReqTableHeader />
                 {[
-                  {
-                    label: "Soldiers",
-                    icon: "⚔️",
-                    have: army?.soldiers ?? 0,
-                    need: nextReq,
-                    meets: meetsArmy,
-                  },
-                  {
-                    label: "Gold",
-                    icon: "🪙",
-                    have: resources?.gold ?? 0,
-                    need: nextCost.gold,
-                    meets: meetsGold,
-                  },
-                  {
-                    label: "Wood",
-                    icon: "🪵",
-                    have: resources?.wood ?? 0,
-                    need: nextCost.wood,
-                    meets: meetsWood,
-                  },
-                  {
-                    label: "Iron",
-                    icon: "⚙️",
-                    have: resources?.iron ?? 0,
-                    need: nextCost.iron,
-                    meets: meetsIron,
-                  },
-                  {
-                    label: "Food",
-                    icon: "🌾",
-                    have: resources?.food ?? 0,
-                    need: nextCost.food,
-                    meets: meetsFood,
-                  },
+                  { label: "Gold", icon: "🪙", have: resources?.gold ?? 0, need: nextCost.gold, meets: meetsGold },
+                  { label: "Iron", icon: "⚙️", have: resources?.iron ?? 0, need: nextCost.iron, meets: meetsIron },
+                  { label: "Wood", icon: "🪵", have: resources?.wood ?? 0, need: nextCost.wood, meets: meetsWood },
+                  { label: "Food", icon: "🌾", have: resources?.food ?? 0, need: nextCost.food, meets: meetsFood },
                 ].map(({ label, icon, have, need, meets }, idx) => (
-                  <div
+                  <ReqRow
                     key={label}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 90px 90px 28px",
-                      padding: "6px 10px",
-                      gap: "8px",
-                      alignItems: "center",
-                      borderBottom:
-                        idx < 4 ? "1px solid rgba(20,15,6,0.5)" : "none",
-                      background: meets ? "rgba(30,60,30,0.07)" : "transparent",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "rgba(170,130,80,0.85)",
-                        fontFamily: "Source Sans 3, sans-serif",
-                      }}
-                    >
-                      {icon} {label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        fontFamily: "monospace",
-                        fontWeight: 600,
-                        textAlign: "right",
-                        color: meets
-                          ? "rgba(80,200,80,0.9)"
-                          : "rgba(220,70,70,0.9)",
-                      }}
-                    >
-                      {formatNumber(have)}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        fontFamily: "monospace",
-                        textAlign: "right",
-                        color: "rgba(100,72,36,0.7)",
-                      }}
-                    >
-                      {formatNumber(need)}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.8rem",
-                        textAlign: "center",
-                        color: meets
-                          ? "rgba(80,200,80,0.85)"
-                          : "rgba(60,45,22,0.45)",
-                      }}
-                    >
-                      {meets ? "✓" : "·"}
-                    </span>
-                  </div>
+                    icon={icon}
+                    label={label}
+                    have={have}
+                    need={need}
+                    meets={meets}
+                    last={idx === 3}
+                  />
                 ))}
               </div>
             </div>
+
+            {/* ── Tribe-blocked banner ── */}
+            {inTribe && (
+              <div
+                style={{
+                  margin: "0.75rem 1rem 0",
+                  padding: "0.6rem 0.875rem",
+                  borderRadius: "6px",
+                  background: "rgba(120,40,20,0.18)",
+                  border: "1px solid rgba(200,80,50,0.35)",
+                  borderLeft: "3px solid rgba(200,80,50,0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>🚫</span>
+                <span
+                  style={{
+                    fontFamily: "Source Sans 3, sans-serif",
+                    fontSize: "0.72rem",
+                    color: "rgba(220,100,80,0.9)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  You must leave your tribe before promoting your city.
+                </span>
+              </div>
+            )}
 
             {/* ── CTA footer ── */}
             <div
@@ -1117,7 +1158,7 @@ export function DevelopClient() {
                 justifyContent: "space-between",
                 padding: "0.75rem 1rem 1.125rem",
                 gap: "1rem",
-                marginTop: "0.25rem",
+                marginTop: "0.5rem",
               }}
             >
               <p
@@ -1128,7 +1169,7 @@ export function DevelopClient() {
                   fontStyle: "italic",
                 }}
               >
-                Must not be in a tribe · irreversible
+                Irreversible — no downgrade possible
               </p>
               <Button
                 variant="primary"

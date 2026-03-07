@@ -228,7 +228,13 @@ const balanceSchema = z.object({
       resourceCostByCity:     z.record(z.object({
         gold: z.number(), wood: z.number(), iron: z.number(), food: z.number(),
       })),
-    }),
+    }).refine(
+      p => Object.values(p.resourceCostByCity).every(cost => {
+        const { gold, iron, wood, food } = cost as { gold: number; iron: number; wood: number; food: number }
+        return gold === iron && iron === wood && wood === food
+      }),
+      { message: 'resourceCostByCity: all 4 resources must be equal per city tier (equal-cost model)', path: ['resourceCostByCity'] },
+    ),
     slaveProductionMultByCity: z.record(z.number()),
     promotionThresholds: z.object({
       S_base:   z.number().finite(),

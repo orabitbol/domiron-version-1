@@ -1829,19 +1829,21 @@ All six parameters validated by `validateBalance()` at boot (finite, base > 0, g
 
 | Target City | Min Soldiers |
 |---|---|
-| 2 | 100 [TUNE] |
-| 3 | 500 [TUNE] |
-| 4 | 2,000 [TUNE] |
-| 5 | 10,000 [TUNE] |
+| 2 | 200 [TUNE] |
+| 3 | 800 [TUNE] |
+| 4 | 2,500 [TUNE] |
+| 5 | 7,500 [TUNE] |
 
-#### Resource Cost
+#### Resource Cost (equal-cost model, 2026-03-07)
 
-| Target City | Gold | Wood | Iron | Food |
+All 4 resources cost the same per city tier. Single value per row — enforced at boot by `balance-validate.ts`.
+
+| Target City | Gold | Iron | Wood | Food |
 |---|---|---|---|---|
-| 2 | 5,000 | 2,000 | 1,000 | 500 |
-| 3 | 20,000 | 8,000 | 4,000 | 2,000 |
-| 4 | 80,000 | 30,000 | 15,000 | 8,000 |
-| 5 | 300,000 | 100,000 | 50,000 | 25,000 |
+| 2 | 120,000 | 120,000 | 120,000 | 120,000 |
+| 3 | 400,000 | 400,000 | 400,000 | 400,000 |
+| 4 | 1,200,000 | 1,200,000 | 1,200,000 | 1,200,000 |
+| 5 | 3,000,000 | 3,000,000 | 3,000,000 | 3,000,000 |
 
 All values [TUNE].
 

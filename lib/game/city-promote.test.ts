@@ -121,6 +121,29 @@ describe('BALANCE.cities — promotion config integrity', () => {
     expect(BALANCE.cities.slaveProductionMultByCity[1]).toBe(1.0)
   })
 
+  it('equal-cost model: all 4 resources are identical per city tier', () => {
+    for (let city = 2; city <= 5; city++) {
+      const cost = BALANCE.cities.promotion.resourceCostByCity[city]
+      expect(cost.iron).toBe(cost.gold)
+      expect(cost.wood).toBe(cost.gold)
+      expect(cost.food).toBe(cost.gold)
+    }
+  })
+
+  it('canonical soldier requirements match tuned values (2026-03-07)', () => {
+    expect(BALANCE.cities.promotion.soldiersRequiredByCity[2]).toBe(200)
+    expect(BALANCE.cities.promotion.soldiersRequiredByCity[3]).toBe(800)
+    expect(BALANCE.cities.promotion.soldiersRequiredByCity[4]).toBe(2_500)
+    expect(BALANCE.cities.promotion.soldiersRequiredByCity[5]).toBe(7_500)
+  })
+
+  it('canonical resource costs match tuned values (2026-03-07)', () => {
+    expect(BALANCE.cities.promotion.resourceCostByCity[2].gold).toBe(120_000)
+    expect(BALANCE.cities.promotion.resourceCostByCity[3].gold).toBe(400_000)
+    expect(BALANCE.cities.promotion.resourceCostByCity[4].gold).toBe(1_200_000)
+    expect(BALANCE.cities.promotion.resourceCostByCity[5].gold).toBe(3_000_000)
+  })
+
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

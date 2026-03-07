@@ -558,17 +558,19 @@ export const BALANCE = {
     // Soldiers + resources required to promote from City N-1 → N.
     // Must not be in a tribe/clan to promote (enforced in API).
     promotion: {
+      // Equal-cost model (2026-03-07): all 4 resources cost the same per tier.
+      // Single value per city — enforced at boot by balance-validate.ts.
       soldiersRequiredByCity: {
-        2: 100, // [TUNE]
-        3: 500, // [TUNE]
-        4: 2_000, // [TUNE]
-        5: 10_000, // [TUNE]
+        2: 200,    // [TUNE]
+        3: 800,    // [TUNE]
+        4: 2_500,  // [TUNE]
+        5: 7_500,  // [TUNE]
       } as Record<number, number>,
       resourceCostByCity: {
-        2: { gold: 5_000, wood: 2_000, iron: 1_000, food: 500 }, // [TUNE]
-        3: { gold: 20_000, wood: 8_000, iron: 4_000, food: 2_000 }, // [TUNE]
-        4: { gold: 80_000, wood: 30_000, iron: 15_000, food: 8_000 }, // [TUNE]
-        5: { gold: 300_000, wood: 100_000, iron: 50_000, food: 25_000 }, // [TUNE]
+        2: { gold: 120_000,   iron: 120_000,   wood: 120_000,   food: 120_000   }, // [TUNE]
+        3: { gold: 400_000,   iron: 400_000,   wood: 400_000,   food: 400_000   }, // [TUNE]
+        4: { gold: 1_200_000, iron: 1_200_000, wood: 1_200_000, food: 1_200_000 }, // [TUNE]
+        5: { gold: 3_000_000, iron: 3_000_000, wood: 3_000_000, food: 3_000_000 }, // [TUNE]
       } as Record<
         number,
         { gold: number; wood: number; iron: number; food: number }
