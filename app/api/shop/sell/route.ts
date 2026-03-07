@@ -1,3 +1,22 @@
+/**
+ * POST /api/shop/sell
+ *
+ * Thin wrapper over the shop_sell_apply() Postgres RPC.
+ * All validation and mutations happen atomically inside the RPC.
+ *
+ * Refund model (2026-03-07):
+ *   All 4 resources are refunded equally:
+ *   refund.X = floor(cost.X × sellRefundPercent × amount)
+ *
+ *   sellRefundPercent = BALANCE.weapons.sellRefundPercent = 0.20
+ *
+ * Atomicity: shop_sell_apply() acquires FOR UPDATE locks on resources,
+ * players, and weapons rows, re-validates post-lock, and commits all
+ * mutations in one Postgres transaction.  See migration 0023_shop_rpc.sql.
+ *
+ * Duplicate-request guard: last_shop_at stamped atomically in RPC.
+ * Route pre-checks it for fast 429 before spending an RPC round-trip.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
@@ -7,11 +26,32 @@ import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
+const SHOP_COOLDOWN_MS = 500
+
 const schema = z.object({
-  weapon: z.string(),
-  amount: z.number().int().min(1),
+  weapon:   z.string(),
+  amount:   z.number().int().min(1),
   category: z.enum(['attack', 'defense', 'spy', 'scout']),
 })
+
+type WeaponCost = { gold: number; iron: number; wood: number; food: number }
+
+function resolveCost(
+  category: 'attack' | 'defense' | 'spy' | 'scout',
+  weapon: string,
+): WeaponCost | null {
+  const cat = BALANCE.weapons[category] as Record<string, { cost: WeaponCost }>
+  return cat[weapon]?.cost ?? null
+}
+
+const SELL_RPC_ERROR_MAP: Record<string, { status: number; error: string }> = {
+  invalid_amount:         { status: 400, error: 'Invalid amount' },
+  invalid_refund:         { status: 400, error: 'Invalid refund' },
+  unknown_weapon:         { status: 400, error: 'Unknown weapon' },
+  too_many_requests:      { status: 429, error: 'Too many requests — wait a moment' },
+  player_state_not_found: { status: 404, error: 'Player data not found' },
+  not_enough_owned:       { status: 400, error: 'You do not own enough of this item' },
+}
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -20,7 +60,7 @@ export async function POST(request: NextRequest) {
   const playerId = session.user.id
 
   try {
-    const body = await request.json()
+    const body   = await request.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
@@ -28,57 +68,68 @@ export async function POST(request: NextRequest) {
 
     const { weapon, amount, category } = parsed.data
     const supabase = createAdminClient()
+
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
 
-    const [{ data: weapons }, { data: resources }] = await Promise.all([
-      supabase.from('weapons').select('*').eq('player_id', playerId).single(),
-      supabase.from('resources').select('*').eq('player_id', playerId).single(),
-    ])
-
-    if (!weapons || !resources) {
-      return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
+    // ── Resolve cost from BALANCE ─────────────────────────────────────────────
+    const cost = resolveCost(category, weapon)
+    if (!cost) {
+      return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
     }
 
-    const currentOwned = weapons[weapon as keyof typeof weapons] as number
-    if (currentOwned < amount) {
-      return NextResponse.json({ error: `You only own ${currentOwned} of this item` }, { status: 400 })
+    // ── Compute refund amounts ────────────────────────────────────────────────
+    const refundPct  = BALANCE.weapons.sellRefundPercent
+    const refundGold = Math.floor(cost.gold * refundPct * amount)
+    const refundIron = Math.floor(cost.iron * refundPct * amount)
+    const refundWood = Math.floor(cost.wood * refundPct * amount)
+    const refundFood = Math.floor(cost.food * refundPct * amount)
+
+    // ── Fast duplicate-request pre-check ─────────────────────────────────────
+    const { data: playerRow } = await supabase
+      .from('players')
+      .select('last_shop_at')
+      .eq('id', playerId)
+      .single()
+
+    if (playerRow?.last_shop_at) {
+      const msSinceLast = Date.now() - new Date(playerRow.last_shop_at).getTime()
+      if (msSinceLast < SHOP_COOLDOWN_MS) {
+        return NextResponse.json(
+          { error: 'Too many requests — wait a moment' },
+          { status: 429 },
+        )
+      }
     }
 
-    const refundPct = BALANCE.weapons.sellRefundPercent
-    const now = new Date().toISOString()
-    let resourceUpdate: Record<string, number> = {}
+    // ── Atomic RPC ────────────────────────────────────────────────────────────
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('shop_sell_apply', {
+      p_player_id:   playerId,
+      p_weapon:      weapon,
+      p_amount:      amount,
+      p_refund_gold: refundGold,
+      p_refund_iron: refundIron,
+      p_refund_wood: refundWood,
+      p_refund_food: refundFood,
+    })
 
-    if (category === 'attack') {
-      const cfg = BALANCE.weapons.attack[weapon as keyof typeof BALANCE.weapons.attack]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-      const ironRefund = Math.floor(cfg.costIron * refundPct * amount)
-      resourceUpdate = { iron: resources.iron + ironRefund }
-    } else if (category === 'defense') {
-      const cfg = BALANCE.weapons.defense[weapon as keyof typeof BALANCE.weapons.defense]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-      const goldRefund = Math.floor(cfg.costGold * refundPct * amount)
-      resourceUpdate = { gold: resources.gold + goldRefund }
-    } else if (category === 'spy') {
-      const cfg = BALANCE.weapons.spy[weapon as keyof typeof BALANCE.weapons.spy]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-      const goldRefund = Math.floor(cfg.costGold * refundPct * amount)
-      resourceUpdate = { gold: resources.gold + goldRefund }
-    } else if (category === 'scout') {
-      const cfg = BALANCE.weapons.scout[weapon as keyof typeof BALANCE.weapons.scout]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-      const goldRefund = Math.floor(cfg.costGold * refundPct * amount)
-      resourceUpdate = { gold: resources.gold + goldRefund }
+    if (rpcError) {
+      console.error('[shop/sell] RPC error:', rpcError)
+      return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 
-    await Promise.all([
-      supabase.from('resources').update({ ...resourceUpdate, updated_at: now }).eq('player_id', playerId),
-      supabase.from('weapons').update({ [weapon]: currentOwned - amount, updated_at: now }).eq('player_id', playerId),
-    ])
+    const result = rpcResult as { ok: boolean; error?: string }
+    if (!result.ok) {
+      const mapped = SELL_RPC_ERROR_MAP[result.error ?? '']
+      return NextResponse.json(
+        { error: mapped?.error ?? 'Sell failed' },
+        { status: mapped?.status ?? 400 },
+      )
+    }
 
-    // Recalculate power (weapons changed)
     await recalculatePower(playerId, supabase)
 
+    // ── Return updated snapshot ───────────────────────────────────────────────
     const [{ data: updatedWeapons }, { data: updatedResources }] = await Promise.all([
       supabase.from('weapons').select('*').eq('player_id', playerId).single(),
       supabase.from('resources').select('*').eq('player_id', playerId).single(),
@@ -86,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ weapons: updatedWeapons, resources: updatedResources })
   } catch (err) {
-    console.error('Shop/sell error:', err)
+    console.error('[shop/sell] unexpected error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

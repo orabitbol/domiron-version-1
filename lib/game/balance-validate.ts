@@ -198,12 +198,25 @@ const balanceSchema = z.object({
     elf:   z.object({ spyBonus: z.number(),     scoutBonus: z.number() }),
     dwarf: z.object({ defenseBonus: z.number(), goldProductionBonus: z.number() }),
   }),
-  // weapons: required keys only; gods_armor extra cost keys use .passthrough()
+  // weapons: unified 4-resource cost model (2026-03-07)
+  // All categories share cost: { gold, iron, wood, food }.
+  // attack has power (additive); defense has multiplier (multiplicative).
+  // No maxPerPlayer cap — attack weapons are stackable without limit.
   weapons: z.object({
-    attack:            z.record(z.object({ power: z.number(), maxPerPlayer: z.number(), costIron: z.number() })),
-    defense:           z.record(z.object({ multiplier: z.number(), costGold: z.number() }).passthrough()),
-    spy:               z.record(z.object({ costGold: z.number() })),
-    scout:             z.record(z.object({ costGold: z.number() })),
+    attack:  z.record(z.object({
+      power: z.number(),
+      cost:  z.object({ gold: z.number(), iron: z.number(), wood: z.number(), food: z.number() }),
+    })),
+    defense: z.record(z.object({
+      multiplier: z.number(),
+      cost:       z.object({ gold: z.number(), iron: z.number(), wood: z.number(), food: z.number() }),
+    })),
+    spy:     z.record(z.object({
+      cost: z.object({ gold: z.number(), iron: z.number(), wood: z.number(), food: z.number() }),
+    })),
+    scout:   z.record(z.object({
+      cost: z.object({ gold: z.number(), iron: z.number(), wood: z.number(), food: z.number() }),
+    })),
     sellRefundPercent: z.number(),
   }),
   cities: z.object({

@@ -1,3 +1,25 @@
+/**
+ * POST /api/shop/buy
+ *
+ * Thin wrapper over the shop_buy_apply() Postgres RPC.
+ * All validation and mutations happen atomically inside the RPC.
+ *
+ * Pricing model (2026-03-07):
+ *   Every weapon deducts ALL 4 resources equally.
+ *   cost = BALANCE.weapons[category][weapon].cost = { gold, iron, wood, food }
+ *   Total deducted = cost.X × amount for each resource X.
+ *
+ * Ownership rules:
+ *   attack:                stackable — no per-player cap.
+ *   defense / spy / scout: one per player — rejected if currentOwned > 0.
+ *
+ * Atomicity: shop_buy_apply() acquires FOR UPDATE locks on resources,
+ * players, and weapons rows, re-validates post-lock, and commits all
+ * mutations in one Postgres transaction.  See migration 0023_shop_rpc.sql.
+ *
+ * Duplicate-request guard: last_shop_at stamped atomically in RPC.
+ * Route pre-checks it for fast 429 before spending an RPC round-trip.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
@@ -7,11 +29,36 @@ import { BALANCE } from '@/lib/game/balance'
 import { recalculatePower } from '@/lib/game/power'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
+const SHOP_COOLDOWN_MS = 500
+
 const schema = z.object({
-  weapon: z.string(),
-  amount: z.number().int().min(1),
+  weapon:   z.string(),
+  amount:   z.number().int().min(1),
   category: z.enum(['attack', 'defense', 'spy', 'scout']),
 })
+
+type WeaponCost = { gold: number; iron: number; wood: number; food: number }
+
+function resolveCost(
+  category: 'attack' | 'defense' | 'spy' | 'scout',
+  weapon: string,
+): WeaponCost | null {
+  const cat = BALANCE.weapons[category] as Record<string, { cost: WeaponCost }>
+  return cat[weapon]?.cost ?? null
+}
+
+const BUY_RPC_ERROR_MAP: Record<string, { status: number; error: string }> = {
+  invalid_amount:          { status: 400, error: 'Invalid amount' },
+  invalid_cost:            { status: 400, error: 'Invalid cost' },
+  unknown_weapon:          { status: 400, error: 'Unknown weapon' },
+  too_many_requests:       { status: 429, error: 'Too many requests — wait a moment' },
+  player_state_not_found:  { status: 404, error: 'Player data not found' },
+  already_owned:           { status: 400, error: 'Already own this item' },
+  not_enough_gold:         { status: 400, error: 'Not enough gold' },
+  not_enough_iron:         { status: 400, error: 'Not enough iron' },
+  not_enough_wood:         { status: 400, error: 'Not enough wood' },
+  not_enough_food:         { status: 400, error: 'Not enough food' },
+}
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -20,7 +67,7 @@ export async function POST(request: NextRequest) {
   const playerId = session.user.id
 
   try {
-    const body = await request.json()
+    const body   = await request.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
@@ -28,108 +75,67 @@ export async function POST(request: NextRequest) {
 
     const { weapon, amount, category } = parsed.data
     const supabase = createAdminClient()
+
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
 
-    const [{ data: weapons }, { data: resources }] = await Promise.all([
-      supabase.from('weapons').select('*').eq('player_id', playerId).single(),
-      supabase.from('resources').select('*').eq('player_id', playerId).single(),
-    ])
-
-    if (!weapons || !resources) {
-      return NextResponse.json({ error: 'Player data not found' }, { status: 404 })
+    // ── Resolve cost from BALANCE (single source of truth) ───────────────────
+    const cost = resolveCost(category, weapon)
+    if (!cost) {
+      return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
     }
 
-    const now = new Date().toISOString()
-    let resourceUpdate: Record<string, number> = {}
-    let weaponUpdate: Record<string, number> = {}
+    const totalGold = cost.gold * amount
+    const totalIron = cost.iron * amount
+    const totalWood = cost.wood * amount
+    const totalFood = cost.food * amount
 
-    if (category === 'attack') {
-      const cfg = BALANCE.weapons.attack[weapon as keyof typeof BALANCE.weapons.attack]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
+    // ── Fast duplicate-request pre-check ─────────────────────────────────────
+    const { data: playerRow } = await supabase
+      .from('players')
+      .select('last_shop_at')
+      .eq('id', playerId)
+      .single()
 
-      const currentOwned = weapons[weapon as keyof typeof weapons] as number
-      if (currentOwned + amount > cfg.maxPerPlayer) {
-        return NextResponse.json({
-          error: `Max ${cfg.maxPerPlayer} of this weapon allowed (you own ${currentOwned})`,
-        }, { status: 400 })
+    if (playerRow?.last_shop_at) {
+      const msSinceLast = Date.now() - new Date(playerRow.last_shop_at).getTime()
+      if (msSinceLast < SHOP_COOLDOWN_MS) {
+        return NextResponse.json(
+          { error: 'Too many requests — wait a moment' },
+          { status: 429 },
+        )
       }
-
-      const totalIronCost = cfg.costIron * amount
-      if (resources.iron < totalIronCost) {
-        return NextResponse.json({ error: 'Not enough iron' }, { status: 400 })
-      }
-
-      resourceUpdate = { iron: resources.iron - totalIronCost }
-      weaponUpdate = { [weapon]: currentOwned + amount }
-    } else if (category === 'defense') {
-      const cfg = BALANCE.weapons.defense[weapon as keyof typeof BALANCE.weapons.defense]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-
-      const currentOwned = weapons[weapon as keyof typeof weapons] as number
-      if (currentOwned > 0) {
-        return NextResponse.json({ error: 'Already own this armor' }, { status: 400 })
-      }
-
-      // gods_armor costs gold + iron + wood
-      const godsArmor = weapon === 'gods_armor' ? BALANCE.weapons.defense.gods_armor as { costGold: number; multiplier: number; costIron?: number; costWood?: number } : null
-      const ironCost = godsArmor?.costIron ?? 0
-      const woodCost = godsArmor?.costWood ?? 0
-
-      if (resources.gold < cfg.costGold) {
-        return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
-      }
-      if (ironCost > 0 && resources.iron < ironCost) {
-        return NextResponse.json({ error: 'Not enough iron' }, { status: 400 })
-      }
-      if (woodCost > 0 && resources.wood < woodCost) {
-        return NextResponse.json({ error: 'Not enough wood' }, { status: 400 })
-      }
-
-      resourceUpdate = {
-        gold: resources.gold - cfg.costGold,
-        ...(ironCost > 0 ? { iron: resources.iron - ironCost } : {}),
-        ...(woodCost > 0 ? { wood: resources.wood - woodCost } : {}),
-      }
-      weaponUpdate = { [weapon]: 1 }
-    } else if (category === 'spy') {
-      const cfg = BALANCE.weapons.spy[weapon as keyof typeof BALANCE.weapons.spy]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-
-      const currentOwned = weapons[weapon as keyof typeof weapons] as number
-      if (currentOwned > 0) {
-        return NextResponse.json({ error: 'Already own this gear' }, { status: 400 })
-      }
-      if (resources.gold < cfg.costGold) {
-        return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
-      }
-
-      resourceUpdate = { gold: resources.gold - cfg.costGold }
-      weaponUpdate = { [weapon]: 1 }
-    } else if (category === 'scout') {
-      const cfg = BALANCE.weapons.scout[weapon as keyof typeof BALANCE.weapons.scout]
-      if (!cfg) return NextResponse.json({ error: 'Unknown weapon' }, { status: 400 })
-
-      const currentOwned = weapons[weapon as keyof typeof weapons] as number
-      if (currentOwned > 0) {
-        return NextResponse.json({ error: 'Already own this gear' }, { status: 400 })
-      }
-      if (resources.gold < cfg.costGold) {
-        return NextResponse.json({ error: 'Not enough gold' }, { status: 400 })
-      }
-
-      resourceUpdate = { gold: resources.gold - cfg.costGold }
-      weaponUpdate = { [weapon]: 1 }
     }
 
-    await Promise.all([
-      supabase.from('resources').update({ ...resourceUpdate, updated_at: now }).eq('player_id', playerId),
-      supabase.from('weapons').update({ ...weaponUpdate, updated_at: now }).eq('player_id', playerId),
-    ])
+    // ── Atomic RPC ────────────────────────────────────────────────────────────
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('shop_buy_apply', {
+      p_player_id:  playerId,
+      p_weapon:     weapon,
+      p_amount:     amount,
+      p_is_multi:   category === 'attack',
+      p_total_gold: totalGold,
+      p_total_iron: totalIron,
+      p_total_wood: totalWood,
+      p_total_food: totalFood,
+    })
 
-    // Recalculate power (weapons changed)
+    if (rpcError) {
+      console.error('[shop/buy] RPC error:', rpcError)
+      return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    }
+
+    const result = rpcResult as { ok: boolean; error?: string }
+    if (!result.ok) {
+      const mapped = BUY_RPC_ERROR_MAP[result.error ?? '']
+      return NextResponse.json(
+        { error: mapped?.error ?? 'Purchase failed' },
+        { status: mapped?.status ?? 400 },
+      )
+    }
+
     await recalculatePower(playerId, supabase)
 
+    // ── Return updated snapshot ───────────────────────────────────────────────
     const [{ data: updatedWeapons }, { data: updatedResources }] = await Promise.all([
       supabase.from('weapons').select('*').eq('player_id', playerId).single(),
       supabase.from('resources').select('*').eq('player_id', playerId).single(),
@@ -137,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ weapons: updatedWeapons, resources: updatedResources })
   } catch (err) {
-    console.error('Shop/buy error:', err)
+    console.error('[shop/buy] unexpected error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

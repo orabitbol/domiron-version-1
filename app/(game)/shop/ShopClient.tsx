@@ -1,50 +1,70 @@
 "use client";
 
+/**
+ * ShopClient — Domiron Weapons Shop
+ *
+ * Scroll-jump fix (2026-03-07):
+ *   ALL sub-components (CostPill, OwnedPill, TierBadge, IconBox, RowWrap,
+ *   ArmoryPanel) are defined OUTSIDE the ShopClient function. Defining them
+ *   inside caused React to see new component-type references on every state
+ *   update → remount the subtree → destroy the focused Input → browser
+ *   scroll to top. Moving them outside gives stable references across renders.
+ *
+ * Pricing model (2026-03-07):
+ *   All items cost all 4 resources equally.
+ *   Prices read exclusively from BALANCE.weapons[category][weapon].cost.
+ *   No hardcoded price constants in this file.
+ *
+ * Attack weapons: stackable (no per-player cap).
+ * Defense / Spy / Scout: one per player.
+ */
+
 import { useState } from "react";
 import { BALANCE } from "@/lib/game/balance";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ResourceQuad } from "@/components/ui/resource-quad";
 import { formatNumber } from "@/lib/utils";
 import { usePlayer } from "@/lib/context/PlayerContext";
 import { useFreeze } from "@/lib/hooks/useFreeze";
 import type { Weapons, Resources } from "@/types/game";
 
+// ── Types & constants ─────────────────────────────────────────────────────────
+
 type TabKey = "attack" | "defense" | "spy" | "scout";
 
 const TABS = [
-  { key: "attack", label: "Arsenal", icon: "⚔️" },
-  { key: "defense", label: "Armory", icon: "🛡️" },
-  { key: "spy", label: "Shadows", icon: "🌑" },
-  { key: "scout", label: "Rangers", icon: "👁️" },
+  { key: "attack",  label: "Arsenal", icon: "⚔️" },
+  { key: "defense", label: "Armory",  icon: "🛡️" },
+  { key: "spy",     label: "Shadows", icon: "🌑" },
+  { key: "scout",   label: "Rangers", icon: "👁️" },
 ];
 
-// ── Item lists — unchanged keys, order, and values ───────────────────────
-
 const ATTACK_WEAPONS = [
-  { key: "slingshot", label: "Slingshot" },
-  { key: "boomerang", label: "Boomerang" },
+  { key: "slingshot",    label: "Slingshot"    },
+  { key: "boomerang",    label: "Boomerang"    },
   { key: "pirate_knife", label: "Pirate Knife" },
-  { key: "axe", label: "Axe" },
+  { key: "axe",          label: "Axe"          },
   { key: "master_knife", label: "Master Knife" },
-  { key: "knight_axe", label: "Knight Axe" },
-  { key: "iron_ball", label: "Iron Ball" },
+  { key: "knight_axe",   label: "Knight Axe"   },
+  { key: "iron_ball",    label: "Iron Ball"    },
 ] as const;
 
 const DEFENSE_WEAPONS = [
-  { key: "wood_shield", label: "Wood Shield" },
-  { key: "iron_shield", label: "Iron Shield" },
+  { key: "wood_shield",   label: "Wood Shield"   },
+  { key: "iron_shield",   label: "Iron Shield"   },
   { key: "leather_armor", label: "Leather Armor" },
-  { key: "chain_armor", label: "Chain Armor" },
-  { key: "plate_armor", label: "Plate Armor" },
+  { key: "chain_armor",   label: "Chain Armor"   },
+  { key: "plate_armor",   label: "Plate Armor"   },
   { key: "mithril_armor", label: "Mithril Armor" },
-  { key: "gods_armor", label: "God's Armor" },
+  { key: "gods_armor",    label: "God's Armor"   },
 ] as const;
 
 const SPY_WEAPONS = [
   { key: "shadow_cloak", label: "Shadow Cloak" },
-  { key: "dark_mask", label: "Dark Mask" },
-  { key: "elven_gear", label: "Elven Gear" },
+  { key: "dark_mask",    label: "Dark Mask"    },
+  { key: "elven_gear",   label: "Elven Gear"   },
 ] as const;
 
 const SCOUT_WEAPONS = [
@@ -53,18 +73,9 @@ const SCOUT_WEAPONS = [
   { key: "elven_boots", label: "Elven Boots" },
 ] as const;
 
-const SPY_PRICES: Record<string, number> = {
-  shadow_cloak: 5000,
-  dark_mask: 20000,
-  elven_gear: 80000,
-};
-const SCOUT_PRICES: Record<string, number> = {
-  scout_boots: 5000,
-  scout_cloak: 20000,
-  elven_boots: 80000,
-};
+const ROMAN = ["I", "II", "III"] as const;
 
-// ── Visual tier system ─────────────────────────────────────────────────────
+// ── Visual tier system ────────────────────────────────────────────────────────
 
 type TierKey = "rustic" | "iron" | "forged" | "runic" | "divine";
 
@@ -138,34 +149,276 @@ const TIER: Record<TierKey, TierStyle> = {
   },
 };
 
-// ── Weapon icon + tier metadata ────────────────────────────────────────────
-
 const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
-  slingshot: { icon: "🪃", tier: "rustic" },
-  boomerang: { icon: "🎯", tier: "rustic" },
-  pirate_knife: { icon: "🗡️", tier: "iron" },
-  axe: { icon: "🪓", tier: "iron" },
+  slingshot:    { icon: "🪃", tier: "rustic" },
+  boomerang:    { icon: "🎯", tier: "rustic" },
+  pirate_knife: { icon: "🗡️", tier: "iron"   },
+  axe:          { icon: "🪓", tier: "iron"   },
   master_knife: { icon: "⚔️", tier: "forged" },
-  knight_axe: { icon: "🔱", tier: "runic" },
-  iron_ball: { icon: "💀", tier: "divine" },
-  wood_shield: { icon: "🛡️", tier: "rustic" },
-  iron_shield: { icon: "🛡️", tier: "iron" },
-  leather_armor: { icon: "🥷", tier: "iron" },
-  chain_armor: { icon: "⛓️", tier: "forged" },
-  plate_armor: { icon: "🦾", tier: "forged" },
-  mithril_armor: { icon: "💠", tier: "runic" },
-  gods_armor: { icon: "👑", tier: "divine" },
-  shadow_cloak: { icon: "🌑", tier: "iron" },
-  dark_mask: { icon: "🎭", tier: "forged" },
-  elven_gear: { icon: "🧝", tier: "runic" },
-  scout_boots: { icon: "👢", tier: "iron" },
-  scout_cloak: { icon: "🗺️", tier: "forged" },
-  elven_boots: { icon: "🌟", tier: "runic" },
+  knight_axe:   { icon: "🔱", tier: "runic"  },
+  iron_ball:    { icon: "💀", tier: "divine" },
+  wood_shield:   { icon: "🛡️", tier: "rustic" },
+  iron_shield:   { icon: "🛡️", tier: "iron"   },
+  leather_armor: { icon: "🥷", tier: "iron"   },
+  chain_armor:   { icon: "⛓️", tier: "forged" },
+  plate_armor:   { icon: "🦾", tier: "forged" },
+  mithril_armor: { icon: "💠", tier: "runic"  },
+  gods_armor:    { icon: "👑", tier: "divine" },
+  shadow_cloak: { icon: "🌑", tier: "iron"   },
+  dark_mask:    { icon: "🎭", tier: "forged" },
+  elven_gear:   { icon: "🧝", tier: "runic"  },
+  scout_boots:  { icon: "👢", tier: "iron"   },
+  scout_cloak:  { icon: "🗺️", tier: "forged" },
+  elven_boots:  { icon: "🌟", tier: "runic"  },
 };
 
-const ROMAN = ["I", "II", "III"] as const;
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTS — defined OUTSIDE ShopClient so their type references are
+// stable across re-renders. Defining them inside the component function causes
+// React to treat them as new types on each render, unmounting subtrees and
+// destroying focused inputs, which makes the page scroll to the top.
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// ── Component ──────────────────────────────────────────────────────────────
+function OwnedPill({ count }: { count: number }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        padding: "4px 12px",
+        borderRadius: "6px",
+        background: count > 0 ? "rgba(30,22,10,0.65)" : "rgba(0,0,0,0.28)",
+        border: count > 0
+          ? "1px solid rgba(201,144,26,0.3)"
+          : "1px solid rgba(201,144,26,0.12)",
+        fontFamily: "Source Sans 3, sans-serif",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.55rem",
+          fontWeight: 600,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase" as const,
+          color: count > 0 ? "rgba(201,144,26,0.7)" : "rgba(201,144,26,0.38)",
+        }}
+      >
+        Owned
+      </span>
+      <span
+        className="tabular-nums"
+        style={{
+          fontSize: "0.85rem",
+          fontWeight: 800,
+          color: count > 0 ? "rgba(240,200,52,0.95)" : "rgba(201,144,26,0.35)",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {formatNumber(count)}
+      </span>
+    </span>
+  );
+}
+
+function TierBadge({ t }: { t: TierStyle }) {
+  return (
+    <span
+      style={{
+        fontSize: "0.44rem",
+        letterSpacing: "0.1em",
+        textTransform: "uppercase" as const,
+        padding: "1px 5px",
+        borderRadius: "3px",
+        background: t.badgeBg,
+        border: `1px solid ${t.badgeBorder}`,
+        color: t.textColor,
+        fontFamily: "Cinzel, serif",
+        flexShrink: 0,
+      }}
+    >
+      {t.label}
+    </span>
+  );
+}
+
+function IconBox({ icon, t }: { icon: string; t: TierStyle }) {
+  return (
+    <div
+      style={{
+        width: 48,
+        height: 48,
+        flexShrink: 0,
+        borderRadius: "8px",
+        background: t.iconBg,
+        border: `1.5px solid ${t.iconBorder}`,
+        boxShadow: t.iconShadow,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "1.5rem",
+      }}
+    >
+      {icon}
+    </div>
+  );
+}
+
+function RowWrap({
+  t,
+  owned,
+  children,
+}: {
+  t: TierStyle;
+  owned?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: "8px",
+        overflow: "hidden",
+        border: "1px solid rgba(32,24,12,0.85)",
+        borderLeft: `3px solid ${t.leftBorder}`,
+        background: t.rowBg,
+        boxShadow: owned ? `inset 0 0 0 1px rgba(60,160,60,0.08)` : "none",
+        transition: "box-shadow 0.15s",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ArmoryPanel({
+  icon,
+  title,
+  subtitle,
+  resource,
+  children,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  resource: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="rounded-game-xl overflow-hidden"
+      style={{
+        position: "relative",
+        border: "1px solid rgba(201,144,26,0.28)",
+        borderTop: "1px solid rgba(201,144,26,0.5)",
+        background: "linear-gradient(180deg, rgba(18,14,7,0.99), rgba(8,6,3,1))",
+        boxShadow: "0 8px 48px rgba(0,0,0,0.85), inset 0 1px 0 rgba(240,192,48,0.1)",
+      }}
+    >
+      {/* Map grid texture */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          backgroundImage:
+            "linear-gradient(rgba(201,144,26,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(201,144,26,0.018) 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+        }}
+      />
+
+      {/* Corner ornaments */}
+      {(["tl", "tr", "bl", "br"] as const).map((corner) => (
+        <div
+          key={corner}
+          style={{
+            position: "absolute",
+            top:    corner.startsWith("t") ? 9 : undefined,
+            bottom: corner.startsWith("b") ? 9 : undefined,
+            left:   corner.endsWith("l")   ? 9 : undefined,
+            right:  corner.endsWith("r")   ? 9 : undefined,
+            width: 16,
+            height: 16,
+            borderTop:    corner.startsWith("t") ? "1.5px solid rgba(201,144,26,0.48)" : undefined,
+            borderBottom: corner.startsWith("b") ? "1.5px solid rgba(201,144,26,0.48)" : undefined,
+            borderLeft:   corner.endsWith("l")   ? "1.5px solid rgba(201,144,26,0.48)" : undefined,
+            borderRight:  corner.endsWith("r")   ? "1.5px solid rgba(201,144,26,0.48)" : undefined,
+            pointerEvents: "none",
+            zIndex: 2,
+          }}
+        />
+      ))}
+
+      {/* Panel header */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          padding: "0.875rem 1.25rem 0.75rem",
+          borderBottom: "1px solid rgba(201,144,26,0.16)",
+          background: "linear-gradient(180deg, rgba(201,144,26,0.09) 0%, rgba(201,144,26,0.02) 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "3px" }}>
+            <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>{icon}</span>
+            <h2 className="font-display text-game-base gold-gradient-text-static text-title-glow uppercase tracking-widest">
+              {title}
+            </h2>
+          </div>
+          <p
+            style={{
+              fontFamily: "Source Sans 3, sans-serif",
+              fontSize: "0.65rem",
+              color: "rgba(139,90,47,0.72)",
+              lineHeight: 1.3,
+            }}
+          >
+            {subtitle}
+          </p>
+        </div>
+        <span
+          style={{
+            fontFamily: "Cinzel, serif",
+            fontSize: "0.55rem",
+            letterSpacing: "0.14em",
+            textTransform: "uppercase" as const,
+            padding: "3px 8px",
+            borderRadius: "4px",
+            flexShrink: 0,
+            background: "rgba(30,22,10,0.6)",
+            border: "1px solid rgba(201,144,26,0.22)",
+            color: "rgba(201,144,26,0.7)",
+          }}
+        >
+          {resource}
+        </span>
+      </div>
+
+      {/* Items */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          padding: "0.75rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function ShopClient() {
   const { weapons, resources, refresh, applyPatch } = usePlayer();
@@ -178,19 +431,17 @@ export function ShopClient() {
     type: "success" | "error";
   } | null>(null);
 
-  // Fallback empty objects so reads never throw
-  const weaponState = weapons ?? ({} as Weapons);
-  const resourceState =
-    resources ?? ({ gold: 0, iron: 0, wood: 0, food: 0 } as Resources);
+  const weaponState   = weapons   ?? ({} as Weapons);
+  const resourceState = resources ?? ({ gold: 0, iron: 0, wood: 0, food: 0 } as Resources);
 
-  // ── Buy / Sell — identical logic ─────────────────────────────────────────
+  // ── Actions ────────────────────────────────────────────────────────────────
 
   async function handleBuy(weaponKey: string, category: string) {
     const amt = parseInt(amounts[weaponKey] || "1") || 1;
     setLoading(`buy-${weaponKey}`);
     setMessage(null);
     try {
-      const res = await fetch("/api/shop/buy", {
+      const res  = await fetch("/api/shop/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weapon: weaponKey, amount: amt, category }),
@@ -199,17 +450,14 @@ export function ShopClient() {
       if (!res.ok) {
         setMessage({ text: data.error ?? "Purchase failed", type: "error" });
       } else {
-        setMessage({
-          text: `Purchased ${amt}x ${weaponKey.replace(/_/g, " ")}`,
-          type: "success",
-        });
+        setMessage({ text: `Purchased ${amt}× ${weaponKey.replace(/_/g, " ")}`, type: "success" });
         setAmounts((p) => {
           if (!(weaponKey in p)) return p;
           const next = { ...p };
           delete next[weaponKey];
           return next;
         });
-        if (data.weapons) applyPatch({ weapons: data.weapons });
+        if (data.weapons)   applyPatch({ weapons:   data.weapons   });
         if (data.resources) applyPatch({ resources: data.resources });
         refresh();
       }
@@ -225,7 +473,7 @@ export function ShopClient() {
     setLoading(`sell-${weaponKey}`);
     setMessage(null);
     try {
-      const res = await fetch("/api/shop/sell", {
+      const res  = await fetch("/api/shop/sell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weapon: weaponKey, amount: amt, category }),
@@ -234,17 +482,14 @@ export function ShopClient() {
       if (!res.ok) {
         setMessage({ text: data.error ?? "Sale failed", type: "error" });
       } else {
-        setMessage({
-          text: `Sold ${amt}x ${weaponKey.replace(/_/g, " ")}`,
-          type: "success",
-        });
+        setMessage({ text: `Sold ${amt}× ${weaponKey.replace(/_/g, " ")}`, type: "success" });
         setAmounts((p) => {
           if (!(weaponKey in p)) return p;
           const next = { ...p };
           delete next[weaponKey];
           return next;
         });
-        if (data.weapons) applyPatch({ weapons: data.weapons });
+        if (data.weapons)   applyPatch({ weapons:   data.weapons   });
         if (data.resources) applyPatch({ resources: data.resources });
         refresh();
       }
@@ -255,338 +500,7 @@ export function ShopClient() {
     }
   }
 
-  // ── Shared sub-elements ───────────────────────────────────────────────────
-
   const refundPct = (BALANCE.weapons.sellRefundPercent * 100).toFixed(0);
-
-  function CostPill({
-    icon,
-    text,
-    tone = "gold",
-  }: {
-    icon: string;
-    text: string;
-    tone?: "gold" | "iron";
-  }) {
-    const styles =
-      tone === "iron"
-        ? {
-            fg: "rgba(140,190,255,0.95)",
-            bg: "rgba(22,40,78,0.55)",
-            br: "rgba(75,115,180,0.45)",
-          }
-        : {
-            fg: "rgba(240,200,52,0.95)",
-            bg: "rgba(58,42,8,0.55)",
-            br: "rgba(201,144,26,0.45)",
-          };
-
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          padding: "2px 8px",
-          borderRadius: "999px",
-          background: styles.bg,
-          border: `1px solid ${styles.br}`,
-          color: styles.fg,
-          fontWeight: 700,
-          letterSpacing: "0.02em",
-          fontFamily: "Source Sans 3, sans-serif",
-          fontSize: "0.66rem",
-          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.22)",
-        }}
-      >
-        <span style={{ opacity: 0.95 }}>{icon}</span>
-        <span className="tabular-nums">{text}</span>
-      </span>
-    );
-  }
-
-  function OwnedPill({ count }: { count: number }) {
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "5px",
-          padding: "4px 12px",
-          borderRadius: "6px",
-          background: count > 0 ? "rgba(30,22,10,0.65)" : "rgba(0,0,0,0.28)",
-          border: count > 0
-            ? "1px solid rgba(201,144,26,0.3)"
-            : "1px solid rgba(201,144,26,0.12)",
-          fontFamily: "Source Sans 3, sans-serif",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "0.55rem",
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: count > 0 ? "rgba(201,144,26,0.7)" : "rgba(201,144,26,0.38)",
-          }}
-        >
-          Owned
-        </span>
-        <span
-          className="tabular-nums"
-          style={{
-            fontSize: "0.85rem",
-            fontWeight: 800,
-            color: count > 0 ? "rgba(240,200,52,0.95)" : "rgba(201,144,26,0.35)",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {formatNumber(count)}
-        </span>
-      </span>
-    );
-  }
-
-  function TierBadge({ t }: { t: TierStyle }) {
-    return (
-      <span
-        style={{
-          fontSize: "0.44rem",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          padding: "1px 5px",
-          borderRadius: "3px",
-          background: t.badgeBg,
-          border: `1px solid ${t.badgeBorder}`,
-          color: t.textColor,
-          fontFamily: "Cinzel, serif",
-          flexShrink: 0,
-        }}
-      >
-        {t.label}
-      </span>
-    );
-  }
-
-  function IconBox({ icon, t }: { icon: string; t: TierStyle }) {
-    return (
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          flexShrink: 0,
-          borderRadius: "8px",
-          background: t.iconBg,
-          border: `1.5px solid ${t.iconBorder}`,
-          boxShadow: t.iconShadow,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1.5rem",
-        }}
-      >
-        {icon}
-      </div>
-    );
-  }
-
-  // ── Row wrappers ──────────────────────────────────────────────────────────
-
-  function RowWrap({
-    t,
-    owned: isOwned,
-    children,
-  }: {
-    t: TierStyle;
-    owned?: boolean;
-    children: React.ReactNode;
-  }) {
-    return (
-      <div
-        style={{
-          borderRadius: "8px",
-          overflow: "hidden",
-          border: "1px solid rgba(32,24,12,0.85)",
-          borderLeft: `3px solid ${t.leftBorder}`,
-          background: t.rowBg,
-          boxShadow: isOwned ? `inset 0 0 0 1px rgba(60,160,60,0.08)` : "none",
-          transition: "box-shadow 0.15s",
-        }}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  // ── Category panel wrapper ────────────────────────────────────────────────
-
-  function ArmoryPanel({
-    icon,
-    title,
-    subtitle,
-    resource,
-    children,
-  }: {
-    icon: string;
-    title: string;
-    subtitle: string;
-    resource: string;
-    children: React.ReactNode;
-  }) {
-    return (
-      <div
-        className="rounded-game-xl overflow-hidden"
-        style={{
-          position: "relative",
-          border: "1px solid rgba(201,144,26,0.28)",
-          borderTop: "1px solid rgba(201,144,26,0.5)",
-          background:
-            "linear-gradient(180deg, rgba(18,14,7,0.99), rgba(8,6,3,1))",
-          boxShadow:
-            "0 8px 48px rgba(0,0,0,0.85), inset 0 1px 0 rgba(240,192,48,0.1)",
-        }}
-      >
-        {/* Map grid texture */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            zIndex: 0,
-            backgroundImage:
-              "linear-gradient(rgba(201,144,26,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(201,144,26,0.018) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-
-        {/* Corner ornaments */}
-        <div
-          style={{
-            position: "absolute",
-            top: 9,
-            left: 9,
-            width: 16,
-            height: 16,
-            borderTop: "1.5px solid rgba(201,144,26,0.48)",
-            borderLeft: "1.5px solid rgba(201,144,26,0.48)",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: 9,
-            right: 9,
-            width: 16,
-            height: 16,
-            borderTop: "1.5px solid rgba(201,144,26,0.48)",
-            borderRight: "1.5px solid rgba(201,144,26,0.48)",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: 9,
-            left: 9,
-            width: 16,
-            height: 16,
-            borderBottom: "1.5px solid rgba(201,144,26,0.48)",
-            borderLeft: "1.5px solid rgba(201,144,26,0.48)",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: 9,
-            right: 9,
-            width: 16,
-            height: 16,
-            borderBottom: "1.5px solid rgba(201,144,26,0.48)",
-            borderRight: "1.5px solid rgba(201,144,26,0.48)",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        />
-
-        {/* Panel header */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            padding: "0.875rem 1.25rem 0.75rem",
-            borderBottom: "1px solid rgba(201,144,26,0.16)",
-            background:
-              "linear-gradient(180deg, rgba(201,144,26,0.09) 0%, rgba(201,144,26,0.02) 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "1rem",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.625rem",
-                marginBottom: "3px",
-              }}
-            >
-              <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>{icon}</span>
-              <h2 className="font-display text-game-base gold-gradient-text-static text-title-glow uppercase tracking-widest">
-                {title}
-              </h2>
-            </div>
-            <p
-              style={{
-                fontFamily: "Source Sans 3, sans-serif",
-                fontSize: "0.65rem",
-                color: "rgba(139,90,47,0.72)",
-                lineHeight: 1.3,
-              }}
-            >
-              {subtitle}
-            </p>
-          </div>
-          <span
-            style={{
-              fontFamily: "Cinzel, serif",
-              fontSize: "0.55rem",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              padding: "3px 8px",
-              borderRadius: "4px",
-              flexShrink: 0,
-              background: "rgba(30,22,10,0.6)",
-              border: "1px solid rgba(201,144,26,0.22)",
-              color: "rgba(201,144,26,0.7)",
-            }}
-          >
-            {resource}
-          </span>
-        </div>
-
-        {/* Items */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            padding: "0.75rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-          }}
-        >
-          {children}
-        </div>
-      </div>
-    );
-  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -607,35 +521,25 @@ export function ShopClient() {
             marginTop: "2px",
           }}
         >
-          The Iron Vault · Arm your forces for conquest
+          The Iron Vault · All weapons cost all 4 resources equally
         </p>
       </div>
 
-      {/* ── Resource strip ──────────────────────────────────────────────── */}
+      {/* ── Resource strip (all 4) ───────────────────────────────────────── */}
       <div className="rounded-game-lg border border-game-border overflow-hidden bg-gradient-to-b from-game-elevated to-game-surface">
         <div className="flex divide-x divide-game-border/50">
           {[
-            {
-              icon: "🪙",
-              label: "Gold",
-              value: resourceState.gold,
-              color: "text-res-gold",
-            },
-            {
-              icon: "⚙️",
-              label: "Iron",
-              value: resourceState.iron,
-              color: "text-res-iron",
-            },
+            { icon: "🪙", label: "Gold",  value: resourceState.gold,  color: "text-res-gold"  },
+            { icon: "⚙️", label: "Iron",  value: resourceState.iron,  color: "text-res-iron"  },
+            { icon: "🪵", label: "Wood",  value: resourceState.wood,  color: "text-res-wood"  },
+            { icon: "🌾", label: "Food",  value: resourceState.food,  color: "text-res-food"  },
           ].map(({ icon, label, value, color }) => (
             <div
               key={label}
-              className="flex-1 flex flex-col items-center py-3 px-4 gap-0.5 min-w-0"
+              className="flex-1 flex flex-col items-center py-3 px-2 gap-0.5 min-w-0"
             >
               <span className="text-base leading-none">{icon}</span>
-              <span
-                className={`font-heading text-game-base font-bold tabular-nums leading-none ${color}`}
-              >
+              <span className={`font-heading text-game-base font-bold tabular-nums leading-none ${color}`}>
                 {formatNumber(value)}
               </span>
               <span className="text-game-xs text-game-text-muted font-body uppercase tracking-wider leading-none mt-0.5">
@@ -643,7 +547,7 @@ export function ShopClient() {
               </span>
             </div>
           ))}
-          <div className="flex-1 flex flex-col items-center justify-center py-3 px-4 gap-0.5">
+          <div className="flex-1 flex flex-col items-center justify-center py-3 px-2 gap-0.5">
             <span className="text-game-xs text-game-text-muted font-body uppercase tracking-wider">
               Sell Refund
             </span>
@@ -675,33 +579,30 @@ export function ShopClient() {
       />
 
       {/* ══════════════════════════════════════════════════════════════════
-          ATTACK WEAPONS
+          ATTACK WEAPONS — stackable, no cap
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "attack" && (
         <ArmoryPanel
           icon="⚔️"
           title="Iron Arsenal"
-          subtitle="Forged weapons that channel raw offensive power into each strike of your soldiers."
-          resource="Paid in Iron"
+          subtitle="Forged weapons that channel raw offensive power. Stackable — no limit."
+          resource="🪙⚙️🪵🌾 All Resources"
         >
           {ATTACK_WEAPONS.map(({ key, label }) => {
-            const cfg = BALANCE.weapons.attack[key];
-            const owned = (weaponState[key] as number) ?? 0;
-            const costIron = cfg.costIron;
-            const refund = Math.floor(
-              costIron * BALANCE.weapons.sellRefundPercent,
-            );
-            const amt = parseInt(amounts[key] || "1") || 1;
-            const canBuy =
-              resourceState.iron >= costIron * amt &&
-              owned + amt <= cfg.maxPerPlayer;
+            const cfg     = BALANCE.weapons.attack[key];
+            const owned   = (weaponState[key] as number) ?? 0;
+            const amt     = parseInt(amounts[key] || "1") || 1;
+            const cost    = cfg.cost;
+            const canAfford =
+              resourceState.gold >= cost.gold * amt &&
+              resourceState.iron >= cost.iron * amt &&
+              resourceState.wood >= cost.wood * amt &&
+              resourceState.food >= cost.food * amt;
+            const canBuy  = canAfford;  // no cap
             const canSell = owned >= amt;
-            const isMaxed = owned >= cfg.maxPerPlayer;
-            const meta = WEAPON_META[key] ?? {
-              icon: "⚔️",
-              tier: "iron" as TierKey,
-            };
-            const t = TIER[meta.tier];
+            const meta    = WEAPON_META[key] ?? { icon: "⚔️", tier: "iron" as TierKey };
+            const t       = TIER[meta.tier];
+            const refundEach = Math.floor(cost.gold * BALANCE.weapons.sellRefundPercent);
 
             return (
               <RowWrap key={key} t={t}>
@@ -715,11 +616,12 @@ export function ShopClient() {
                     padding: "10px 12px 10px",
                   }}
                 >
+                  {/* Icon */}
                   <div style={{ gridColumn: 1, gridRow: 1 }}>
                     <IconBox icon={meta.icon} t={t} />
                   </div>
 
-                  {/* Item identity */}
+                  {/* Identity + cost */}
                   <div style={{ gridColumn: 2, gridRow: 1, minWidth: 0 }}>
                     <div
                       style={{
@@ -734,41 +636,25 @@ export function ShopClient() {
                         {label}
                       </span>
                       <TierBadge t={t} />
-                      {isMaxed && (
-                        <span
-                          style={{
-                            fontSize: "0.44rem",
-                            letterSpacing: "0.1em",
-                            textTransform: "uppercase",
-                            padding: "1px 5px",
-                            borderRadius: "3px",
-                            background: "rgba(58,44,8,0.8)",
-                            border: "1px solid rgba(201,144,26,0.5)",
-                            color: "rgba(240,198,48,0.9)",
-                            fontFamily: "Cinzel, serif",
-                          }}
-                        >
-                          Maxed
-                        </span>
-                      )}
                     </div>
                     <div
                       style={{
                         display: "flex",
-                        gap: "10px",
-                        fontSize: "0.64rem",
-                        color: "rgba(110,88,58,0.8)",
-                        fontFamily: "Source Sans 3, sans-serif",
-                        flexWrap: "wrap",
+                        gap: "8px",
                         alignItems: "center",
+                        flexWrap: "wrap",
                       }}
                     >
-                      <CostPill
-                        icon="⚙"
-                        text={`${formatNumber(costIron)} iron`}
-                        tone="iron"
-                      />
-                      <span>↩ {formatNumber(refund)}</span>
+                      <ResourceQuad cost={cost} amount={amt} />
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "rgba(100,80,48,0.75)",
+                          fontFamily: "Source Sans 3, sans-serif",
+                        }}
+                      >
+                        ↩ {formatNumber(refundEach)} ea.
+                      </span>
                     </div>
                   </div>
 
@@ -813,7 +699,7 @@ export function ShopClient() {
                     </div>
                   </div>
 
-                  {/* Owned count (under icon) */}
+                  {/* Owned count */}
                   <div
                     style={{
                       gridColumn: "1 / 3",
@@ -826,10 +712,8 @@ export function ShopClient() {
                     <OwnedPill count={owned} />
                   </div>
 
-                  {/* Actions (under stat plate) */}
-                  <div
-                    style={{ gridColumn: 3, gridRow: 2, justifySelf: "end" }}
-                  >
+                  {/* Actions */}
+                  <div style={{ gridColumn: 3, gridRow: 2, justifySelf: "end" }}>
                     <div
                       style={{
                         display: "flex",
@@ -849,7 +733,6 @@ export function ShopClient() {
                         placeholder="Qty"
                         value={amounts[key] ?? ""}
                         min={1}
-                        max={cfg.maxPerPlayer}
                         onChange={(e) =>
                           setAmounts((p) => ({ ...p, [key]: e.target.value }))
                         }
@@ -883,38 +766,32 @@ export function ShopClient() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          DEFENSE WEAPONS
+          DEFENSE WEAPONS — one per player
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "defense" && (
         <ArmoryPanel
           icon="🛡️"
           title="Armory Vault"
-          subtitle="Armor and shields that multiply your defensive resilience. One piece per warrior — choose wisely."
-          resource="Paid in Gold"
+          subtitle="Armor that multiplies your defensive resilience. One piece per warrior — choose wisely."
+          resource="🪙⚙️🪵🌾 All Resources"
         >
           {DEFENSE_WEAPONS.map(({ key, label }) => {
-            const cfg = BALANCE.weapons.defense[key];
-            const owned = (weaponState[key] as number) ?? 0;
-            const costGold = cfg.costGold;
-            const refund = Math.floor(
-              costGold * BALANCE.weapons.sellRefundPercent,
-            );
-            const isGodsArmor = key === "gods_armor";
-            const canBuy =
-              !owned &&
-              resourceState.gold >= costGold &&
-              (!isGodsArmor ||
-                (resourceState.iron >= 500000 && resourceState.wood >= 300000));
-            const canSell = owned > 0;
-            const meta = WEAPON_META[key] ?? {
-              icon: "🛡️",
-              tier: "iron" as TierKey,
-            };
-            const t = TIER[meta.tier];
+            const cfg      = BALANCE.weapons.defense[key];
+            const owned    = (weaponState[key] as number) ?? 0;
+            const cost     = cfg.cost;
+            const canAfford =
+              resourceState.gold >= cost.gold &&
+              resourceState.iron >= cost.iron &&
+              resourceState.wood >= cost.wood &&
+              resourceState.food >= cost.food;
+            const canBuy   = !owned && canAfford;
+            const canSell  = owned > 0;
+            const meta     = WEAPON_META[key] ?? { icon: "🛡️", tier: "iron" as TierKey };
+            const t        = TIER[meta.tier];
+            const refundEach = Math.floor(cost.gold * BALANCE.weapons.sellRefundPercent);
 
             return (
               <RowWrap key={key} t={t} owned={owned > 0}>
-                {/* Top section: icon + info + stat plate */}
                 <div
                   style={{
                     display: "flex",
@@ -925,7 +802,6 @@ export function ShopClient() {
                 >
                   <IconBox icon={meta.icon} t={t} />
 
-                  {/* Item identity */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
@@ -961,30 +837,21 @@ export function ShopClient() {
                     <div
                       style={{
                         display: "flex",
-                        gap: "10px",
-                        fontSize: "0.64rem",
-                        color: "rgba(110,88,58,0.8)",
-                        fontFamily: "Source Sans 3, sans-serif",
-                        flexWrap: "wrap",
+                        gap: "8px",
                         alignItems: "center",
+                        flexWrap: "wrap",
                       }}
                     >
-                      <CostPill
-                        icon="🪙"
-                        text={`${formatNumber(costGold)} gold`}
-                        tone="gold"
-                      />
-                      {isGodsArmor && (
-                        <>
-                          <span style={{ color: "rgba(120,160,210,0.8)" }}>
-                            + 500K iron
-                          </span>
-                          <span style={{ color: "rgba(110,175,120,0.8)" }}>
-                            + 300K wood
-                          </span>
-                        </>
-                      )}
-                      <span>↩ {formatNumber(refund)}</span>
+                      <ResourceQuad cost={cost} />
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "rgba(100,80,48,0.75)",
+                          fontFamily: "Source Sans 3, sans-serif",
+                        }}
+                      >
+                        ↩ {formatNumber(refundEach)} ea.
+                      </span>
                     </div>
                   </div>
 
@@ -1027,7 +894,6 @@ export function ShopClient() {
                   </div>
                 </div>
 
-                {/* Bottom section: buy + sell */}
                 <div
                   style={{
                     display: "flex",
@@ -1062,33 +928,33 @@ export function ShopClient() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          SPY GEAR
+          SPY GEAR — one per player
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "spy" && (
         <ArmoryPanel
           icon="🌑"
           title="Shadow Market"
-          subtitle="Covert equipment that enhances your agents' power and concealment in enemy territory."
-          resource="Paid in Gold"
+          subtitle="Covert equipment that enhances your agents. One piece per operative."
+          resource="🪙⚙️🪵🌾 All Resources"
         >
           {SPY_WEAPONS.map(({ key, label }, idx) => {
-            const owned = (weaponState[key] as number) ?? 0;
-            const costGold = SPY_PRICES[key] ?? 0;
-            const refund = Math.floor(
-              costGold * BALANCE.weapons.sellRefundPercent,
-            );
-            const canBuy = !owned && resourceState.gold >= costGold;
+            const cfg    = BALANCE.weapons.spy[key];
+            const owned  = (weaponState[key] as number) ?? 0;
+            const cost   = cfg.cost;
+            const canAfford =
+              resourceState.gold >= cost.gold &&
+              resourceState.iron >= cost.iron &&
+              resourceState.wood >= cost.wood &&
+              resourceState.food >= cost.food;
+            const canBuy  = !owned && canAfford;
             const canSell = owned > 0;
-            const meta = WEAPON_META[key] ?? {
-              icon: "🌑",
-              tier: "iron" as TierKey,
-            };
-            const t = TIER[meta.tier];
+            const meta    = WEAPON_META[key] ?? { icon: "🌑", tier: "iron" as TierKey };
+            const t       = TIER[meta.tier];
             const tierNum = ROMAN[idx];
+            const refundEach = Math.floor(cost.gold * BALANCE.weapons.sellRefundPercent);
 
             return (
               <RowWrap key={key} t={t} owned={owned > 0}>
-                {/* Top section: icon + info + stat plate */}
                 <div
                   style={{
                     display: "flex",
@@ -1099,7 +965,6 @@ export function ShopClient() {
                 >
                   <IconBox icon={meta.icon} t={t} />
 
-                  {/* Item identity */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
@@ -1135,20 +1000,21 @@ export function ShopClient() {
                     <div
                       style={{
                         display: "flex",
-                        gap: "10px",
-                        fontSize: "0.64rem",
-                        color: "rgba(110,88,58,0.8)",
-                        fontFamily: "Source Sans 3, sans-serif",
+                        gap: "8px",
                         alignItems: "center",
                         flexWrap: "wrap",
                       }}
                     >
-                      <CostPill
-                        icon="🪙"
-                        text={`${formatNumber(costGold)} gold`}
-                        tone="gold"
-                      />
-                      <span>↩ {formatNumber(refund)}</span>
+                      <ResourceQuad cost={cost} />
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "rgba(100,80,48,0.75)",
+                          fontFamily: "Source Sans 3, sans-serif",
+                        }}
+                      >
+                        ↩ {formatNumber(refundEach)} ea.
+                      </span>
                     </div>
                   </div>
 
@@ -1191,7 +1057,6 @@ export function ShopClient() {
                   </div>
                 </div>
 
-                {/* Bottom section: buy + sell */}
                 <div
                   style={{
                     display: "flex",
@@ -1226,33 +1091,33 @@ export function ShopClient() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          SCOUT GEAR
+          SCOUT GEAR — one per player
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "scout" && (
         <ArmoryPanel
           icon="👁️"
           title="Ranger's Cache"
-          subtitle="Equipment that sharpens your scouts' vision and reach beyond the fog of war."
-          resource="Paid in Gold"
+          subtitle="Equipment that sharpens your scouts' vision and reach. One piece per scout."
+          resource="🪙⚙️🪵🌾 All Resources"
         >
           {SCOUT_WEAPONS.map(({ key, label }, idx) => {
-            const owned = (weaponState[key] as number) ?? 0;
-            const costGold = SCOUT_PRICES[key] ?? 0;
-            const refund = Math.floor(
-              costGold * BALANCE.weapons.sellRefundPercent,
-            );
-            const canBuy = !owned && resourceState.gold >= costGold;
+            const cfg    = BALANCE.weapons.scout[key];
+            const owned  = (weaponState[key] as number) ?? 0;
+            const cost   = cfg.cost;
+            const canAfford =
+              resourceState.gold >= cost.gold &&
+              resourceState.iron >= cost.iron &&
+              resourceState.wood >= cost.wood &&
+              resourceState.food >= cost.food;
+            const canBuy  = !owned && canAfford;
             const canSell = owned > 0;
-            const meta = WEAPON_META[key] ?? {
-              icon: "👢",
-              tier: "iron" as TierKey,
-            };
-            const t = TIER[meta.tier];
+            const meta    = WEAPON_META[key] ?? { icon: "👢", tier: "iron" as TierKey };
+            const t       = TIER[meta.tier];
             const tierNum = ROMAN[idx];
+            const refundEach = Math.floor(cost.gold * BALANCE.weapons.sellRefundPercent);
 
             return (
               <RowWrap key={key} t={t} owned={owned > 0}>
-                {/* Top section: icon + info + stat plate */}
                 <div
                   style={{
                     display: "flex",
@@ -1263,7 +1128,6 @@ export function ShopClient() {
                 >
                   <IconBox icon={meta.icon} t={t} />
 
-                  {/* Item identity */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
@@ -1299,20 +1163,21 @@ export function ShopClient() {
                     <div
                       style={{
                         display: "flex",
-                        gap: "10px",
-                        fontSize: "0.64rem",
-                        color: "rgba(110,88,58,0.8)",
-                        fontFamily: "Source Sans 3, sans-serif",
+                        gap: "8px",
                         alignItems: "center",
                         flexWrap: "wrap",
                       }}
                     >
-                      <CostPill
-                        icon="🪙"
-                        text={`${formatNumber(costGold)} gold`}
-                        tone="gold"
-                      />
-                      <span>↩ {formatNumber(refund)}</span>
+                      <ResourceQuad cost={cost} />
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "rgba(100,80,48,0.75)",
+                          fontFamily: "Source Sans 3, sans-serif",
+                        }}
+                      >
+                        ↩ {formatNumber(refundEach)} ea.
+                      </span>
                     </div>
                   </div>
 
@@ -1355,7 +1220,6 @@ export function ShopClient() {
                   </div>
                 </div>
 
-                {/* Bottom section: buy + sell */}
                 <div
                   style={{
                     display: "flex",
@@ -1365,7 +1229,7 @@ export function ShopClient() {
                   }}
                 >
                   <Button
-                    variant="primary"
+                    variant="magic"
                     size="sm"
                     disabled={isFrozen || !canBuy || !!loading}
                     loading={loading === `buy-${key}`}

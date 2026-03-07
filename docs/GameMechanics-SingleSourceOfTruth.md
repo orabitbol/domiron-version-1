@@ -1,7 +1,11 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-07 (pass 2) — Tribe Level Upgrade system implemented. (1) `BALANCE.tribe.levelUpgrade` added: explicit lookup table, costs 100/250/500/1000 tribe mana for levels 1→2/2→3/3→4/4→5. (2) DB migration `0022_tribe_level_upgrade.sql`: CHECK constraint `tribes.level BETWEEN 1 AND 5`, new RPC `tribe_upgrade_level_apply(UUID, INT, INT, INT)` — TOCTTOU-safe, locks tribe_members then tribes in consistent order, stale-read guard via p_next_level, writes mana deduction + level increment atomically, inserts audit log. (3) API route `POST /api/tribe/upgrade-level` — season freeze guard + fast pre-validation + atomic RPC. Permission: leader or deputy only. (4) Tribe tab renamed "Spells" → "Upgrade"; tab key `spells` → `upgrade`. Upgrade tab now shows: Tribe Level panel (current/next level, efficiency, cost, upgrade CTA) + Mana pool / contribute + Spells. (5) `balance-validate.ts` updated with tribe.levelUpgrade Zod schema + two refines. 5 new tests in `balance.test.ts`. (6) SSOT §10 fully updated.
+**Last updated:** 2026-03-07 (pass 5) — Shop RPC correctness + design documentation. (1) Critical bug fixed: both RPCs now have explicit `IF NOT FOUND THEN RETURN player_state_not_found` guards after every `SELECT ... FOR UPDATE`. Without these, PL/pgSQL leaves variables as NULL when no row is found; all `IF NULL < N` guards evaluate as false (not true), UPDATEs affect 0 rows, and the function silently returns `ok:true` (false success). (2) Both route error maps updated: `player_state_not_found → 404` added to `BUY_RPC_ERROR_MAP` and `SELL_RPC_ERROR_MAP`. (3) Cooldown semantics documented explicitly: `last_shop_at` is an intentional **global shop throttle** (not per-request idempotency), consistent with `last_attack_at`/`last_spy_at`. (4) Power recalculation outside RPC documented as acceptable: power columns are denormalized caches; same pattern as all other mutation routes; moving formula to SQL would violate SSOT. (5) Tests updated: structural tests for `player_state_not_found` in both routes; logic simulation tests for NOT FOUND null-comparison behavior; design decision documentation tests for throttle and power decisions. (6) §12 SSOT fully updated.
+**Last updated (pass 4):** 2026-03-07 — Shop atomicity. (1) `shop_buy_apply` and `shop_sell_apply` Postgres RPCs added (`0023_shop_rpc.sql`): acquire `FOR UPDATE` locks on resources+players (JOIN) then weapons, re-validate all conditions post-lock (TOCTTOU-safe), commit all mutations in one transaction. (2) `players.last_shop_at TIMESTAMPTZ` column added — stamped atomically in RPC, pre-checked in route for fast 429 within 500 ms window. (3) Both routes rewritten as thin wrappers: resolve cost from BALANCE → compute totals → pre-check cooldown → call RPC → map error codes → recalculatePower → return snapshot. (4) `types/game.ts` Player interface: `last_shop_at: string | null` added. (5) `lib/game/shop.test.ts` updated: structural tests now assert RPC delegation, cooldown guard, error map; logic simulation tests extended with cooldown + error-code tests. (6) §12 SSOT fully updated with atomicity flow, lock order, RPC error table.
+**Last updated (pass 3):** 2026-03-07 — Shop system overhauled. (1) All weapon purchases now cost ALL 4 resources equally: `cost = { gold, iron, wood, food }` in `BALANCE.weapons`. Legacy `costIron`/`costGold` fields fully removed. (2) `maxPerPlayer` cap removed from attack weapons — attack gear is now stackable without limit. (3) Buy + sell routes simplified to a single unified code path: `resolveCost(category, weapon)` → check all 4 resources → apply. (4) Sell route now refunds all 4 resources proportionally. (5) Scroll-jump-to-top bug fixed: sub-components in ShopClient moved outside the component function body. (6) Hardcoded `SPY_PRICES`/`SCOUT_PRICES` constants removed from ShopClient; prices now read exclusively from BALANCE. (7) `ResourceQuad` component added (`components/ui/resource-quad.tsx`): compact all-4-resource cost display. (8) `balance-validate.ts` Zod schema updated for new cost shape. (9) 43 shop tests added in `lib/game/shop.test.ts`.
+
+**Last updated (pass 2):** 2026-03-07 — Tribe Level Upgrade system implemented. (1) `BALANCE.tribe.levelUpgrade` added: explicit lookup table, costs 100/250/500/1000 tribe mana for levels 1→2/2→3/3→4/4→5. (2) DB migration `0022_tribe_level_upgrade.sql`: CHECK constraint `tribes.level BETWEEN 1 AND 5`, new RPC `tribe_upgrade_level_apply(UUID, INT, INT, INT)` — TOCTTOU-safe, locks tribe_members then tribes in consistent order, stale-read guard via p_next_level, writes mana deduction + level increment atomically, inserts audit log. (3) API route `POST /api/tribe/upgrade-level` — season freeze guard + fast pre-validation + atomic RPC. Permission: leader or deputy only. (4) Tribe tab renamed "Spells" → "Upgrade"; tab key `spells` → `upgrade`. Upgrade tab now shows: Tribe Level panel (current/next level, efficiency, cost, upgrade CTA) + Mana pool / contribute + Spells. (5) `balance-validate.ts` updated with tribe.levelUpgrade Zod schema + two refines. 5 new tests in `balance.test.ts`. (6) SSOT §10 fully updated.
 **Previous pass:** 2026-03-07 — (1) `TICK_INTERVAL_MINUTES` env-var override removed entirely from all code and docs. Tick interval hardcoded to `BALANCE.tick.intervalMinutes` (30) in `tick/route.ts` and `instrumentation.ts`. Eliminates the regression where 1-minute-override in local dev caused gameplay mutations every minute. (2) `tick-status` always returns a future timestamp via `computeNextCronBoundary()`. (3) Tax countdown re-fetches when overdue. (4) `BattleReport` test fixture updated.
 **Previous:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Upgrade / Chat) — tab was originally named "Spells" at this time, later renamed to "Upgrade" in the 2026-03-07 pass 2: Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with "Manage ▾" portal dropdown (React Portal, immune to overflow-hidden clipping). Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
@@ -1530,53 +1534,176 @@ The upgrade mutation is **fully atomic** via the `bank_interest_upgrade_apply()`
 ## 12. Weapons System
 
 **Files:** `app/api/shop/buy/route.ts`, `app/api/shop/sell/route.ts`, `lib/game/power.ts`
+**Config:** `config/balance.config.ts` → `BALANCE.weapons`
+**Migration:** `supabase/migrations/0023_shop_rpc.sql` — atomic RPCs + `last_shop_at` column
+**New component:** `components/ui/resource-quad.tsx` — compact 4-resource cost display
+
+### Pricing Model (2026-03-07)
+
+Every weapon purchase costs **all 4 resources equally**:
+
+```
+cost = BALANCE.weapons[category][weapon].cost = { gold: N, iron: N, wood: N, food: N }
+totalDeducted.X = cost.X × amount
+```
+
+- All four resource values are identical within each item (`cost.gold === cost.iron === cost.wood === cost.food`)
+- To change any price: edit `config/balance.config.ts` only — API and UI both read from BALANCE
+- No hardcoded prices anywhere in routes or UI components
 
 ### Attack Weapons (PP ranking: additive per unit, Combat power: additive per unit)
 
-| Weapon | PP value | Combat power | Max/player | Cost (iron) |
-|---|---|---|---|---|
-| slingshot | 2 | 2 | 25 | 200 |
-| boomerang | 5 | 5 | 12 | 400 |
-| pirate_knife | 12 | 12 | 6 | 800 |
-| axe | 28 | 28 | 3 | 1,600 |
-| master_knife | 64 | 64 | 1 | 3,200 |
-| knight_axe | 148 | 148 | 1 | 6,400 |
-| iron_ball | 340 | 340 | 1 | 12,800 |
+**Stackable — no per-player cap.** Buy any quantity, any number of times.
+
+| Weapon | PP / Combat power | Cost per resource (all 4 equal) |
+|---|---|---|
+| slingshot | 2 | 200 |
+| boomerang | 5 | 400 |
+| pirate_knife | 12 | 800 |
+| axe | 28 | 1,600 |
+| master_knife | 64 | 3,200 |
+| knight_axe | 148 | 6,400 |
+| iron_ball | 340 | 12,800 |
 
 PP values = combat power values (same numbers). PP is **additive per unit**.
 Attack power formula in `power.ts`: `floor((baseUnits + Σ weaponCount×power) × trainMult)`
 Race bonuses are **not** applied in stored power — stored power is race-agnostic (see §17).
 
+`maxPerPlayer` does **not exist** — removed 2026-03-07. Attack weapons are uncapped.
+
 ### Defense Weapons (PP ranking: binary once owned, Combat power: multiplicative)
 
-| Armor | PP bonus (binary) | Combat multiplier | Cost (gold) |
+**One per player.** Buying again when `owned > 0` returns 400.
+
+| Armor | PP bonus (binary) | Combat multiplier | Cost per resource (all 4 equal) |
 |---|---|---|---|
-| wood_shield | 150 | ×1.10 | 1,500 |
-| iron_shield | 800 | ×1.25 | 8,000 |
-| leather_armor | 2,500 | ×1.40 | 25,000 |
-| chain_armor | 8,000 | ×1.55 | 80,000 |
-| plate_armor | 25,000 | ×1.70 | 250,000 |
-| mithril_armor | 70,000 | ×1.90 | 700,000 |
-| gods_armor | 150,000 | ×2.20 | 1,000,000g + 500,000i + 300,000w |
+| wood_shield | 150 | ×1.10 | 375 |
+| iron_shield | 800 | ×1.25 | 2,000 |
+| leather_armor | 2,500 | ×1.40 | 6,250 |
+| chain_armor | 8,000 | ×1.55 | 20,000 |
+| plate_armor | 25,000 | ×1.70 | 62,500 |
+| mithril_armor | 70,000 | ×1.90 | 175,000 |
+| gods_armor | 150,000 | ×2.20 | 250,000 |
 
 Defense multipliers **stack multiplicatively**. Full stack: 1.10×1.25×1.40×1.55×1.70×1.90×2.20 ≈ ×29.7.
 
 ### Spy / Scout Gear (PP ranking: binary, Combat: multiplicative multiplier on unit power)
 
-| Gear | PP bonus | Combat multiplier | Cost (gold) |
+**One per player.** Buying again when `owned > 0` returns 400.
+
+| Gear | PP bonus | Combat multiplier | Cost per resource (all 4 equal) |
 |---|---|---|---|
-| shadow_cloak / scout_boots | 500 | ×1.15 | 5,000 |
-| dark_mask / scout_cloak | 2,000 | ×1.30 | 20,000 |
-| elven_gear / elven_boots | 8,000 | ×1.50 | 80,000 |
+| shadow_cloak / scout_boots | 500 | ×1.15 | 1,250 |
+| dark_mask / scout_cloak | 2,000 | ×1.30 | 5,000 |
+| elven_gear / elven_boots | 8,000 | ×1.50 | 20,000 |
 
-### Sell Refund
+### Atomicity (2026-03-07 pass 4+5)
+
+Both buy and sell use **atomic Postgres RPCs** (`shop_buy_apply`, `shop_sell_apply`).
+Routes are thin wrappers; all mutation logic lives in the RPC.
+
+**Row locking + NOT FOUND guards (TOCTTOU-safe):**
+1. `SELECT resources JOIN players FOR UPDATE` — lock both rows simultaneously
+2. `IF NOT FOUND → player_state_not_found` — explicit guard, prevents silent NULL pass-through
+3. `SELECT weapons FOR UPDATE` — lock weapon row
+4. `IF NOT FOUND → player_state_not_found` — explicit guard
+5. Re-validate all conditions post-lock (concurrent request cannot slip through)
+6. Apply all mutations atomically — either all commit or none
+
+**Why NOT FOUND guards are correctness-critical:**
+In PL/pgSQL, `SELECT INTO var` without `STRICT` leaves variables as `NULL` when no row is
+found — execution continues silently. `IF NULL < 200 THEN` evaluates as `NULL` (not `TRUE`)
+in PL/pgSQL's boolean context, so all guards are skipped, `UPDATE`s affect 0 rows, and the
+function returns `{ ok: true }` — a false success that can silently debit resources without
+crediting the weapon, or credit a refund without decrementing the weapon count.
+Fix: explicit `IF NOT FOUND THEN RETURN ...` after every locked `SELECT`.
+
+**Global shop throttle:**
+- `players.last_shop_at TIMESTAMPTZ` stamped atomically inside the RPC
+- Throttles **all shop actions** (buy + sell, any item) within the 500 ms window
+- This is an **intentional global rate-limiter**, consistent with `last_attack_at` / `last_spy_at`
+- It is **not** per-request idempotency (no client request tokens)
+- Route pre-checks it for fast 429 rejection; RPC re-checks post-lock as authoritative guard
+
+**Power recalculation outside the RPC (by design):**
+- `recalculatePower()` runs after the RPC commits, not inside the transaction
+- Acceptable: `power_attack/defense/spy/scout` are denormalized caches, not authoritative state
+- Staleness is self-correcting — next action or tick recalculates power
+- Same pattern as attack, spy, and training routes throughout the codebase
+- Moving the formula into SQL would violate SSOT (`balance.config.ts` owns all numbers)
+
+**RPC input guards (defense in depth):**
+- `p_amount <= 0` → `invalid_amount` (both RPCs)
+- `p_total_{gold,iron,wood,food} < 0` → `invalid_cost` (buy RPC)
+- `p_refund_{gold,iron,wood,food} < 0` → `invalid_refund` (sell RPC)
+- These fire before any DB access — routes already validate, but direct RPC calls must also be safe
+
+**SQL injection + search_path defense:**
+- `p_weapon` validated against hard-coded whitelist in RPC before any dynamic SQL
+- Dynamic UPDATE uses `format('%I')` (PostgreSQL `quote_ident()`) as second layer
+- Both RPCs use `SECURITY DEFINER SET search_path = public` — prevents schema-injection attacks where a caller places objects earlier in the default search path to shadow system functions
+
+**RPC error codes → HTTP responses:**
+
+| RPC error | HTTP | Message |
+|---|---|---|
+| `invalid_amount` | 400 | Invalid amount |
+| `invalid_cost` (buy) | 400 | Invalid cost |
+| `invalid_refund` (sell) | 400 | Invalid refund |
+| `unknown_weapon` | 400 | Unknown weapon |
+| `too_many_requests` | 429 | Too many requests — wait a moment |
+| `player_state_not_found` | 404 | Player data not found |
+| `already_owned` | 400 | Already own this item |
+| `not_enough_gold` | 400 | Not enough gold |
+| `not_enough_iron` | 400 | Not enough iron |
+| `not_enough_wood` | 400 | Not enough wood |
+| `not_enough_food` | 400 | Not enough food |
+| `not_enough_owned` (sell) | 400 | You do not own enough of this item |
+
+### Backend Buy Flow (buy/route.ts → shop_buy_apply RPC)
 
 ```
-refund = floor(originalCost × sellRefundPercent × amount)
-       = floor(cost × 0.20 × amount)
+1. Auth → 401
+2. Season freeze → 423
+3. Resolve cost = BALANCE.weapons[category][weapon].cost  (unknown weapon → 400)
+4. Compute totalGold/Iron/Wood/Food = cost.X × amount
+5. Pre-check last_shop_at — if < 500ms ago → 429  (fast rejection, not authoritative)
+6. Call shop_buy_apply(player_id, weapon, amount, is_multi, totals...)
+   Inside RPC:
+   a. Input guards: p_amount > 0, all totals >= 0  → invalid_amount / invalid_cost
+   b. Whitelist check  → unknown_weapon
+   c. Lock resources + players (JOIN FOR UPDATE)
+   d. IF NOT FOUND → player_state_not_found  [correctness guard — see above]
+   e. Global throttle re-check (post-lock, authoritative)
+   f. Lock weapons (FOR UPDATE), read current_owned
+   g. IF NOT FOUND → player_state_not_found  [correctness guard]
+   h. if !is_multi && current_owned > 0 → already_owned
+   i. if resources.X < total.X → not_enough_X  (for each resource)
+   j. UPDATE resources (deduct), UPDATE weapons (increment), UPDATE players.last_shop_at
+7. Map RPC error code → HTTP status
+8. recalculatePower()  [follow-up server step, not part of the DB transaction]
+   — shop resource/weapon mutation is atomic (committed by RPC)
+   — power recalculation is a separate server operation after the transaction
+   — power columns are denormalized caches; brief staleness is self-correcting
+9. Return { weapons, resources }
 ```
 
-20% of original purchase price. Source: `BALANCE.weapons.sellRefundPercent = 0.20`
+### Sell Refund Flow (sell/route.ts → shop_sell_apply RPC)
+
+```
+refund.X = floor(cost.X × sellRefundPercent × amount)   [for each resource X]
+         = floor(cost.X × 0.20 × amount)
+```
+
+All 4 resources are refunded. RPC validates `current_owned >= amount` post-lock.
+Source: `BALANCE.weapons.sellRefundPercent = 0.20`
+
+### UI Notes
+
+- Resource strip shows all 4 resources (gold, iron, wood, food) + sell refund %
+- `ResourceQuad` component (`components/ui/resource-quad.tsx`) shows all 4 costs as a compact pill
+- Scroll-jump bug fixed: sub-components defined outside `ShopClient` function (stable React types)
+- No hardcoded prices in client — all reads from `BALANCE.weapons[category][weapon].cost`
 
 ---
 

@@ -134,6 +134,8 @@ export interface Player {
   last_attack_at: string | null
   /** Set to the timestamp of the last committed spy mission. NULL until first mission. */
   last_spy_at: string | null
+  /** Set to the timestamp of the last committed shop action. NULL until first purchase/sell. */
+  last_shop_at: string | null
 }
 
 // ─── resources ─────────────────────────────────────────────────────────────

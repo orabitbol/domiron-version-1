@@ -198,12 +198,62 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
   })
 
   // ── weapons ───────────────────────────────────────────────────────────────
-  it('weapons paths used by ShopClient', () => {
+  it('weapons paths used by ShopClient — unified all-4-resource cost model', () => {
+    // All categories use cost: { gold, iron, wood, food }
+    const atkCost  = BALANCE.weapons.attack.slingshot.cost
+    const defCost  = BALANCE.weapons.defense.wood_shield.cost
+    const spyCost  = BALANCE.weapons.spy.shadow_cloak.cost
+    const sctCost  = BALANCE.weapons.scout.scout_boots.cost
+
+    for (const cost of [atkCost, defCost, spyCost, sctCost]) {
+      expect(typeof cost.gold).toBe('number')
+      expect(typeof cost.iron).toBe('number')
+      expect(typeof cost.wood).toBe('number')
+      expect(typeof cost.food).toBe('number')
+    }
+
+    // Attack still has power; defense still has multiplier
     expect(typeof BALANCE.weapons.attack.slingshot.power).toBe('number')
     expect(typeof BALANCE.weapons.defense.wood_shield.multiplier).toBe('number')
-    expect(typeof BALANCE.weapons.spy.shadow_cloak.costGold).toBe('number')
-    expect(typeof BALANCE.weapons.scout.scout_boots.costGold).toBe('number')
     expect(typeof BALANCE.weapons.sellRefundPercent).toBe('number')
+
+    // maxPerPlayer must NOT exist on attack weapons (removed 2026-03-07)
+    expect((BALANCE.weapons.attack.slingshot as Record<string, unknown>).maxPerPlayer).toBeUndefined()
+
+    // costGold / costIron must NOT exist as top-level fields (old model — removed 2026-03-07)
+    expect((BALANCE.weapons.spy.shadow_cloak as Record<string, unknown>).costGold).toBeUndefined()
+    expect((BALANCE.weapons.scout.scout_boots as Record<string, unknown>).costGold).toBeUndefined()
+  })
+
+  it('weapons — all 4 resource cost values are positive numbers', () => {
+    const allWeapons = [
+      ...Object.values(BALANCE.weapons.attack),
+      ...Object.values(BALANCE.weapons.defense),
+      ...Object.values(BALANCE.weapons.spy),
+      ...Object.values(BALANCE.weapons.scout),
+    ]
+    for (const w of allWeapons) {
+      const cost = (w as { cost: { gold: number; iron: number; wood: number; food: number } }).cost
+      expect(cost.gold).toBeGreaterThan(0)
+      expect(cost.iron).toBeGreaterThan(0)
+      expect(cost.wood).toBeGreaterThan(0)
+      expect(cost.food).toBeGreaterThan(0)
+    }
+  })
+
+  it('weapons — all 4 resource values are equal within each item (equal-cost model)', () => {
+    const allWeapons = [
+      ...Object.values(BALANCE.weapons.attack),
+      ...Object.values(BALANCE.weapons.defense),
+      ...Object.values(BALANCE.weapons.spy),
+      ...Object.values(BALANCE.weapons.scout),
+    ]
+    for (const w of allWeapons) {
+      const cost = (w as { cost: { gold: number; iron: number; wood: number; food: number } }).cost
+      expect(cost.iron).toBe(cost.gold)
+      expect(cost.wood).toBe(cost.gold)
+      expect(cost.food).toBe(cost.gold)
+    }
   })
 
   // ── antiFarm ──────────────────────────────────────────────────────────────
