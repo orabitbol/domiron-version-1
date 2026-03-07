@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn, formatNumber, formatCountdown } from "@/lib/utils";
 import { usePlayer } from "@/lib/context/PlayerContext";
-import { useTickCountdown } from "@/lib/hooks/useTickCountdown";
+import { useTickCountdownState } from "@/lib/context/TickContext";
 import { BALANCE } from "@/lib/game/balance";
 import {
   Home,
@@ -75,13 +75,9 @@ function AnimatedNumber({ value }: { value: number }) {
   return <span className="tabular-nums">{formatNumber(displayed, true)}</span>;
 }
 
-/**
- * TickCountdown — server-authoritative countdown timer.
- * All state + sync logic lives in useTickCountdown (lib/hooks/useTickCountdown.ts).
- * In development (NODE_ENV=development) a debug badge shows remaining seconds.
- */
+// Dev: shows a (Ns) debug badge with a hover tooltip.
 function TickCountdown() {
-  const { ms, nextTickAt, serverNow } = useTickCountdown();
+  const { ms, nextTickAt, serverNow } = useTickCountdownState();
   const isDev = process.env.NODE_ENV === "development";
   const remainingSec = ms !== null ? Math.round(ms / 1000) : null;
 

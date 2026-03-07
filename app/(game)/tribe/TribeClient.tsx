@@ -223,14 +223,20 @@ export function TribeClient({
 
   useEffect(() => {
     if (!taxStatus) return
+    let refetchScheduled = false
     const update = () => {
       const ms = new Date(taxStatus.next_tax_at).getTime() - Date.now()
       setCountdown(formatCountdown(ms))
+      // When overdue, re-fetch once after 5 s so the next_tax_at rolls forward.
+      if (ms <= 0 && !refetchScheduled) {
+        refetchScheduled = true
+        setTimeout(fetchTaxStatus, 5_000)
+      }
     }
     update()
     const id = setInterval(update, 1_000)
     return () => clearInterval(id)
-  }, [taxStatus])
+  }, [taxStatus, fetchTaxStatus])
 
   // ── Chat: lazy-fetch on first tab open ────────────────────────────────────
 

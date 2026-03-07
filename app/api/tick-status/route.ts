@@ -2,23 +2,30 @@ import { NextResponse } from 'next/server'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 
-// Force dynamic — this must never be cached; it returns the live next_tick_at.
+// Never cache — must return the live next_tick_at on every request.
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/tick-status
  *
- * Public, unauthenticated endpoint. Returns the server clock and the
- * authoritative next-tick timestamp so all clients see the same countdown.
- *
- * Response:
- *   { server_now: string (ISO), next_tick_at: string (ISO) | null }
- *
- * next_tick_at is null only if the world_state table has no row yet
- * (i.e. the DB migration ran but no tick has executed yet).
+ * Public endpoint. Returns the authoritative next-tick timestamp from world_state.
+ * next_tick_at is always a future ISO timestamp — if the DB value is absent or past,
+ * the next :00/:30 UTC cron boundary is synthesized so the client always has a valid target.
  */
+
+// Returns the next :00 or :30 UTC boundary (Vercel Cron "every 30 min" schedule).
+function computeNextCronBoundary(now: Date): Date {
+  const result = new Date(now)
+  if (result.getUTCMinutes() < 30) {
+    result.setUTCMinutes(30, 0, 0)
+  } else {
+    result.setUTCHours(result.getUTCHours() + 1, 0, 0, 0)
+  }
+  return result
+}
+
 export async function GET() {
-  noStore() // Belt-and-suspenders: prevent Next.js fetch cache from serving stale data
+  noStore()
   const supabase = createAdminClient()
 
   const { data } = await supabase
@@ -27,8 +34,15 @@ export async function GET() {
     .eq('id', 1)
     .maybeSingle()
 
+  const now = new Date()
+  const dbValue = data?.next_tick_at ? new Date(data.next_tick_at) : null
+  const nextTickAt =
+    dbValue && dbValue > now
+      ? dbValue.toISOString()
+      : computeNextCronBoundary(now).toISOString()
+
   return NextResponse.json({
-    server_now:  new Date().toISOString(),
-    next_tick_at: data?.next_tick_at ?? null,
+    server_now:   now.toISOString(),
+    next_tick_at: nextTickAt,
   })
 }

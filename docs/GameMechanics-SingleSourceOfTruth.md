@@ -1,7 +1,8 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Spells / Chat): Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with "Manage ▾" portal dropdown (React Portal, immune to overflow-hidden clipping). Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
+**Last updated:** 2026-03-07 — (1) `TICK_INTERVAL_MINUTES` env-var override removed entirely from all code and docs. Tick interval hardcoded to `BALANCE.tick.intervalMinutes` (30) in `tick/route.ts` and `instrumentation.ts`. Eliminates the regression where 1-minute-override in local dev caused gameplay mutations every minute. (2) `tick-status` always returns a future timestamp via `computeNextCronBoundary()`. (3) Tax countdown re-fetches when overdue. (4) `BattleReport` test fixture updated.
+**Previous:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Spells / Chat): Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with "Manage ▾" portal dropdown (React Portal, immune to overflow-hidden clipping). Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
 ---
@@ -121,7 +122,7 @@ Then globally:
 7. Power recalculation → `recalculatePower(playerId, supabase)` for all players
 8. Rankings update (global + per-city)
 9. Tribe power aggregation → `tribes.power_total` = sum of member `power_total` values
-10. **`world_state` upsert** — `next_tick_at = tickDoneAt + TICK_INTERVAL_MINUTES` (`app/api/tick/route.ts` ~line 347)
+10. **`world_state` upsert** — `next_tick_at = tickDoneAt + BALANCE.tick.intervalMinutes * 60_000` (`app/api/tick/route.ts`)
 11. Realtime broadcast — `broadcastTickCompleted(supabase, nextTickAt)` includes `next_tick_at` in payload
 
 ---
@@ -130,102 +131,7 @@ Then globally:
 
 **Summary:** Every client reads `world_state.next_tick_at` (single DB row, `id=1`) to drive the Sidebar countdown. The tick route advances this value after each tick completes. In production, Vercel Cron triggers the tick. In local dev, `instrumentation.ts` runs a Node.js `setInterval` that calls the same endpoint.
 
-**DB table:** `supabase/migrations/0008_world_state.sql`
-```sql
-CREATE TABLE world_state (
-  id           INT PRIMARY KEY DEFAULT 1,
-  next_tick_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT world_state_single_row CHECK (id = 1)
-);
-INSERT INTO world_state (id, next_tick_at) VALUES (1, now());
-ALTER TABLE world_state ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "world_state_select_public" ON world_state FOR SELECT USING (true);
-```
-The seed value (`now()` at migration time) becomes immediately stale, which is why the tick must run within the first minute of any dev session.
-
----
-
-#### Root Cause Analysis — Why the countdown was stuck at 00:00 (all 4 bugs, in discovery order)
-
-**Bug 1 — `next.config.mjs` missing `instrumentationHook` flag**
-- **File:** `next.config.mjs`
-- **Symptom:** No `[INSTRUMENTATION]` log ever appeared in the terminal. `instrumentation.ts:register()` was never called.
-- **Root cause:** Next.js 14.x requires `experimental: { instrumentationHook: true }` to activate `instrumentation.ts`. This flag was removed only in Next.js 15. Without it, the file is silently ignored.
-- **Fix:**
-  ```js
-  // next.config.mjs
-  const nextConfig = {
-    experimental: {
-      instrumentationHook: true,  // required for Next.js 14; not needed in Next.js 15+
-    },
-  }
-  ```
-
-**Bug 2 — `instrumentation.ts` guard exited early on `NEXT_RUNTIME = undefined`**
-- **File:** `instrumentation.ts` line 29 (pre-fix)
-- **Symptom:** Even after enabling the hook, `register()` was called but exited before starting the interval. Visible in logs as `[INSTRUMENTATION] register() … NEXT_RUNTIME="undefined"` with no scheduler armed log.
-- **Root cause:** The guard was `if (process.env.NEXT_RUNTIME !== 'nodejs') return`. In Next.js 14 dev, the Node.js server invocation has `NEXT_RUNTIME = undefined` (not `'nodejs'`). So `undefined !== 'nodejs'` evaluated `true` and the function returned immediately.
-- **Fix:**
-  ```ts
-  // instrumentation.ts
-  // WRONG: if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  // CORRECT: skip only the Edge runtime; allow undefined (= Node.js dev) through
-  if (process.env.NEXT_RUNTIME === 'edge') return
-  ```
-
-**Bug 3 — `world_state` UPDATE silently matched 0 rows**
-- **File:** `app/api/tick/route.ts` ~line 349 (pre-fix)
-- **Symptom:** `[TICK] world_state updated` log appeared but `/api/tick-status` still returned the stale seeded timestamp.
-- **Root cause:** Supabase `.update().eq('id', 1)` returns `{ data: [], error: null }` when 0 rows match. The code checked `if (wsError)` — which was `null` — and logged success. But the row was not updated. (Cause of 0-row match was the stale seeded row existing but the UPDATE being silently no-op'd before the upsert fix was applied.)
-- **Fix:** Replace `update()` with `upsert()` + `.select()` to confirm the persisted value:
-  ```ts
-  // app/api/tick/route.ts
-  const { data: wsData, error: wsError } = await supabase
-    .from('world_state')
-    .upsert({ id: 1, next_tick_at: nextTickAt })
-    .select('next_tick_at')
-  // wsData[0].next_tick_at is the confirmed DB value — log both sent and confirmed
-  const confirmedAt = wsData?.[0]?.next_tick_at ?? '(no row returned)'
-  console.log(`[TICK] world_state OK: sent=${nextTickAt} confirmed=${confirmedAt} diffSec=${diffSec}`)
-  ```
-  > **Note:** `sent` ends in `Z` and `confirmed` ends in `+00:00` — Supabase normalises `TIMESTAMPTZ` to `+00:00` in the response. These are the same UTC instant and the MISMATCH log is a false positive.
-
-**Bug 4 — Next.js 14 fetch cache served stale DB values from `/api/tick-status`**
-- **Files:** `lib/supabase/server.ts`, `app/api/tick-status/route.ts`
-- **Symptom:** Supabase DB confirmed (via direct REST call) that `next_tick_at` was in the future, but `/api/tick-status` still returned the 10-hour-old seeded value.
-- **Root cause:** Next.js 14 patches the global `fetch` and caches responses by default. `export const dynamic = 'force-dynamic'` prevents the _route response_ from being cached but does **not** prevent Next.js from caching the individual `fetch()` calls made by the Supabase client internally. The Supabase `createServerClient` uses `fetch` for all DB requests, so the `world_state` SELECT was served from the Next.js fetch cache.
-- **Fix 1 — `lib/supabase/server.ts`:** Pass `cache: 'no-store'` in the global fetch override so every Supabase HTTP call from `createAdminClient()` bypasses the cache:
-  ```ts
-  export function createAdminClient() {
-    return createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        global: {
-          fetch: (url: RequestInfo | URL, init?: RequestInit) =>
-            fetch(url, { ...init, cache: 'no-store' }),
-        },
-        cookies: { getAll() { return [] }, setAll() {} },
-      }
-    )
-  }
-  ```
-- **Fix 2 — `app/api/tick-status/route.ts`:** Belt-and-suspenders: call `noStore()` at request time:
-  ```ts
-  import { unstable_noStore as noStore } from 'next/cache'
-  export const dynamic = 'force-dynamic'
-
-  export async function GET() {
-    noStore()
-    const supabase = createAdminClient()
-    const { data } = await supabase
-      .from('world_state').select('next_tick_at').eq('id', 1).maybeSingle()
-    return NextResponse.json({
-      server_now:   new Date().toISOString(),
-      next_tick_at: data?.next_tick_at ?? null,
-    })
-  }
-  ```
+**DB table:** `supabase/migrations/0008_world_state.sql` — single row (`id=1`), `next_tick_at TIMESTAMPTZ`. Public read via RLS policy. Written by `/api/tick` after each tick via `upsert()` (not `update()` — Supabase `.update()` silently no-ops when 0 rows match). Cache bypass: `createAdminClient()` passes `cache: 'no-store'` on all fetches; `/api/tick-status` also calls `noStore()` (Next.js 14 caches Supabase fetch calls by default).
 
 ---
 
@@ -246,15 +152,7 @@ export async function register() {
   devCronStarted = true
 ```
 
-**Interval parsing — rejects empty string:**
-```ts
-const rawInterval = Number(process.env.TICK_INTERVAL_MINUTES)
-const intervalMinutes =
-  Number.isFinite(rawInterval) && rawInterval > 0 ? rawInterval : 30
-// Number("") = 0 → isFinite(0) = true BUT 0 > 0 = false → falls back to 30
-// Number(undefined) = NaN → isFinite(NaN) = false → falls back to 30
-// Number("1") = 1 → isFinite(1) = true AND 1 > 0 = true → uses 1
-```
+**Interval:** Always `30` (= `BALANCE.tick.intervalMinutes`). Hardcoded — no env-var override.
 
 **Tick call:**
 ```ts
@@ -278,8 +176,7 @@ const res = await fetch(`http://localhost:${port}/api/tick`, {
 ```json
 { "server_now": "2026-03-05T07:22:29.220Z", "next_tick_at": "2026-03-05T07:22:51.863+00:00" }
 ```
-`next_tick_at > server_now` = timer is live and counting down.
-`next_tick_at < server_now` = tick has not run yet or world_state update failed.
+`next_tick_at` is **always a future timestamp** — the endpoint synthesizes the next `:00` or `:30` UTC boundary (`computeNextCronBoundary()`) when the DB value is absent or stale. This prevents the "stuck at 00:00" symptom after fresh deploys or when the DB has a past timestamp from a previous bug.
 
 ---
 
@@ -289,17 +186,20 @@ const res = await fetch(`http://localhost:${port}/api/tick`, {
 
 | Mechanism | Detail |
 |---|---|
+| Shared state | `TickProvider` (in `GameLayout`) calls `useTickCountdown()` once. `Sidebar` and `ResourceBar` read via `useTickCountdownState()` — **single state machine, identical value everywhere**. |
 | Mount | Fetches `/api/tick-status`, sets `nextTickAt` state |
+| Before first sync | `ms = null` → renders as `--:--`. **No local-clock fallback.** No guessed countdown is ever shown. |
 | Heartbeat | Re-fetches every 5 minutes (drift correction) |
 | Realtime update | Listens for `window.CustomEvent('domiron:tick-completed')`, dispatched by `RealtimeSync` when the Supabase Realtime broadcast arrives |
-| Countdown | `setInterval(1000)`: computes `new Date(nextTickAt).getTime() - Date.now()` |
+| Countdown | `setInterval(1000)`: computes `new Date(nextTickAt).getTime() - Date.now()`. Only runs after `nextTickAt` is set from server. |
 | Overdue polling | When `ms ≤ 0`: starts a 5-second poll of `/api/tick-status` until `next_tick_at` advances |
-| Dev debug label | `(Ns)` shown next to timer, hover tooltip shows `server_now / next_tick_at / diff` |
-| Dev console logs | On each `/api/tick-status` response: `server_now`, `next_tick_at`, `parsed toString()`, `isNaN?`, `diff ms FUTURE ✓ / PAST ✗` |
+| Dev debug label | `(Ns)` shown next to timer, hover tooltip shows `server_now / next_tick_at / remaining` |
 
-**Parsing:** `new Date(nextTickAt).getTime()` — handles both `Z` and `+00:00` suffixes correctly. If `isNaN` appears in browser console, the server returned a malformed timestamp.
+**Parsing:** `new Date(nextTickAt).getTime()` — handles both `Z` and `+00:00` suffixes correctly.
 
-**Two-tab consistency:** Both tabs read the same `world_state.next_tick_at` row and both update via the same Supabase Realtime broadcast → identical countdown on all clients.
+**Cross-component consistency:** Sidebar and mobile ResourceBar read the same React context state — they cannot show different values.
+
+**Cross-user consistency:** All users hit the same `world_state.next_tick_at` DB row → identical server timestamp → identical countdown.
 
 ---
 
@@ -309,18 +209,17 @@ The following describes exactly how the tick interval flows from config to DB to
 
 | Layer | Location | Value | Notes |
 |---|---|---|---|
-| Canonical interval | `BALANCE.tick.intervalMinutes` | `30` | **The SSOT.** All other layers derive from this. |
-| Vercel Cron schedule | `vercel.json` → `"*/30 * * * *"` | 30 min | Fires the GET /api/tick handler in production. Must always match `BALANCE.tick.intervalMinutes`. **Never change this for local testing.** |
-| Dev auto-tick | `instrumentation.ts` → `setInterval(intervalMs)` | env var or 30 | Only runs in `NODE_ENV=development`. Reads `TICK_INTERVAL_MINUTES` env var, falls back to 30. In dev you can set `TICK_INTERVAL_MINUTES=1` for faster iteration. |
-| Tick route interval | `app/api/tick/route.ts` → `TICK_INTERVAL_MINUTES` const | 30 in prod | **Production: always `BALANCE.tick.intervalMinutes`, env var ignored.** Dev: reads env var. |
-| DB timestamp | `world_state.next_tick_at` | ISO timestamp | Set by tick route: `tickDoneAt + TICK_INTERVAL_MINUTES * 60_000`. In production this is always +30 min. |
-| Server API | `GET /api/tick-status` | `{ server_now, next_tick_at }` | Reads `world_state` row. `force-dynamic` + `noStore()` prevents caching. |
-| Client hook | `useTickCountdown()` | `ms` until next tick | Syncs from `/api/tick-status` on mount, every 5 min (heartbeat), and on Realtime broadcast. Falls back to `getTimeUntilNextTick()` (local clock, :00/:30 assumption) only when server returns `null`. |
-| Display | `TickCountdown` (Sidebar) / `MobileTickCountdown` (ResourceBar) | `mm:ss` | Both use `useTickCountdown()`. Show `--:--` before first sync. |
+| Canonical interval | `BALANCE.tick.intervalMinutes` | `30` | **The SSOT.** All other layers read from this. Never hardcode 30 elsewhere. |
+| Vercel Cron schedule | `vercel.json` → `"*/30 * * * *"` | 30 min | Fires GET /api/tick in production. Must always match `BALANCE.tick.intervalMinutes`. |
+| Dev auto-tick | `instrumentation.ts` → `setInterval(intervalMs)` | 30 min | Only runs in `NODE_ENV=development`. **Hardcoded to 30 min** — no env-var override. |
+| Tick route interval | `app/api/tick/route.ts` → `BALANCE.tick.intervalMinutes` | 30 min | **Hardcoded** — no env-var read. Sets `world_state.next_tick_at = tickDoneAt + 30 min`. |
+| DB timestamp | `world_state.next_tick_at` | ISO timestamp | Written by tick route after each tick. Always `tickDoneAt + 30 min`. |
+| Server API | `GET /api/tick-status` | `{ server_now, next_tick_at }` | Reads `world_state` row. `force-dynamic` + `noStore()` prevents caching. Always returns a future `next_tick_at` — synthesizes next `:00`/`:30` UTC boundary via `computeNextCronBoundary()` when DB value is absent or past. |
+| Shared context | `lib/context/TickContext.tsx` → `TickProvider` | single state machine | `GameLayout` mounts one `TickProvider`. All consumers call `useTickCountdownState()` — never `useTickCountdown()` directly. |
+| Client hook | `useTickCountdown()` (internal) | `ms` until next tick | Called once inside `TickProvider`. Syncs from `/api/tick-status` on mount, every 5 min (heartbeat), and on Realtime broadcast. `ms` is `null` until first server response — no local-clock fallback. |
+| Display | `TickCountdown` (Sidebar) / `MobileTickCountdown` (ResourceBar) | `mm:ss` | Both read `useTickCountdownState()`. Show `--:--` when `ms === null`. Always identical. |
 
-**What was wrong (Bug 5):** If `TICK_INTERVAL_MINUTES=1` was set in Vercel env vars (leftover from debug session), the tick route wrote `next_tick_at = now + 1 min` while Vercel Cron fires every 30 min. Countdown showed 1 minute, hit 00:00, stayed stuck for 29 minutes.
-
-**Fix:** In production (`NODE_ENV !== 'development'`), `TICK_INTERVAL_MINUTES` env var is completely ignored — the IIFE always returns `BALANCE.tick.intervalMinutes`. See `app/api/tick/route.ts`.
+**There is no env-var override for the tick interval.** `TICK_INTERVAL_MINUTES` no longer exists in any file. To trigger a tick on demand in dev: `curl http://localhost:3000/api/tick -H "x-cron-secret: <CRON_SECRET>"`
 
 ---
 
@@ -330,14 +229,12 @@ The following describes exactly how the tick interval flows from config to DB to
 ```
 CRON_SECRET=<any non-empty string, must match between .env and Supabase>
 SUPABASE_SERVICE_ROLE_KEY=<set>
-TICK_INTERVAL_MINUTES=1    # Development only — omit for 30-min cadence.
-                           # NEVER set this on Vercel; production ignores it (Bug 5 fix).
-TICK_DEBUG=1               # Verbose per-player logs
+TICK_DEBUG=1               # Verbose per-player logs (optional)
 ```
 
 **Start dev server:** `npm run dev`
 
-**Expected terminal output (within 5 seconds):**
+**Expected terminal output (within a few seconds of startup):**
 ```
 [INSTRUMENTATION] register() called — NEXT_RUNTIME="undefined" NODE_ENV="development"
 [DEV CRON] Scheduler armed — interval=30min url=http://localhost:3000/api/tick
@@ -350,6 +247,11 @@ TICK_DEBUG=1               # Verbose per-player logs
 [TICK] world_state OK: sent=2026-…Z confirmed=2026-…+00:00 diffSec=1800
 [TICK] Completed: 7 player(s) in Xms — next tick at 2026-…
 [DEV CRON] Tick OK (HTTP 200): {"data":{"processed":7,…}}
+```
+
+**To trigger a tick on demand in dev** (without waiting 30 minutes):
+```bash
+curl "http://localhost:3000/api/tick" -H "x-cron-secret: <CRON_SECRET>"
 ```
 
 If `playersFound=0`, the log immediately after diagnoses it:
@@ -374,11 +276,6 @@ curl http://localhost:3000/api/tick-status
 [TickCountdown] isNaN?  false
 [TickCountdown] diff ms  57234  FUTURE ✓
 ```
-
-**To use a faster local dev cadence (1-minute ticks):**
-1. In `.env`: set `TICK_INTERVAL_MINUTES=1`
-2. Production `vercel.json` remains `*/30 * * * *` — do **not** change.
-3. Do **not** set `TICK_INTERVAL_MINUTES` on Vercel — production ignores it by design (see Bug 5).
 
 ---
 
@@ -2780,3 +2677,85 @@ No double-counting: `calculateClanBonus` is called for reporting only — `resol
 - `tribes.power_total` = sum of member `power_total` values, updated per tick (step 10).
 - Used as `ClanContext.totalClanPP` in combat (`attClanCtx`, `defClanCtx`).
 - `calculateClanBonus` caps the result at `0.20 × playerPP` — never unbounded.
+
+---
+
+### 2026-03-07 — Comprehensive Countdown Audit: Tick-Status Synthesis + Tax Overdue Re-fetch
+
+**Scope:** Full end-to-end audit of all three game countdown timers (tick, season, tribe tax). No new gameplay logic — purely timer reliability fixes.
+
+#### Fix 1 — `tick-status` always returns a future timestamp (stale DB guard)
+
+**File:** `app/api/tick-status/route.ts`
+
+**Problem:** After a fresh Vercel deploy (or before the first cron fires after a Bug-5-style env-var incident), `world_state.next_tick_at` may be null or a past timestamp. The endpoint returned this stale value as-is, causing clients to see `00:00` and poll every 5 seconds indefinitely.
+
+**Fix:** Added `computeNextCronBoundary(now: Date): Date` — synthesizes the next UTC minute boundary matching the every-30-min Vercel Cron schedule (`:00` or `:30`). The GET handler now uses the DB value only when it is genuinely in the future; otherwise it returns the synthesized boundary:
+```ts
+const nextTickAt =
+  dbValue && dbValue > now
+    ? dbValue.toISOString()
+    : computeNextCronBoundary(now).toISOString()
+```
+
+**Result:** `next_tick_at` is **always a future ISO timestamp**. Clients always see a live, accurate countdown immediately after mount — no stuck-at-00:00 cases.
+
+**Cross-user consistency:** All users hit the same DB row and the same synthesis function → identical countdown values regardless of browser, tab, or user.
+
+#### Fix 2 — Tax countdown re-fetches when overdue
+
+**File:** `app/(game)/tribe/TribeClient.tsx`
+
+**Problem:** When the tribe tax countdown reached 0, the local `setInterval` kept calling `formatCountdown(ms)` with ever-more-negative `ms`, displaying "Soon" indefinitely. The `taxStatus.next_tax_at` was never refreshed — the countdown never rolled forward to the next day's 20:00.
+
+**Fix:** Added a one-shot re-fetch guard inside the countdown `useEffect`. When `ms ≤ 0` is first detected, `fetchTaxStatus()` is called after 5 seconds. This sets `taxStatus` with the new `next_tax_at` (already computed by the server for the next day), causing the effect to restart with fresh data:
+```ts
+if (ms <= 0 && !refetchScheduled) {
+  refetchScheduled = true
+  setTimeout(fetchTaxStatus, 5_000)
+}
+```
+
+**Result:** Tax countdown rolls forward automatically after collection without any user interaction.
+
+#### Audit findings — Season & Tick countdowns verified correct
+
+**Season countdown** (`SeasonCountdown` / `MobileSeasonCountdown` in `ResourceBar.tsx`): uses SSR-provided `season.ends_at` prop (UTC ISO string from DB). Counts down via `Date.now()` local clock. Server-authoritative source + local-clock delta = correct and cross-user consistent (all users compute the same UTC target minus their local `Date.now()`). No fix needed.
+
+**Tick countdown** (`useTickCountdown` in `lib/hooks/useTickCountdown.ts`): verified correct after Bug 5 fix (2026-03-06). Five update paths (mount, heartbeat, Realtime, overdue poll, local fallback) are all logically sound. `getTimeUntilNextTick()` local-clock fallback is mathematically correct for a `:00`/`:30` UTC schedule. No additional fix needed beyond Fix 1 above.
+
+**Changes made (2026-03-07 session):**
+
+- `app/api/tick-status/route.ts` — Added `computeNextCronBoundary()`. GET now always returns a future `next_tick_at`. Updated JSDoc — `next_tick_at` is never null, never past.
+- `app/(game)/tribe/TribeClient.tsx` — Tax countdown `useEffect` now triggers a re-fetch once when overdue. Added `fetchTaxStatus` to dependency array.
+- `lib/game/mutation-patterns.test.ts` — Added `pp_attack: 0`, `clan_bonus_attack: 0`, `pp_defense: 0`, `clan_bonus_defense: 0` to BattleReport fixture (TypeScript conformance for fields added 2026-03-06).
+- `docs/GameMechanics-SingleSourceOfTruth.md` — Updated `/api/tick-status` section; updated tick interval table; added this entry.
+- `tsc --noEmit` → **0 errors**. `vitest run` → **20/20 tests pass**.
+
+---
+
+### 2026-03-07 (2) — Tick Interval Env-Var Removal (Regression Fix)
+
+#### Root Cause
+
+`TICK_INTERVAL_MINUTES` env-var override allowed local dev (and potentially production) to run gameplay ticks at 1-minute intervals instead of 30. When a developer set `TICK_INTERVAL_MINUTES=1` in `.env`, `instrumentation.ts` fired `/api/tick` every minute → full gameplay mutations (resources, turns, hero mana, tribe mana, rankings) ran every minute. Even though the production guard in `tick/route.ts` correctly wrote `+30 min` to `world_state.next_tick_at`, actual resource/turn/mana updates happened at 1-minute cadence.
+
+#### Fix
+
+All `TICK_INTERVAL_MINUTES` references removed. Tick interval is now hardcoded to `BALANCE.tick.intervalMinutes` everywhere with no override path.
+
+**Changes made:**
+
+- `app/api/tick/route.ts` — Removed IIFE. Replaced with: `const TICK_INTERVAL_MINUTES = BALANCE.tick.intervalMinutes`. No env-var read.
+- `instrumentation.ts` — Removed env-var read. `intervalMinutes = 30` (hardcoded literal, comment notes it equals `BALANCE.tick.intervalMinutes`). Updated JSDoc — no `TICK_INTERVAL_MINUTES` mention.
+- `.env` — Removed `TICK_INTERVAL_MINUTES=30` line and its comment entirely.
+- `docs/GameMechanics-SingleSourceOfTruth.md` — Removed all "set TICK_INTERVAL_MINUTES=1" guidance; removed "To use a faster local dev cadence" section; updated tick interval SSOT table; updated instrumentation section; added on-demand dev trigger instruction.
+
+#### Guarantee
+
+- **Production:** `tick/route.ts` always uses `BALANCE.tick.intervalMinutes` (30). No code path reads any env var.
+- **Dev auto-tick:** `instrumentation.ts` always uses `30`. Hardcoded.
+- **Vercel Cron:** `*/30 * * * *` — unchanged.
+- **All tick-driven systems** (resources, turns, hero mana, tribe mana, rankings, tribe power) run exactly when `/api/tick` is called — every 30 minutes in production, every 30 minutes in dev (or on demand via curl).
+
+- `tsc --noEmit` → **0 errors**. `vitest run` → **20/20 tests pass**.

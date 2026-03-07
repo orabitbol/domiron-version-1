@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { cn, formatNumber, formatCountdown } from '@/lib/utils'
-import { useTickCountdown } from '@/lib/hooks/useTickCountdown'
+import { useTickCountdownState } from '@/lib/context/TickContext'
 import { Crown, Trophy, Map, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -14,13 +14,9 @@ const TOP_NAV = [
   { href: '/settings', icon: Settings, label: 'Settings', labelHe: 'הגדרות' },
 ]
 
-/**
- * MobileTickCountdown — server-authoritative, same logic as desktop TickCountdown.
- * Uses useTickCountdown hook: fetches /api/tick-status on mount, listens for
- * domiron:tick-completed events, heartbeats every 5 min. Never uses local clock only.
- */
+// Reads from shared TickContext — always identical to the Sidebar countdown.
 function MobileTickCountdown() {
-  const { ms } = useTickCountdown()
+  const { ms } = useTickCountdownState()
   return <span className="tabular-nums">{ms === null ? '--:--' : formatCountdown(ms)}</span>
 }
 

@@ -8,6 +8,7 @@ import { ToastProvider } from '@/components/game/ToastSystem'
 import { ConnectionStatus } from './ConnectionStatus'
 import { PageTransition } from './PageTransition'
 import { PlayerProvider } from '@/lib/context/PlayerContext'
+import { TickProvider } from '@/lib/context/TickContext'
 import { FreezeModeBanner } from '@/components/game/FreezeModeBanner'
 import { RealtimeSync } from './RealtimeSync'
 import type { PlayerData } from '@/types/game'
@@ -50,7 +51,9 @@ export function GameLayout({ children, initial }: GameLayoutProps) {
   return (
     <ToastProvider>
       <PlayerProvider initial={initial}>
-        <GameContent>{children}</GameContent>
+        <TickProvider>
+          <GameContent>{children}</GameContent>
+        </TickProvider>
       </PlayerProvider>
     </ToastProvider>
   )
