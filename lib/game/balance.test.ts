@@ -156,6 +156,47 @@ describe('BALANCE config smoke — all UI-referenced paths exist', () => {
     expect(typeof BALANCE.tribe.taxCollectionHour).toBe('number')
   })
 
+  // ── tribe.levelUpgrade ────────────────────────────────────────────────────
+  it('tribe.levelUpgrade — shape exists and maxLevel is a positive integer', () => {
+    expect(typeof BALANCE.tribe.levelUpgrade.maxLevel).toBe('number')
+    expect(BALANCE.tribe.levelUpgrade.maxLevel).toBeGreaterThan(0)
+    expect(Number.isInteger(BALANCE.tribe.levelUpgrade.maxLevel)).toBe(true)
+  })
+
+  it('tribe.levelUpgrade.manaCostByLevel — has entries for levels 1..(maxLevel-1)', () => {
+    const { maxLevel, manaCostByLevel } = BALANCE.tribe.levelUpgrade
+    for (let i = 1; i < maxLevel; i++) {
+      const cost = manaCostByLevel[i]
+      expect(cost).toBeDefined()
+      expect(typeof cost).toBe('number')
+      expect(cost).toBeGreaterThan(0)
+    }
+  })
+
+  it('tribe.levelUpgrade — produces the expected mana costs at current target values', () => {
+    // These values are the authoritative design targets.
+    // If this test fails, update balance.config.ts AND this test together.
+    expect(BALANCE.tribe.levelUpgrade.manaCostByLevel[1]).toBe(100)
+    expect(BALANCE.tribe.levelUpgrade.manaCostByLevel[2]).toBe(250)
+    expect(BALANCE.tribe.levelUpgrade.manaCostByLevel[3]).toBe(500)
+    expect(BALANCE.tribe.levelUpgrade.manaCostByLevel[4]).toBe(1000)
+  })
+
+  it('tribe.levelUpgrade — no cost entry should exist for level >= maxLevel', () => {
+    const { maxLevel, manaCostByLevel } = BALANCE.tribe.levelUpgrade
+    // Level maxLevel has no next tier — upgrading beyond max is blocked by the API
+    expect(manaCostByLevel[maxLevel]).toBeUndefined()
+  })
+
+  it('tribe.levelUpgrade — maxLevel matches clan.EFFICIENCY key range', () => {
+    // clan.EFFICIENCY must have an entry for every level up to maxLevel
+    const { maxLevel } = BALANCE.tribe.levelUpgrade
+    const efficiency = BALANCE.clan.EFFICIENCY as Record<number, number>
+    for (let i = 1; i <= maxLevel; i++) {
+      expect(typeof efficiency[i]).toBe('number')
+    }
+  })
+
   // ── weapons ───────────────────────────────────────────────────────────────
   it('weapons paths used by ShopClient', () => {
     expect(typeof BALANCE.weapons.attack.slingshot.power).toBe('number')

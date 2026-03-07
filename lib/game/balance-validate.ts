@@ -152,6 +152,21 @@ const balanceSchema = z.object({
     }),
     taxLimits:            z.record(z.number()),
     manaPerMemberPerTick: z.number(),
+    levelUpgrade: z.object({
+      maxLevel:        z.number().int().min(1),
+      manaCostByLevel: z.record(z.number().int().min(0)),
+    }).refine(
+      lu => {
+        for (let i = 1; i < lu.maxLevel; i++) {
+          if (!(String(i) in lu.manaCostByLevel)) return false
+        }
+        return true
+      },
+      { message: 'tribe.levelUpgrade.manaCostByLevel must have entries for levels 1..(maxLevel-1)' },
+    ).refine(
+      lu => Object.values(lu.manaCostByLevel).every(v => (v as number) > 0),
+      { message: 'tribe.levelUpgrade.manaCostByLevel values must be > 0' },
+    ),
   }),
   production: z.object({
     baseMin: z.number(),

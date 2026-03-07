@@ -844,34 +844,96 @@ ClanBonus_raw = tribes.power_total × EFFICIENCY[tribe.level]
 ClanBonus     = floor(min(ClanBonus_raw, BONUS_CAP_RATE × PlayerPP))
 
 BONUS_CAP_RATE = 0.20 (clan bonus ≤ 20% of PlayerPP)
-EFFICIENCY:
-  Level 1: 0.05 | Level 2: 0.08 | Level 3: 0.10
-  Level 4: 0.12 | Level 5: 0.15
+EFFICIENCY by level:
+  Level 1: 0.05 (5%)  | Level 2: 0.08 (8%)  | Level 3: 0.10 (10%)
+  Level 4: 0.12 (12%) | Level 5: 0.15 (15%)
 ```
 
-**What ClanBonus affects:** Attack ECP, defense ECP, spy, scout (in combat context).
+Source: `BALANCE.clan.EFFICIENCY`, `BALANCE.clan.BONUS_CAP_RATE` in `config/balance.config.ts`.
+Implementation: `calculateClanBonus()` in `lib/game/combat.ts`.
+
+**What ClanBonus affects:** Attack ECP, defense ECP (additive, never multiplied by Hero or race bonus).
 **What ClanBonus does NOT affect:** PP ranking, loot, economy, base resource production.
 
-### 9.2 Tribe Mana Regeneration
+### 9.2 Tribe Level Progression
 
+Tribe level is a **permanent, irreversible** progression track from level 1 to 5.
+
+**Rules:**
+- Level upgrades cost **tribe mana only** (no gold, no automatic progression).
+- Upgrades are permanent — no downgrade, no refund.
+- Only the **tribe leader** or a **deputy** may perform upgrades.
+- Maximum level: **5** (`BALANCE.tribe.levelUpgrade.maxLevel`).
+- Tribe level directly gates clan bonus efficiency (§9.1).
+
+**Upgrade cost (tribe mana):**
+
+| Current Level | Next Level | Mana Cost |
+|--------------|------------|-----------|
+| 1 | 2 | 100 |
+| 2 | 3 | 250 |
+| 3 | 4 | 500 |
+| 4 | 5 | 1,000 |
+
+Source: `BALANCE.tribe.levelUpgrade.manaCostByLevel` in `config/balance.config.ts`.
+
+**Atomicity:** Both writes (`tribes.mana -= cost`, `tribes.level += 1`) run in a single
+Postgres transaction via `tribe_upgrade_level_apply()` RPC (TOCTTOU-safe with FOR UPDATE locks).
+
+API route: `POST /api/tribe/upgrade-level`
+Migration: `supabase/migrations/0022_tribe_level_upgrade.sql`
+
+**UI:** Available in the **Upgrade** tab of the Tribe page (renamed from "Spells").
+
+### 9.3 Tribe Mana
+
+**Regeneration (tick-based):**
 ```
-tribeManaGain = max(1, floor(memberCount × manaPerMemberPerTick))
-manaPerMemberPerTick = 1
+tribeManaGain = memberCount × manaPerMemberPerTick
+manaPerMemberPerTick = 1   (BALANCE.tribe.manaPerMemberPerTick)
 
-5 members → 5 mana/tick | 20 members (max) → 20 mana/tick
+Example: 5 members → +5 tribe mana/tick | 20 members → +20 tribe mana/tick
 ```
 
-### 9.3 Tribe Spells
+**Member contributions:** Any member may permanently transfer personal hero mana → tribe mana
+via `POST /api/tribe/contribute-mana`. Transfer is irreversible.
 
-| Spell | Mana Cost | Duration |
-|-------|-----------|----------|
-| combat_boost | 20 | 6 hours |
-| tribe_shield | 30 | 12 hours |
-| production_blessing | 25 | 8 hours |
-| mass_spy | 15 | Instant (0h) |
-| war_cry | 40 | 4 hours |
+**Tribe mana spends:** Two categories of tribe mana expenditure:
+1. **Tribe level upgrades** (see §9.2) — permanent upgrade, leader/deputy only.
+2. **Tribe spells** (see §9.4) — temporary buffs, leader/deputy only.
 
-### 9.4 Tax Limits (Gold per Day, per City)
+### 9.4 Tribe Spells (V1)
+
+All spells cost **tribe mana** and are activated by leader or deputy via
+`POST /api/tribe/activate-spell`.
+
+| Spell | Mana Cost | Duration | Effect |
+|-------|-----------|----------|--------|
+| `war_cry` | 40 | 4 hours | Attacker ECP ×1.25 |
+| `tribe_shield` | 30 | 12 hours | Defender ECP ×1.15 |
+| `production_blessing` | 25 | 8 hours | Slave output ×1.20 |
+| `spy_veil` | 20 | 6 hours | Scout defense ×1.30 |
+| `battle_supply` | 35 | 6 hours | Attack food cost −25% |
+
+Source: `BALANCE.tribe.spells` and `BALANCE.tribe.spellEffects` in `config/balance.config.ts`.
+
+### 9.5 Role System
+
+| Role | Count | Permissions |
+|------|-------|-------------|
+| `leader` | exactly 1 | All management: set tax, upgrade level, cast spells, appoint/remove deputies, kick members, transfer leadership, disband |
+| `deputy` | 0–3 | Can upgrade level, cast spells, kick members (not other deputies) |
+| `member` | rest | No management permissions |
+
+Deputy cap (3) enforced by atomic `tribe_set_member_role_apply()` RPC.
+Leadership transfer via atomic `tribe_transfer_leadership_apply()` RPC.
+
+### 9.6 Tax System
+
+Daily gold tax collected automatically at `BALANCE.tribe.taxCollectionHour` (20:00 Israel time).
+Gold goes directly to the tribe leader's personal resources (no treasury).
+
+**Tax limits by city (max daily gold per member):**
 
 | City | Max Daily Tax |
 |------|--------------|
@@ -881,12 +943,25 @@ manaPerMemberPerTick = 1
 | 4 — Grandoria | 10,000 gold |
 | 5 — Nerokvor | 20,000 gold |
 
-### 9.5 Membership Rules
+Leaders and deputies are **tax-exempt**.
 
-- Max members: 20
+### 9.7 Membership Rules
+
+- Max members: 20 (`BALANCE.clan.maxMembers`)
 - Leaving cooldown: 10 minutes (normal leave)
-- City migration cooldown: 48 hours before joining a clan (clan is locked to one city)
-- Players must leave their clan before promoting to a new city
+- City migration cooldown: 48 hours before joining a new clan
+- Players **must leave their clan** before promoting to a new city (enforced in `/api/develop/promote`)
+
+### 9.8 UI
+
+Tribe management lives at `/tribe`. When in a tribe, four tabs are shown:
+
+| Tab | Purpose |
+|-----|---------|
+| **Overview** | Identity card, stats, tribute panel, mana pool, active spells |
+| **Members** | Full roster with role management, tax status, kick/appoint actions |
+| **Upgrade** | Tribe level upgrade panel (§9.2) + spell casting (§9.4) + mana contribution |
+| **Chat** | Real-time tribe chat |
 
 ---
 

@@ -443,6 +443,35 @@ export const BALANCE = {
 
     // TRIBE mana regeneration per tick, per member (separate from personal hero.mana)
     manaPerMemberPerTick: 1, // [TUNE] e.g. 5 members → +5 tribe mana/tick
+
+    // ── Tribe Level Upgrade ───────────────────────────────────────────────────
+    //
+    // Tribe level is a permanent, irreversible progression track (1 → 5).
+    // Upgrades cost TRIBE MANA only. No gold. No automatic progression.
+    // Authorized roles: leader or deputy.
+    // Max level: 5 (same as clan.EFFICIENCY key range).
+    //
+    // Cost model: explicit lookup table per current level.
+    // manaCostByLevel[N] = tribe mana required to go from level N to level N+1.
+    //
+    // To tune: change values below. Do NOT add keys beyond maxLevel-1.
+    // The RPC (tribe_upgrade_level_apply) reads the cost passed from the API,
+    // which computes it here. BALANCE is the single source of truth.
+    //
+    // Validated at boot by balance-validate.ts:
+    //   - All keys 1..(maxLevel-1) must be present
+    //   - All values must be positive integers
+    levelUpgrade: {
+      maxLevel: 5, // [FIXED] Tribe level cap — matches clan.EFFICIENCY key range
+
+      // Cost in TRIBE MANA to upgrade from level N → level N+1
+      manaCostByLevel: {
+        1: 100,   // Level 1 → 2  [TUNE]
+        2: 250,   // Level 2 → 3  [TUNE]
+        3: 500,   // Level 3 → 4  [TUNE]
+        4: 1000,  // Level 4 → 5  [TUNE]
+      } as Record<number, number>,
+    },
   },
 
   // ═══════════════════════════════════════

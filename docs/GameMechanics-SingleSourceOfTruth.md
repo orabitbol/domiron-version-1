@@ -1,7 +1,8 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
-**Last updated:** 2026-03-07 — (1) `TICK_INTERVAL_MINUTES` env-var override removed entirely from all code and docs. Tick interval hardcoded to `BALANCE.tick.intervalMinutes` (30) in `tick/route.ts` and `instrumentation.ts`. Eliminates the regression where 1-minute-override in local dev caused gameplay mutations every minute. (2) `tick-status` always returns a future timestamp via `computeNextCronBoundary()`. (3) Tax countdown re-fetches when overdue. (4) `BattleReport` test fixture updated.
+**Last updated:** 2026-03-07 (pass 2) — Tribe Level Upgrade system implemented. (1) `BALANCE.tribe.levelUpgrade` added: explicit lookup table, costs 100/250/500/1000 tribe mana for levels 1→2/2→3/3→4/4→5. (2) DB migration `0022_tribe_level_upgrade.sql`: CHECK constraint `tribes.level BETWEEN 1 AND 5`, new RPC `tribe_upgrade_level_apply(UUID, INT, INT, INT)` — TOCTTOU-safe, locks tribe_members then tribes in consistent order, stale-read guard via p_next_level, writes mana deduction + level increment atomically, inserts audit log. (3) API route `POST /api/tribe/upgrade-level` — season freeze guard + fast pre-validation + atomic RPC. Permission: leader or deputy only. (4) Tribe tab renamed "Spells" → "Upgrade"; tab key `spells` → `upgrade`. Upgrade tab now shows: Tribe Level panel (current/next level, efficiency, cost, upgrade CTA) + Mana pool / contribute + Spells. (5) `balance-validate.ts` updated with tribe.levelUpgrade Zod schema + two refines. 5 new tests in `balance.test.ts`. (6) SSOT §10 fully updated.
+**Previous pass:** 2026-03-07 — (1) `TICK_INTERVAL_MINUTES` env-var override removed entirely from all code and docs. Tick interval hardcoded to `BALANCE.tick.intervalMinutes` (30) in `tick/route.ts` and `instrumentation.ts`. Eliminates the regression where 1-minute-override in local dev caused gameplay mutations every minute. (2) `tick-status` always returns a future timestamp via `computeNextCronBoundary()`. (3) Tax countdown re-fetches when overdue. (4) `BattleReport` test fixture updated.
 **Previous:** 2026-03-06 — (1) Spy intel expanded with bank/weapons/training fields. (2) Tribe V1 hardened: role system (`leader`/`deputy`/`member`), automated daily tax via `/api/tribe/tax-collect` cron (hourly `0 * * * *`, collects at 20:00 Israel time), mana contribution RPC, all management routes use atomic RPCs. Legacy spell keys `combat_boost` and `mass_spy` removed. V1 spells: `war_cry`, `tribe_shield`, `production_blessing`, `spy_veil`, `battle_supply`. Tax goes to leader personal gold (no tribe treasury). Deputy cap (3) enforced by `tribe_set_member_role_apply` RPC. Leader invariant enforced by leave/disband/transfer-leadership routes. (3) Pass 2 hardening: tax RPC deterministic UUID-ordered locking, leader resources existence check, `p_amount > 0` guard in mana RPC, partial unique index `uidx_tribe_one_leader`. (4) Tribe page simplified to 4-tab UI (Overview / Members / Spells / Chat): Requests tab removed (open-join, no request flow), Chat tab added (non-realtime: lazy fetch + optimistic send + manual refresh button). Leadership transfer moved to explicit modal flow (deputies only). Member actions replaced with "Manage ▾" portal dropdown (React Portal, immune to overflow-hidden clipping). Leave/Disband/Transfer now use Modal component. Tribute panel redesigned as prominent amber block. Tax schedule verified: `0 * * * *` cron, collects once daily at 20:00 Israel time, idempotent via `last_tax_collected_date`. (5) Tick cron corrected to `*/30 * * * *` (every 30 minutes). Tribe chat is NOT realtime — no Supabase realtime subscription, no publication setup.
 **Status:** Authoritative. Every statement is backed by a code reference. Anything unverified is explicitly marked.
 
@@ -1104,7 +1105,7 @@ player_hero_effects:
 
 ## 10. Clan / Tribe System
 
-**Files:** `app/api/tribe/*/route.ts`, `lib/game/combat.ts` → `calculateClanBonus()`, `supabase/migrations/0020_tribe_v1.sql`
+**Files:** `app/api/tribe/*/route.ts`, `lib/game/combat.ts` → `calculateClanBonus()`, `supabase/migrations/0020_tribe_v1.sql`, `supabase/migrations/0022_tribe_level_upgrade.sql`
 
 ### Tribe Page — UI Structure (V1)
 
@@ -1120,8 +1121,11 @@ If not in a tribe, two-panel "no tribe" state (create + city join list).
 |---|---|---|---|
 | Overview | `overview` | Identity card + stats strip + prominent tribute panel + mana panel + active spells + Tribe Actions section | SSR props + `GET /api/tribe/tax-status` (countdown) |
 | Members | `members` | Tribute header strip + premium roster list (avatar, role accent bar, identity, power, tax pill) + "Manage ▾" action dropdown per row + Transfer Leadership button in panel header (leader only) | SSR props + `taxLogToday` SSR query |
-| Spells | `spells` | Mana pool + contribute form + compact spell rows (left-border accent, name/effect, cost/cast) | SSR props (optimistic mana update) |
+| Upgrade | `upgrade` | Tribe Level panel (§10.Tribe Level Upgrade) + Mana pool + contribute form + compact spell rows | SSR props (optimistic `localTribeLevel` + `localTribeMana` updates) |
 | Chat | `chat` | Tribe-only chat — message list + send form + manual refresh button | Lazy `GET /api/tribe/chat` on first open; manual refresh re-fetches |
+
+> **Note:** Tab was renamed from "Spells" → "Upgrade" when tribe level progression was added.
+> The `spells` key and "Spells" label no longer exist in `TribeClient.tsx`.
 
 **Tabs removed:** Requests, Taxes, Chronicle, Command — all eliminated.
 
@@ -1226,7 +1230,7 @@ Tax-collect cron (`0 * * * *`) is correct and unchanged. Tick cron was corrected
 
 **Dynamic update strategy:**
 - `router.refresh()` (full SSR reload) — used only for structural page-state transitions: create tribe, join tribe, leave tribe, disband tribe, transfer leadership. These change SSR props (tribe/membership context) that can't be patched in place.
-- In-place local state updates (no refresh) — kick member (`setLocalMembers`), set role (`setLocalMembers`), set tax (`setLocalTaxAmount`), activate spell (`setLocalSpells` + `setLocalTribeMana`), contribute mana (`setLocalTribeMana`). All return updated data in the response and apply it immediately.
+- In-place local state updates (no refresh) — kick member (`setLocalMembers`), set role (`setLocalMembers`), set tax (`setLocalTaxAmount`), activate spell (`setLocalSpells` + `setLocalTribeMana`), contribute mana (`setLocalTribeMana`), upgrade level (`setLocalTribeLevel` + `setLocalTribeMana`). All return updated data in the response and apply it immediately.
 - `refresh()` from `usePlayer()` (PlayerContext) — called after mutations that affect sidebar resource values (mana, gold) to sync the resource bar.
 
 ### Clan Rules
@@ -1249,11 +1253,11 @@ Applied additively to ECP. Never multiplied by hero bonus.
 
 Each tribe member has exactly one role: `leader` | `deputy` | `member`.
 
-| Role | Count | Tax exempt | Cast spells | Manage roles | Transfer leadership |
-|---|---|---|---|---|---|
-| `leader` | Exactly 1 | Yes | Yes | Yes | Yes |
-| `deputy` | 0–3 max | Yes | Yes | No | No |
-| `member` | Any | No (unless `tax_exempt=true`) | No | No | No |
+| Role | Count | Tax exempt | Upgrade level | Cast spells | Manage roles | Transfer leadership |
+|---|---|---|---|---|---|---|
+| `leader` | Exactly 1 | Yes | Yes | Yes | Yes | Yes |
+| `deputy` | 0–3 max | Yes | Yes | Yes | No | No |
+| `member` | Any | No (unless `tax_exempt=true`) | No | No | No | No |
 
 **Leader invariant:**
 - **DB-level (at most one leader):** Partial unique index `uidx_tribe_one_leader ON tribe_members(tribe_id) WHERE role = 'leader'` prevents two rows with `role='leader'` in the same tribe. This fires for any write, including direct DB access bypassing application code.
@@ -1284,6 +1288,83 @@ manaGain = max(1, floor(memberCount × BALANCE.tribe.manaPerMemberPerTick))
 Atomic RPC (`tribe_contribute_mana_apply`). Permanent — no refunds, no withdrawal.
 RPC validates `p_amount > 0` directly (returns `invalid_amount` error if not) — defence in depth beyond route-level Zod schema.
 Returns `{ new_hero_mana, new_tribe_mana, tribe_id }` for immediate UI update without extra query.
+
+### Tribe Level Upgrade
+
+Tribe level is a **permanent, irreversible** progression track from 1 to 5.
+It affects combat directly via the Clan Bonus efficiency multiplier (§10.Clan Combat Bonus).
+
+**Rules:**
+- Upgrades cost **tribe mana only**. No gold. No automatic progression. No downgrade.
+- Authorized roles: **leader** or **deputy** only. Regular members cannot upgrade.
+- Maximum level: **5** (`BALANCE.tribe.levelUpgrade.maxLevel`).
+- Level cap is enforced at three layers: BALANCE validation, API pre-check, and DB CHECK constraint.
+
+**Cost table (tribe mana to advance N → N+1):**
+
+| Level | → | Cost (tribe mana) | Source key |
+|---|---|---|---|
+| 1 | 2 | 100 | `manaCostByLevel[1]` |
+| 2 | 3 | 250 | `manaCostByLevel[2]` |
+| 3 | 4 | 500 | `manaCostByLevel[3]` |
+| 4 | 5 | 1,000 | `manaCostByLevel[4]` |
+
+**BALANCE config:** `BALANCE.tribe.levelUpgrade.manaCostByLevel` (Record<number, number>) in `config/balance.config.ts`.
+**Validation:** `balance-validate.ts` — Zod schema + two refines: (a) keys 1..(maxLevel−1) all present, (b) all values > 0.
+
+**Combat effect of tribe level:**
+```
+ClanBonus_raw = tribes.power_total × BALANCE.clan.EFFICIENCY[tribe.level]
+ClanBonus     = floor(min(ClanBonus_raw, 0.20 × playerPP))
+
+EFFICIENCY by level:
+  1 → 0.05 (5%)  |  2 → 0.08 (8%)  |  3 → 0.10 (10%)
+  4 → 0.12 (12%) |  5 → 0.15 (15%)
+```
+When tribe.level is upgraded, the next combat resolution fetches the new level from the DB and uses the higher efficiency. **No caching — effect is immediate from the next attack.**
+
+Data path: `attack/route.ts` fetches `tribes.level` → builds `ClanContext.developmentLevel = tribe.level` → `calculateClanBonus(playerPP, clanCtx)` in `lib/game/combat.ts:331` reads `BALANCE.clan.EFFICIENCY[clan.developmentLevel]`.
+
+**API route:** `POST /api/tribe/upgrade-level`
+- No request body (player identity from session).
+- Season freeze guard applied first.
+- Fast pre-validation (membership, role, level < max, mana ≥ cost) for good UX error messages.
+- Atomic RPC call for the actual write.
+- Returns `{ data: { new_level, new_tribe_mana, mana_spent } }`.
+
+**RPC: `tribe_upgrade_level_apply(p_player_id UUID, p_mana_cost INT, p_next_level INT, p_max_level INT)`**
+**Migration:** `supabase/migrations/0022_tribe_level_upgrade.sql`
+
+Lock order (consistent with all other tribe RPCs):
+1. `tribe_members WHERE player_id = p_player_id FOR UPDATE` — derives tribe_id, reads role
+2. `tribes WHERE id = v_tribe_id FOR UPDATE` — reads mana, level
+
+Post-lock validations (TOCTTOU-safe):
+- Role still leader or deputy → else `not_authorized`
+- `tribe.level >= p_max_level` → `already_max_level`
+- `tribe.level + 1 ≠ p_next_level` → `stale_level` (concurrent upgrade ran first)
+- `tribe.mana < p_mana_cost` → `not_enough_mana`
+
+Mutations (one transaction):
+- `tribes.mana = mana - p_mana_cost`
+- `tribes.level = level + 1`
+- `INSERT INTO tribe_audit_log` — action `'level_upgrade'`, details `{ previous_level, new_level, mana_cost }`
+
+**DB constraint (data integrity safety net):**
+`ALTER TABLE tribes ADD CONSTRAINT chk_tribe_level CHECK (level BETWEEN 1 AND 5)`
+All existing rows have `level=1` (the column default) — constraint is safe to apply.
+
+**UI (Upgrade tab):**
+Leader/deputy sees:
+- **Tribe Level panel**: current level + efficiency % | arrow | next level + efficiency %
+- Cost row: upgrade cost mana vs available mana (mana shown red if insufficient)
+- Irreversibility warning: "⚠ Tribe level upgrades are permanent and irreversible."
+- Upgrade CTA button: disabled if insufficient mana or not canManage
+- **Max-level state**: replaces the upgrade panel when `tribe.level >= maxLevel`, shows "Maximum Level Reached" with current efficiency
+
+Non-leader/deputy sees: same panel but no upgrade button (read-only display).
+
+State management: `localTribeLevel` and `localTribeMana` are updated immediately from response `data` on success. `refresh()` called to sync sidebar.
 
 ### Tax System (V1 — Automated)
 

@@ -102,14 +102,17 @@ const V1_SPELLS: SpellKey[] = [
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
-type TribeTab = 'overview' | 'members' | 'spells' | 'chat'
+type TribeTab = 'overview' | 'members' | 'upgrade' | 'chat'
 
 const TRIBE_TABS: Array<{ key: string; label: string }> = [
   { key: 'overview', label: 'Overview' },
   { key: 'members',  label: 'Members'  },
-  { key: 'spells',   label: 'Spells'   },
+  { key: 'upgrade',  label: 'Upgrade'  },
   { key: 'chat',     label: 'Chat'     },
 ]
+
+// ── Clan efficiency type (matches ClanDevLevel in balance.config.ts) ──────────
+type ClanLevel = 1 | 2 | 3 | 4 | 5
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -179,6 +182,7 @@ export function TribeClient({
   const [manaAmount,       setManaAmount]       = useState('')
   const [localMembers,     setLocalMembers]     = useState(members)
   const [localTribeMana,   setLocalTribeMana]   = useState(tribe?.mana ?? 0)
+  const [localTribeLevel,  setLocalTribeLevel]  = useState(tribe?.level ?? 1)
   const [localTaxAmount,   setLocalTaxAmount]   = useState(tribe?.tax_amount ?? 0)
   const [localSpells,      setLocalSpells]      = useState(tribeSpells)
   const [taxStatus,        setTaxStatus]        = useState<TaxStatus | null>(null)
@@ -429,6 +433,24 @@ export function TribeClient({
         if (data.data?.new_tribe_mana !== undefined) {
           setLocalTribeMana(data.data.new_tribe_mana as number)
         }
+        refresh()
+      }
+    } catch { showMsg('Network error', 'error') }
+    finally { setLoading(null) }
+  }
+
+  async function handleUpgradeTribeLevel() {
+    setLoading('upgrade-level')
+    setMessage(null)
+    try {
+      const res  = await fetch('/api/tribe/upgrade-level', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) showMsg(data.error ?? 'Failed to upgrade tribe level', 'error')
+      else {
+        const newLevel: number = data.data.new_level
+        showMsg(`Tribe advanced to Level ${newLevel}!`, 'success')
+        setLocalTribeLevel(newLevel)
+        setLocalTribeMana(data.data.new_tribe_mana as number)
         refresh()
       }
     } catch { showMsg('Network error', 'error') }
@@ -738,8 +760,8 @@ export function TribeClient({
                       +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} per tick · {localMembers.length} members
                     </p>
                   </div>
-                  <Button variant="link" size="sm" onClick={() => setActiveTab('spells')}>
-                    Manage Spells →
+                  <Button variant="link" size="sm" onClick={() => setActiveTab('upgrade')}>
+                    Spells &amp; Upgrade →
                   </Button>
                 </div>
               </div>
@@ -1073,11 +1095,131 @@ export function TribeClient({
             </div>
           )}
 
-          {/* ── SPELLS ────────────────────────────────────────────────────── */}
-          {activeTab === 'spells' && (
-            <div className="space-y-3">
+          {/* ── UPGRADE ───────────────────────────────────────────────────── */}
+          {activeTab === 'upgrade' && (
+            <div className="space-y-4">
 
-              {/* Mana pool + contribute */}
+              {/* ── Tribe Level Panel ─────────────────────────────────────── */}
+              <div className="card-game rounded-game-lg overflow-hidden">
+
+                {/* Panel header */}
+                <div className="px-5 py-3 bg-gradient-to-r from-purple-950/60 to-game-elevated/40 border-b border-purple-800/40">
+                  <h2 className="font-heading text-game-sm uppercase tracking-widest text-purple-300">
+                    Tribe Level
+                  </h2>
+                  <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                    Permanent progression · Spend tribe mana to advance · Irreversible
+                  </p>
+                </div>
+
+                {localTribeLevel >= BALANCE.tribe.levelUpgrade.maxLevel ? (
+                  /* ── Max level state ── */
+                  <div className="px-5 py-7 flex flex-col items-center gap-3 text-center">
+                    <div className="size-16 rounded-full bg-purple-900/40 border-2 border-purple-500/60 shadow-[0_0_28px_rgba(168,85,247,0.35)] flex items-center justify-center">
+                      <span className="font-display text-2xl font-bold text-purple-200">5</span>
+                    </div>
+                    <div>
+                      <p className="font-heading text-game-base uppercase tracking-wide text-purple-200">
+                        Maximum Level Reached
+                      </p>
+                      <p className="text-game-xs text-game-text-muted font-body mt-1">
+                        Clan bonus efficiency: {((BALANCE.clan.EFFICIENCY[5 as ClanLevel] ?? 0) * 100).toFixed(0)}%
+                        &nbsp;·&nbsp;Your tribe has reached full ascension
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Upgrade available ── */
+                  <div className="px-5 py-4 space-y-4">
+
+                    {/* Current → Next level grid */}
+                    <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                      {/* Current */}
+                      <div className="bg-game-elevated/60 border border-game-border rounded-game-lg p-3 text-center">
+                        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Current</p>
+                        <p className="text-2xl font-body font-bold text-purple-300 tabular-nums mt-0.5">
+                          Lv {localTribeLevel}
+                        </p>
+                        <p className="text-game-xs text-purple-400/70 font-body mt-0.5">
+                          {((BALANCE.clan.EFFICIENCY[localTribeLevel as ClanLevel] ?? 0) * 100).toFixed(0)}% efficiency
+                        </p>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center justify-center px-1">
+                        <span className="text-purple-600 font-heading text-xl leading-none">→</span>
+                      </div>
+
+                      {/* Next */}
+                      <div className="bg-purple-950/50 border border-purple-700/60 rounded-game-lg p-3 text-center shadow-[0_0_16px_rgba(168,85,247,0.12)]">
+                        <p className="text-game-xs text-purple-400/80 font-heading uppercase tracking-wide">Next</p>
+                        <p className="text-2xl font-body font-bold text-purple-200 tabular-nums mt-0.5">
+                          Lv {localTribeLevel + 1}
+                        </p>
+                        <p className="text-game-xs text-purple-300/60 font-body mt-0.5">
+                          {((BALANCE.clan.EFFICIENCY[(localTribeLevel + 1) as ClanLevel] ?? 0) * 100).toFixed(0)}% efficiency
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Cost vs available mana */}
+                    {(() => {
+                      const upgradeCost = BALANCE.tribe.levelUpgrade.manaCostByLevel[localTribeLevel] ?? 0
+                      const canAfford   = localTribeMana >= upgradeCost
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-4 rounded-game-lg border border-purple-800/40 bg-purple-950/20 px-4 py-3">
+                            <div>
+                              <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">
+                                Upgrade Cost
+                              </p>
+                              <div className="flex items-baseline gap-1.5 mt-0.5">
+                                <span className="text-xl font-body font-bold text-purple-300 tabular-nums">
+                                  {formatNumber(upgradeCost)}
+                                </span>
+                                <span className="text-game-xs text-purple-400/70 font-body">tribe mana</span>
+                              </div>
+                            </div>
+                            <div className="text-end">
+                              <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">
+                                Available
+                              </p>
+                              <p className={`text-game-base font-body font-semibold tabular-nums mt-0.5 ${
+                                canAfford ? 'text-purple-300' : 'text-red-400'
+                              }`}>
+                                {formatNumber(localTribeMana)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {canManage ? (
+                            <div className="space-y-2">
+                              <p className="text-game-xs text-amber-500/70 font-body text-center">
+                                ⚠ Tribe level upgrades are permanent and irreversible.
+                              </p>
+                              <Button
+                                variant="magic"
+                                disabled={!canAfford || !!loading}
+                                loading={loading === 'upgrade-level'}
+                                onClick={handleUpgradeTribeLevel}
+                                className="w-full"
+                              >
+                                Upgrade to Level {localTribeLevel + 1}
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="text-game-xs text-game-text-muted font-body text-center py-1">
+                              Only the tribe leader and deputies can upgrade tribe level.
+                            </p>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Mana Pool + Contribute ────────────────────────────────── */}
               <div className="bg-gradient-to-b from-purple-950/40 to-game-surface border border-purple-800/40 rounded-game-lg p-4">
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex-1">
@@ -1101,67 +1243,73 @@ export function TribeClient({
                   </div>
                 </div>
                 <p className="text-game-xs text-purple-400/50 font-body mt-2.5 pt-2.5 border-t border-purple-800/30">
-                  Contributions are permanent. Only leaders and deputies can cast spells.
+                  Contributions are permanent. Only leaders and deputies can cast spells or upgrade tribe level.
                 </p>
               </div>
 
-              {/* Compact spell rows */}
-              <div className="card-game rounded-game-lg overflow-hidden divide-y divide-game-border/40">
-                {V1_SPELLS.map((spellKey) => {
-                  const cfg         = BALANCE.tribe.spells[spellKey]
-                  if (!cfg) return null
-                  const activeSpell = localSpells.find((s) => s.spell_key === spellKey)
-                  const isActive    = !!activeSpell
-                  const accent      = SPELL_ACCENT[spellKey]
+              {/* ── Active Spells ─────────────────────────────────────────── */}
+              <div>
+                <p className="text-game-xs font-heading uppercase tracking-widest text-purple-400 px-1 mb-2">
+                  Spells
+                </p>
+                <div className="card-game rounded-game-lg overflow-hidden divide-y divide-game-border/40">
+                  {V1_SPELLS.map((spellKey) => {
+                    const cfg         = BALANCE.tribe.spells[spellKey]
+                    if (!cfg) return null
+                    const activeSpell = localSpells.find((s) => s.spell_key === spellKey)
+                    const isActive    = !!activeSpell
+                    const accent      = SPELL_ACCENT[spellKey]
 
-                  return (
-                    <div
-                      key={spellKey}
-                      className={`flex items-center gap-3 px-4 py-3 border-l-2 ${accent.borderL} ${
-                        isActive ? 'bg-purple-900/10' : 'hover:bg-game-elevated/40'
-                      } transition-colors`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-heading text-game-sm uppercase tracking-wide ${accent.text}`}>
-                            {SPELL_LABELS[spellKey]}
-                          </span>
-                          {isActive && <Badge variant="purple">Active</Badge>}
-                        </div>
-                        <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                          {SPELL_EFFECT[spellKey]}
-                          {isActive && activeSpell && (
-                            <span className="text-purple-400/80 ms-2 tabular-nums">
-                              · {formatTimeLeft(activeSpell.expires_at)}
+                    return (
+                      <div
+                        key={spellKey}
+                        className={`flex items-center gap-3 px-4 py-3 border-l-2 ${accent.borderL} ${
+                          isActive ? 'bg-purple-900/10' : 'hover:bg-game-elevated/40'
+                        } transition-colors`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-heading text-game-sm uppercase tracking-wide ${accent.text}`}>
+                              {SPELL_LABELS[spellKey]}
                             </span>
-                          )}
-                        </p>
+                            {isActive && <Badge variant="purple">Active</Badge>}
+                          </div>
+                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                            {SPELL_EFFECT[spellKey]}
+                            {isActive && activeSpell && (
+                              <span className="text-purple-400/80 ms-2 tabular-nums">
+                                · {formatTimeLeft(activeSpell.expires_at)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-end">
+                          <ResourceBadge type="mana" amount={cfg.manaCost} />
+                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">{cfg.durationHours}h</p>
+                        </div>
+                        {canManage && (
+                          <Button
+                            variant={isActive ? 'ghost' : 'magic'}
+                            size="sm"
+                            disabled={isActive || localTribeMana < cfg.manaCost || !!loading}
+                            loading={loading === `spell-${spellKey}`}
+                            onClick={() => handleActivateSpell(spellKey)}
+                          >
+                            {isActive ? 'Active' : 'Cast'}
+                          </Button>
+                        )}
                       </div>
-                      <div className="shrink-0 text-end">
-                        <ResourceBadge type="mana" amount={cfg.manaCost} />
-                        <p className="text-game-xs text-game-text-muted font-body mt-0.5">{cfg.durationHours}h</p>
-                      </div>
-                      {canManage && (
-                        <Button
-                          variant={isActive ? 'ghost' : 'magic'}
-                          size="sm"
-                          disabled={isActive || localTribeMana < cfg.manaCost || !!loading}
-                          loading={loading === `spell-${spellKey}`}
-                          onClick={() => handleActivateSpell(spellKey)}
-                        >
-                          {isActive ? 'Active' : 'Cast'}
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
+
+                {!canManage && (
+                  <p className="text-game-xs text-game-text-muted font-body text-center py-2">
+                    Only the tribe leader and deputies can activate spells.
+                  </p>
+                )}
               </div>
 
-              {!canManage && (
-                <p className="text-game-xs text-game-text-muted font-body text-center py-1">
-                  Only the tribe leader and deputies can activate spells.
-                </p>
-              )}
             </div>
           )}
 
