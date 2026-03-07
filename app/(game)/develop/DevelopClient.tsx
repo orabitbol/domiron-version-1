@@ -72,10 +72,263 @@ const DEV_ROWS: DevConfig[] = [
   },
 ];
 
-const ROMAN = ["I", "II", "III", "IV", "V"] as const;
-
-// City emblems per tier — one per city level
 const CITY_EMBLEMS = ["⛺", "🏡", "🏰", "🏯", "⚜"] as const;
+
+// ── Fantasy conquest map ─────────────────────────────────────────────────────
+//
+// CITY_MAP_POINTS is the single source of truth for visual placement.
+// x/y are CSS percentage strings calibrated to public/citys-map.png geography.
+// labelAbove controls whether the city name renders above or below the marker.
+// All gameplay values come from BALANCE.cities — never duplicated here.
+//
+interface CityMapPoint {
+  level: number;
+  label: string;
+  x: string;
+  y: string;
+  labelAbove: boolean;
+}
+
+const CITY_MAP_POINTS: CityMapPoint[] = [
+  { level: 1, label: "Winterfell",     x: "20%", y: "18%", labelAbove: false },
+  { level: 2, label: "King's Landing", x: "67%", y: "22%", labelAbove: false },
+  { level: 3, label: "Dragonstone",    x: "26%", y: "50%", labelAbove: false },
+  { level: 4, label: "Highgarden",     x: "47%", y: "63%", labelAbove: true  },
+  { level: 5, label: "Casterly Rock",  x: "72%", y: "67%", labelAbove: true  },
+];
+
+type CityMarkerState = "completed" | "current" | "next" | "locked";
+
+function getCityState(
+  level: number,
+  currentCity: number,
+  maxCity: number,
+): CityMarkerState {
+  if (level < currentCity)  return "completed";
+  if (level === currentCity) return "current";
+  if (level === currentCity + 1 && currentCity < maxCity) return "next";
+  return "locked";
+}
+
+// Pure CSS gold ring marker — no emoji, no legacy city emblems.
+function CityMapMarker({
+  point,
+  state,
+}: {
+  point: CityMapPoint;
+  state: CityMarkerState;
+}) {
+  const isCurrent   = state === "current";
+  const isNext      = state === "next";
+  const isCompleted = state === "completed";
+
+  const outerDiam = isCurrent ? 20 : isNext ? 15 : isCompleted ? 12 : 9;
+  const innerDiam = isCurrent ? 7  : isNext ? 5  : isCompleted ? 4  : 3;
+
+  const ringColor = isCurrent
+    ? "rgba(240,192,48,1)"
+    : isNext      ? "rgba(210,158,32,0.88)"
+    : isCompleted ? "rgba(160,112,32,0.72)"
+    : "rgba(80,58,18,0.42)";
+
+  const innerColor = isCurrent
+    ? "rgba(255,220,100,1)"
+    : isNext      ? "rgba(220,168,40,0.92)"
+    : isCompleted ? "rgba(160,112,32,0.82)"
+    : "rgba(55,40,12,0.5)";
+
+  const ringGlow = isCurrent
+    ? "0 0 10px rgba(240,192,48,0.9), 0 0 24px rgba(201,144,26,0.52), 0 0 48px rgba(160,110,20,0.2)"
+    : isNext      ? "0 0 7px rgba(201,144,26,0.62), 0 0 16px rgba(160,110,20,0.28)"
+    : isCompleted ? "0 0 5px rgba(160,112,32,0.35)"
+    : "none";
+
+  const labelColor = isCurrent
+    ? "rgba(255,220,100,1)"
+    : isNext      ? "rgba(240,192,48,0.95)"
+    : isCompleted ? "rgba(180,138,60,0.82)"
+    : "rgba(100,78,28,0.5)";
+
+  const labelSize   = isCurrent ? "0.75rem" : isNext ? "0.67rem" : "0.58rem";
+  const labelWeight = isCurrent ? 700 : isNext ? 600 : 400;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: point.x,
+        top: point.y,
+        transform: "translate(-50%, -50%)",
+        zIndex: isCurrent ? 10 : isNext ? 8 : isCompleted ? 5 : 3,
+        pointerEvents: "none",
+      }}
+    >
+      {/* Gold ring dot — the map pin */}
+      <div
+        style={{
+          position: "relative",
+          width: outerDiam,
+          height: outerDiam,
+          borderRadius: "50%",
+          border: `2px solid ${ringColor}`,
+          boxShadow: ringGlow,
+          background: "rgba(6,4,2,0.85)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {/* Animated pulse halo — current city only */}
+        {isCurrent && (
+          <div
+            className="animate-ping"
+            style={{
+              position: "absolute",
+              inset: "-8px",
+              borderRadius: "50%",
+              border: "1.5px solid rgba(240,192,48,0.42)",
+            }}
+          />
+        )}
+        {/* Center fill dot */}
+        <div
+          style={{
+            width: innerDiam,
+            height: innerDiam,
+            borderRadius: "50%",
+            background: innerColor,
+          }}
+        />
+      </div>
+
+      {/* City name — absolutely positioned above or below the dot */}
+      <span
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          ...(point.labelAbove
+            ? { bottom: `calc(100% + 6px)` }
+            : { top:    `calc(100% + 6px)` }),
+          fontFamily: "Cinzel, serif",
+          fontSize: labelSize,
+          fontWeight: labelWeight,
+          letterSpacing: "0.07em",
+          color: labelColor,
+          whiteSpace: "nowrap",
+          lineHeight: 1,
+          textShadow: isCurrent
+            ? "0 0 10px rgba(201,144,26,0.82), 0 1px 4px rgba(0,0,0,0.96), 0 -1px 4px rgba(0,0,0,0.96)"
+            : isNext
+            ? "0 0 7px rgba(160,110,20,0.5), 0 1px 4px rgba(0,0,0,0.9)"
+            : "0 1px 4px rgba(0,0,0,0.85), 0 -1px 3px rgba(0,0,0,0.85)",
+        }}
+      >
+        {point.label}
+      </span>
+    </div>
+  );
+}
+
+function CityConquestMap({ currentCity }: { currentCity: number }) {
+  const maxCity = BALANCE.cities.maxCity;
+
+  return (
+    <div style={{ position: "relative", width: "100%" }}>
+      {/* Base map — full natural aspect ratio, no cropping */}
+      <img
+        src="/citys-map.png"
+        alt="Realm map"
+        style={{
+          display: "block",
+          width: "100%",
+          height: "auto",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* SVG overlay: conquest route + subtle edge vignette
+          preserveAspectRatio="none" ensures SVG % coords align 1:1 with image % positions */}
+      <svg
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+        }}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <radialGradient id="mapVig" cx="50%" cy="50%" r="60%">
+            <stop offset="0%"   stopColor="transparent" />
+            <stop offset="100%" stopColor="rgba(3,2,1,0.4)" />
+          </radialGradient>
+        </defs>
+
+        {/* Route segments — state-aware styling */}
+        {CITY_MAP_POINTS.slice(0, -1).map((from, i) => {
+          const to     = CITY_MAP_POINTS[i + 1];
+          const fx     = parseFloat(from.x);
+          const fy     = parseFloat(from.y);
+          const tx     = parseFloat(to.x);
+          const ty     = parseFloat(to.y);
+          const isComp = to.level <= currentCity;
+          const isActv = from.level === currentCity && to.level === currentCity + 1;
+          return (
+            <line
+              key={i}
+              x1={fx} y1={fy} x2={tx} y2={ty}
+              stroke={
+                isComp ? "rgba(240,192,48,0.72)"
+                : isActv ? "rgba(240,192,48,0.42)"
+                : "rgba(30,22,8,0.38)"
+              }
+              strokeWidth={isComp ? 0.65 : isActv ? 0.5 : 0.28}
+              strokeDasharray={isComp ? "none" : isActv ? "2.5,3" : "1,5"}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
+        {/* Midpoint dots on completed / active segments */}
+        {CITY_MAP_POINTS.slice(0, -1).map((from, i) => {
+          const to     = CITY_MAP_POINTS[i + 1];
+          const fx     = parseFloat(from.x);
+          const fy     = parseFloat(from.y);
+          const tx     = parseFloat(to.x);
+          const ty     = parseFloat(to.y);
+          const isComp = to.level <= currentCity;
+          const isActv = from.level === currentCity && to.level === currentCity + 1;
+          if (!isComp && !isActv) return null;
+          return (
+            <circle
+              key={`m${i}`}
+              cx={(fx + tx) / 2}
+              cy={(fy + ty) / 2}
+              r={0.42}
+              fill={isComp ? "rgba(240,192,48,0.68)" : "rgba(240,192,48,0.36)"}
+            />
+          );
+        })}
+
+        {/* Subtle edge vignette */}
+        <rect width="100" height="100" fill="url(#mapVig)" />
+      </svg>
+
+      {/* City markers */}
+      {CITY_MAP_POINTS.map((point) => (
+        <CityMapMarker
+          key={point.level}
+          point={point}
+          state={getCityState(point.level, currentCity, maxCity)}
+        />
+      ))}
+    </div>
+  );
+}
 
 // ── Cost helper — unchanged logic ─────────────────────────────────────────
 
@@ -392,154 +645,6 @@ export function DevelopClient() {
     BALANCE.training.populationPerTick,
   ) as [string, number][];
 
-  // ── Campaign waypoint nodes (conquest track) ──────────────────────────────
-
-  const campaignNodes: JSX.Element[] = [];
-  for (let i = 0; i < 5; i++) {
-    const cityNum = i + 1;
-    const name = BALANCE.cities.names[cityNum] ?? `City ${cityNum}`;
-    const isCompleted = cityNum < currentCity;
-    const isCurrent = cityNum === currentCity;
-    const isNext = hasNextCity && cityNum === nextCityNum;
-
-    // Connector segment before each node except the first
-    if (i > 0) {
-      const segDone = cityNum <= currentCity;
-      const segActive = !segDone && cityNum === nextCityNum;
-      campaignNodes.push(
-        <div
-          key={`seg-${cityNum}`}
-          style={{
-            flex: 1,
-            marginTop: "1.375rem",
-            height: "2px",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: segDone
-                ? "linear-gradient(90deg, rgba(201,144,26,0.85), rgba(240,192,48,0.6))"
-                : segActive
-                  ? "repeating-linear-gradient(90deg, rgba(201,144,26,0.5) 0px, rgba(201,144,26,0.5) 5px, transparent 5px, transparent 12px)"
-                  : "rgba(30,22,10,0.5)",
-            }}
-          />
-        </div>,
-      );
-    }
-
-    // City waypoint node
-    campaignNodes.push(
-      <div
-        key={`city-${cityNum}`}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "4px",
-          flexShrink: 0,
-          zIndex: 1,
-        }}
-      >
-        <div
-          style={{
-            width: isCurrent ? "2.75rem" : isNext ? "2.25rem" : "1.75rem",
-            height: isCurrent ? "2.75rem" : isNext ? "2.25rem" : "1.75rem",
-            borderRadius: "50%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: isCurrent ? "1.2rem" : isNext ? "1rem" : "0.75rem",
-            background: isCompleted
-              ? "linear-gradient(135deg, rgba(80,60,20,0.9), rgba(50,36,12,0.8))"
-              : isCurrent
-                ? "linear-gradient(135deg, rgba(201,144,26,0.38), rgba(122,92,18,0.28))"
-                : isNext
-                  ? "linear-gradient(135deg, rgba(30,22,10,0.95), rgba(20,16,8,0.9))"
-                  : "rgba(12,10,6,0.9)",
-            border: isCompleted
-              ? "1.5px solid rgba(201,144,26,0.65)"
-              : isCurrent
-                ? "2px solid rgba(240,192,48,0.9)"
-                : isNext
-                  ? "1.5px solid rgba(201,144,26,0.4)"
-                  : "1px solid rgba(30,22,10,0.6)",
-            boxShadow: isCurrent
-              ? "0 0 24px rgba(201,144,26,0.9), 0 0 48px rgba(201,144,26,0.4), 0 0 72px rgba(201,144,26,0.15)"
-              : isNext
-                ? "0 0 12px rgba(201,144,26,0.25)"
-                : "none",
-          }}
-        >
-          {isCompleted ? (
-            <span
-              style={{
-                color: "rgba(201,144,26,0.85)",
-                fontSize: "0.8rem",
-                fontWeight: 700,
-              }}
-            >
-              ✓
-            </span>
-          ) : (
-            <span>{CITY_EMBLEMS[i]}</span>
-          )}
-        </div>
-
-        <span
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "0.48rem",
-            letterSpacing: "0.04em",
-            textAlign: "center",
-            maxWidth: "60px",
-            lineHeight: 1.2,
-            color: isCurrent
-              ? "rgba(240,192,48,0.9)"
-              : isNext
-                ? "rgba(201,144,26,0.7)"
-                : isCompleted
-                  ? "rgba(201,144,26,0.45)"
-                  : "rgba(40,30,12,0.5)",
-          }}
-        >
-          {name}
-        </span>
-
-        {isCurrent && (
-          <span
-            style={{
-              fontSize: "0.42rem",
-              letterSpacing: "0.12em",
-              color: "rgba(201,144,26,0.7)",
-              textTransform: "uppercase",
-              fontFamily: "Source Sans 3, sans-serif",
-            }}
-          >
-            here
-          </span>
-        )}
-        {isNext && (
-          <span
-            style={{
-              fontSize: "0.42rem",
-              letterSpacing: "0.12em",
-              color: "rgba(240,192,48,0.8)",
-              textTransform: "uppercase",
-              fontFamily: "Source Sans 3, sans-serif",
-            }}
-          >
-            next
-          </span>
-        )}
-      </div>,
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -641,21 +746,6 @@ export function DevelopClient() {
             "0 12px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(201,144,26,0.06), inset 0 1px 0 rgba(240,192,48,0.12)",
         }}
       >
-        {/* Background map grid texture */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `
-              linear-gradient(rgba(201,144,26,0.022) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(201,144,26,0.022) 1px, transparent 1px)
-            `,
-            backgroundSize: "44px 44px",
-            pointerEvents: "none",
-            zIndex: 0,
-          }}
-        />
-
         {/* Corner ornaments */}
         <div
           style={{
@@ -745,316 +835,67 @@ export function DevelopClient() {
             }}
           >
             {currentCity === BALANCE.cities.maxCity
-              ? "Apex — Maximum Tier"
-              : `Tier ${ROMAN[currentCity - 1]} → Tier ${ROMAN[nextCityNum - 1]}`}
+              ? "Apex — All Realms Claimed"
+              : `${CITY_MAP_POINTS[currentCity - 1]?.label ?? ""} → ${CITY_MAP_POINTS[nextCityNum - 1]?.label ?? ""}`}
           </span>
         </div>
 
         {/* ── Main content ── */}
         {hasNextCity && nextCityName && nextCost && nextReq !== null ? (
           <div style={{ position: "relative", zIndex: 1 }}>
-            {/* ── Territory diptych — the cinematic centerpiece ── */}
+
+            {/* ── Fantasy conquest map — the centerpiece ── */}
+            <CityConquestMap currentCity={currentCity} />
+
+            {/* ── Current → next city info strip ── */}
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr auto 1fr",
-                position: "relative",
-                overflow: "hidden",
+                borderTop: "1px solid rgba(201,144,26,0.15)",
+                borderBottom: "1px solid rgba(201,144,26,0.12)",
+                background: "linear-gradient(180deg, rgba(10,7,3,0.85) 0%, rgba(6,4,2,0.95) 100%)",
               }}
             >
-              {/* Radial territory lights */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "radial-gradient(ellipse at 22% 50%, rgba(201,144,26,0.08) 0%, transparent 55%)",
-                  pointerEvents: "none",
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "radial-gradient(ellipse at 78% 50%, rgba(240,192,48,0.065) 0%, transparent 55%)",
-                  pointerEvents: "none",
-                }}
-              />
-
-              {/* Current city territory */}
-              <div
-                style={{
-                  padding: "1.5rem 1rem 1.25rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.625rem",
-                  position: "relative",
-                }}
-              >
-                {/* City emblem */}
-                <div
-                  style={{
-                    width: "5rem",
-                    height: "5rem",
-                    borderRadius: "50%",
-                    background:
-                      "linear-gradient(135deg, rgba(50,38,16,0.95), rgba(22,16,8,0.98))",
-                    border: "2px solid rgba(201,144,26,0.65)",
-                    boxShadow:
-                      "0 0 22px rgba(201,144,26,0.55), 0 0 44px rgba(201,144,26,0.2), inset 0 1px 0 rgba(240,192,48,0.15)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "2.2rem",
-                  }}
-                >
+              {/* Current city */}
+              <div style={{ padding: "0.75rem 1rem 0.7rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <span style={{ fontSize: "1.65rem", lineHeight: 1, flexShrink: 0 }}>
                   {CITY_EMBLEMS[currentCity - 1]}
-                </div>
-
-                <div style={{ textAlign: "center" }}>
-                  <p
-                    style={{
-                      fontFamily: "Cinzel, serif",
-                      fontSize: "0.5rem",
-                      letterSpacing: "0.18em",
-                      textTransform: "uppercase",
-                      color: "rgba(139,90,47,0.75)",
-                      marginBottom: "4px",
-                    }}
-                  >
+                </span>
+                <div>
+                  <p style={{ fontFamily: "Cinzel, serif", fontSize: "0.46rem", letterSpacing: "0.16em", color: "rgba(120,88,36,0.72)", textTransform: "uppercase", marginBottom: "2px" }}>
                     Your Kingdom
                   </p>
-                  <p
-                    style={{
-                      fontFamily: "Cinzel, serif",
-                      fontSize: "1.05rem",
-                      color: "#F0C030",
-                      textShadow: "0 0 16px rgba(240,192,48,0.45)",
-                      lineHeight: 1.15,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
+                  <p style={{ fontFamily: "Cinzel, serif", fontSize: "0.88rem", color: "#F0C030", textShadow: "0 0 12px rgba(240,192,48,0.4)", lineHeight: 1.15, marginBottom: "3px" }}>
                     {currentCityName}
                   </p>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      background: "rgba(201,144,26,0.12)",
-                      border: "1px solid rgba(201,144,26,0.28)",
-                      borderRadius: "4px",
-                      padding: "2px 8px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: "Cinzel, serif",
-                        fontSize: "0.65rem",
-                        color: "rgba(201,144,26,0.88)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      ×{currentCityMult}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "Source Sans 3, sans-serif",
-                        fontSize: "0.52rem",
-                        color: "rgba(139,90,47,0.65)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      prod
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Conquest path divider */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "1rem 1.25rem",
-                  gap: "0.5rem",
-                  borderLeft: "1px solid rgba(201,144,26,0.1)",
-                  borderRight: "1px solid rgba(201,144,26,0.1)",
-                  minWidth: "76px",
-                }}
-              >
-                <div
-                  style={{
-                    width: "1px",
-                    flex: 1,
-                    background:
-                      "linear-gradient(to bottom, transparent, rgba(201,144,26,0.28))",
-                  }}
-                />
-                <div
-                  style={{
-                    width: "3rem",
-                    height: "3rem",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    fontSize: "1.15rem",
-                    background: canPromote
-                      ? "linear-gradient(135deg, rgba(22,65,22,0.65), rgba(12,45,12,0.75))"
-                      : "linear-gradient(135deg, rgba(40,30,12,0.65), rgba(20,15,6,0.75))",
-                    border: canPromote
-                      ? "1.5px solid rgba(60,160,60,0.5)"
-                      : "1.5px solid rgba(201,144,26,0.22)",
-                    boxShadow: canPromote
-                      ? "0 0 16px rgba(60,160,60,0.28)"
-                      : "none",
-                  }}
-                >
-                  {canPromote ? "⚡" : "⚔"}
-                </div>
-                <span
-                  style={{
-                    fontFamily: "Cinzel, serif",
-                    fontSize: "0.44rem",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    color: "rgba(139,90,47,0.65)",
-                  }}
-                >
-                  Advance
-                </span>
-                <div
-                  style={{
-                    width: "1px",
-                    flex: 1,
-                    background:
-                      "linear-gradient(to bottom, rgba(201,144,26,0.28), transparent)",
-                  }}
-                />
-              </div>
-
-              {/* Next city territory */}
-              <div
-                style={{
-                  padding: "1.5rem 1rem 1.25rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.625rem",
-                  background:
-                    "linear-gradient(135deg, rgba(201,144,26,0.04), transparent 60%)",
-                  position: "relative",
-                }}
-              >
-                {/* City emblem */}
-                <div
-                  style={{
-                    width: "5rem",
-                    height: "5rem",
-                    borderRadius: "50%",
-                    background:
-                      "linear-gradient(135deg, rgba(40,30,10,0.75), rgba(16,12,6,0.9))",
-                    border: "2px solid rgba(240,192,48,0.45)",
-                    boxShadow:
-                      "0 0 20px rgba(240,192,48,0.22), 0 0 44px rgba(240,192,48,0.08)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "2.2rem",
-                    opacity: 0.88,
-                  }}
-                >
-                  {CITY_EMBLEMS[(nextCityNum - 1) as 0 | 1 | 2 | 3 | 4] ?? "⚜"}
-                </div>
-
-                <div style={{ textAlign: "center" }}>
-                  <p
-                    style={{
-                      fontFamily: "Cinzel, serif",
-                      fontSize: "0.5rem",
-                      letterSpacing: "0.18em",
-                      textTransform: "uppercase",
-                      color: "rgba(201,144,26,0.65)",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Target Territory
+                  <p style={{ fontFamily: "Source Sans 3, sans-serif", fontSize: "0.58rem", color: "rgba(150,112,52,0.7)" }}>
+                    ×{currentCityMult} production
                   </p>
-                  <p
-                    style={{
-                      fontFamily: "Cinzel, serif",
-                      fontSize: "1.05rem",
-                      color: "#FFD700",
-                      textShadow: "0 0 20px rgba(240,192,48,0.55)",
-                      lineHeight: 1.15,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
+                </div>
+              </div>
+
+              {/* Arrow divider */}
+              <div style={{ display: "flex", alignItems: "center", padding: "0 0.875rem", color: canPromote ? "rgba(80,200,80,0.65)" : "rgba(90,68,30,0.5)", fontSize: "1.1rem" }}>
+                {canPromote ? "⚡" : "→"}
+              </div>
+
+              {/* Next city */}
+              <div style={{ padding: "0.75rem 1rem 0.7rem", display: "flex", alignItems: "center", gap: "0.75rem", borderLeft: "1px solid rgba(201,144,26,0.1)" }}>
+                <span style={{ fontSize: "1.65rem", lineHeight: 1, flexShrink: 0, opacity: 0.78 }}>
+                  {CITY_EMBLEMS[(nextCityNum - 1) as 0 | 1 | 2 | 3 | 4]}
+                </span>
+                <div>
+                  <p style={{ fontFamily: "Cinzel, serif", fontSize: "0.46rem", letterSpacing: "0.16em", color: "rgba(201,144,26,0.68)", textTransform: "uppercase", marginBottom: "2px" }}>
+                    Next Conquest
+                  </p>
+                  <p style={{ fontFamily: "Cinzel, serif", fontSize: "0.88rem", color: "#FFD700", textShadow: "0 0 14px rgba(240,192,48,0.5)", lineHeight: 1.15, marginBottom: "3px", opacity: 0.88 }}>
                     {nextCityName}
                   </p>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      background: "rgba(240,192,48,0.1)",
-                      border: "1px solid rgba(240,192,48,0.32)",
-                      borderRadius: "4px",
-                      padding: "2px 8px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: "Cinzel, serif",
-                        fontSize: "0.65rem",
-                        color: "rgba(240,192,48,0.9)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      ×{nextCityMult}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "Source Sans 3, sans-serif",
-                        fontSize: "0.52rem",
-                        color: "rgba(201,144,26,0.7)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      prod
-                    </span>
-                  </div>
+                  <p style={{ fontFamily: "Source Sans 3, sans-serif", fontSize: "0.58rem", color: "rgba(201,144,26,0.62)" }}>
+                    ×{nextCityMult} production
+                  </p>
                 </div>
-              </div>
-            </div>
-
-            {/* ── Campaign Waypoints (conquest track) ── */}
-            <div
-              style={{
-                padding: "0.75rem 1.25rem 1rem",
-                borderTop: "1px solid rgba(201,144,26,0.1)",
-                borderBottom: "1px solid rgba(201,144,26,0.1)",
-                background: "rgba(6,4,2,0.55)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  width: "100%",
-                }}
-              >
-                {campaignNodes}
               </div>
             </div>
 
@@ -1184,50 +1025,42 @@ export function DevelopClient() {
           </div>
         ) : (
           /* ── Max city reached ── */
-          <div
-            style={{
-              position: "relative",
-              zIndex: 1,
-              padding: "2rem 1.25rem",
-              textAlign: "center",
-            }}
-          >
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <CityConquestMap currentCity={currentCity} />
             <div
               style={{
-                width: "6rem",
-                height: "6rem",
-                borderRadius: "50%",
-                background:
-                  "linear-gradient(135deg, rgba(80,60,20,0.95), rgba(40,30,10,0.85))",
-                border: "2px solid rgba(201,144,26,0.8)",
-                boxShadow:
-                  "0 0 32px rgba(201,144,26,0.7), 0 0 64px rgba(201,144,26,0.3)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "3rem",
-                margin: "0 auto 1rem",
+                padding: "1.125rem 1.25rem 1.375rem",
+                textAlign: "center",
+                borderTop: "1px solid rgba(201,144,26,0.18)",
+                background: "linear-gradient(180deg, rgba(18,12,4,0.9) 0%, rgba(8,5,2,0.97) 100%)",
               }}
             >
-              ⚜
-            </div>
-            <p className="font-display text-game-xl gold-gradient-text-static text-title-glow uppercase">
-              {currentCityName}
-            </p>
-            <p className="text-game-sm text-game-text-secondary font-body mt-1">
-              You have reached the apex of the known world.
-            </p>
-            <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-              ×{currentCityMult} slave production — maximum multiplier.
-            </p>
-            <div
-              style={{
-                marginTop: "1.5rem",
-                display: "flex",
-                alignItems: "flex-start",
-              }}
-            >
-              {campaignNodes}
+              <div
+                style={{
+                  width: "4.5rem",
+                  height: "4.5rem",
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, rgba(80,60,18,0.95), rgba(36,26,8,0.88))",
+                  border: "2px solid rgba(201,144,26,0.82)",
+                  boxShadow: "0 0 28px rgba(201,144,26,0.72), 0 0 56px rgba(201,144,26,0.28)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "2.4rem",
+                  margin: "0 auto 0.75rem",
+                }}
+              >
+                ⚜
+              </div>
+              <p className="font-display text-game-xl gold-gradient-text-static text-title-glow uppercase">
+                {currentCityName}
+              </p>
+              <p className="text-game-sm text-game-text-secondary font-body mt-1">
+                You have reached the apex of the known world.
+              </p>
+              <p className="text-game-xs text-game-text-muted font-body mt-0.5">
+                ×{currentCityMult} slave production — maximum multiplier.
+              </p>
             </div>
           </div>
         )}

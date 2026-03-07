@@ -609,11 +609,11 @@ export const BALANCE = {
 
     // City names (display only)
     names: {
-      1: "Izrahland",
-      2: "Masterina",
-      3: "Rivercastlor",
-      4: "Grandoria",
-      5: "Nerokvor",
+      1: "Winterfell",
+      2: "King's Landing",
+      3: "Dragonstone",
+      4: "Highgarden",
+      5: "Casterly Rock",
     } as Record<number, string>,
   },
 
