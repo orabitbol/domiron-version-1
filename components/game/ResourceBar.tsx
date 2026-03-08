@@ -3,15 +3,14 @@
 import React, { useState, useEffect } from 'react'
 import { cn, formatNumber, formatCountdown } from '@/lib/utils'
 import { useTickCountdownState } from '@/lib/context/TickContext'
-import { Crown, Trophy, Scroll, Gift } from 'lucide-react'
+import { Crown, Trophy, Scroll } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePlayer } from '@/lib/context/PlayerContext'
 
 const TOP_NAV = [
-  { href: '/rankings',   icon: Trophy,   label: 'Rankings',    labelHe: 'דירוג'  },
-  { href: '/halloffame', icon: Scroll,   label: 'Hall of Fame', labelHe: 'תהילה' },
-  { href: '/prizes',     icon: Gift,     label: 'Prizes',       labelHe: 'פרסים' },
+  { href: '/rankings',   icon: Trophy, label: 'Rankings'     },
+  { href: '/halloffame', icon: Scroll, label: 'Hall of Fame' },
 ]
 
 // Reads from shared TickContext — always identical to the Sidebar countdown.
@@ -160,7 +159,7 @@ export function ResourceBar() {
         : <div className="hidden md:flex flex-1" />
       }
 
-      {/* Top nav links */}
+      {/* Top nav links — Rankings + Hall of Fame */}
       <nav className="flex items-center gap-1 shrink-0">
         {TOP_NAV.map(({ href, icon: Icon, label }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
@@ -187,6 +186,7 @@ export function ResourceBar() {
           )
         })}
       </nav>
+
     </header>
   )
 }
