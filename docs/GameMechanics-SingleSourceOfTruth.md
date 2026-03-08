@@ -2324,7 +2324,7 @@ Made all spy mission DB writes atomic via `spy_resolve_apply()`.
 **Replaced** power-threshold gate with soldiers + resources + clan/tribe restriction.
 - `config/balance.config.ts`: removed `S_base/P_base/R_base/s_growth/p_growth/r_growth/promotionPowerThreshold`, added `maxCity`, `promotion.soldiersRequiredByCity`, `promotion.resourceCostByCity`, renamed `CITY_PRODUCTION_MULT` → `slaveProductionMultByCity` (new values: 1.0/1.3/1.7/2.2/3.0)
 - `lib/game/balance-validate.ts`: updated Zod schema for all new keys
-- `lib/game/tick.ts`, `mine/MineClient.tsx`, `develop/DevelopClient.tsx`, `map/page.tsx`: renamed key
+- `lib/game/tick.ts`, `mine/MineClient.tsx`, `develop/DevelopClient.tsx`: renamed key
 - `app/api/city/promote/route.ts`: initial rewrite — soldiers + resources + tribe guard
 - `app/api/develop/move-city/route.ts`: deprecated → returns 410 Gone
 - `lib/game/tick.test.ts`, `lib/game/balance.test.ts`: new tests for city multipliers and promotion config

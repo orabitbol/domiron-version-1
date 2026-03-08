@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { cn, formatNumber, formatCountdown } from '@/lib/utils'
 import { useTickCountdownState } from '@/lib/context/TickContext'
-import { Crown, Trophy, Scroll, Map, Gift } from 'lucide-react'
+import { Crown, Trophy, Scroll, Gift } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePlayer } from '@/lib/context/PlayerContext'
@@ -11,7 +11,6 @@ import { usePlayer } from '@/lib/context/PlayerContext'
 const TOP_NAV = [
   { href: '/rankings',   icon: Trophy,   label: 'Rankings',    labelHe: 'דירוג'  },
   { href: '/halloffame', icon: Scroll,   label: 'Hall of Fame', labelHe: 'תהילה' },
-  { href: '/map',        icon: Map,      label: 'Map',          labelHe: 'מפה'   },
   { href: '/prizes',     icon: Gift,     label: 'Prizes',       labelHe: 'פרסים' },
 ]
 
