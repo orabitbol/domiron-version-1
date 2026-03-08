@@ -32,8 +32,7 @@
     "mine": "Mine & Fields",
     "bank": "Bank",
     "history": "History",
-    "logout": "Logout",
-    "settings": "Settings"
+    "logout": "Logout"
   },
   "resources": {
     "gold": "Gold",

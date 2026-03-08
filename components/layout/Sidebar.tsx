@@ -20,7 +20,6 @@ import {
   Landmark,
   History,
   LogOut,
-  Settings,
   Gem,
   Zap,
   Crown,
@@ -329,21 +328,6 @@ export function Sidebar() {
             );
           },
         )}
-        <Link
-          href="/settings"
-          className={cn(
-            "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-game min-w-[52px]",
-            "transition-all duration-200",
-            pathname === "/settings"
-              ? "text-game-gold-bright bg-game-gold/10"
-              : "text-game-text-muted",
-          )}
-        >
-          <Settings className="size-5" />
-          <span className="text-[9px] font-heading uppercase tracking-wide">
-            עוד
-          </span>
-        </Link>
       </nav>
     </>
   );

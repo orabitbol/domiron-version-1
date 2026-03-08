@@ -2,7 +2,7 @@ import React from 'react'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
-import { Crown, ChevronLeft, LogIn, Trophy, Sword } from 'lucide-react'
+import { Crown, ChevronLeft, LogIn, Trophy, Sword, Gift } from 'lucide-react'
 
 export default async function LeaderboardLayout({
   children,
@@ -59,6 +59,18 @@ export default async function LeaderboardLayout({
           >
             <Trophy className="size-3 shrink-0" />
             <span className="hidden sm:inline">Hall of Fame</span>
+          </Link>
+          <Link
+            href="/prizes"
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-game',
+              'font-heading text-[10px] uppercase tracking-wide border',
+              'transition-all duration-150',
+              'text-game-gold hover:text-game-gold-bright hover:bg-game-gold/8 border-transparent',
+            ].join(' ')}
+          >
+            <Gift className="size-3 shrink-0" />
+            <span className="hidden sm:inline">Prizes</span>
           </Link>
         </nav>
 
