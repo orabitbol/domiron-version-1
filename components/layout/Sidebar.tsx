@@ -24,6 +24,7 @@ import {
   Zap,
   Crown,
   Gift,
+  BookOpen,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -37,8 +38,9 @@ const NAV_ITEMS = [
   { href: "/mine", icon: Pickaxe, label: "מכרות", labelEn: "Mines" },
   { href: "/bank", icon: Landmark, label: "בנק", labelEn: "Bank" },
   { href: "/history", icon: History, label: "היסטוריה", labelEn: "History" },
-  { href: "/vip",    icon: Gem,  label: "VIP",   labelEn: "VIP"    },
-  { href: "/prizes", icon: Gift, label: "פרסים", labelEn: "Prizes" },
+  { href: "/vip",    icon: Gem,      label: "VIP",    labelEn: "VIP"    },
+  { href: "/prizes", icon: Gift,     label: "פרסים",  labelEn: "Prizes" },
+  { href: "/guide",  icon: BookOpen, label: "מדריך",  labelEn: "Guide"  },
 ];
 
 const MOBILE_NAV = ["/base", "/attack", "/tribe", "/hero", "/training"];

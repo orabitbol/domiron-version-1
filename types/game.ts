@@ -136,6 +136,8 @@ export interface Player {
   last_spy_at: string | null
   /** Set to the timestamp of the last committed shop action. NULL until first purchase/sell. */
   last_shop_at: string | null
+  /** True once the player has finished (or skipped) the first-time game tour. */
+  has_completed_onboarding: boolean
 }
 
 // ─── resources ─────────────────────────────────────────────────────────────

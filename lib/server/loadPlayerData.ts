@@ -23,7 +23,7 @@ export async function loadPlayerData(playerId: string): Promise<PlayerData | nul
     supabase
       .from('players')
       .select(
-        'id,username,email,role,race,army_name,city,turns,reputation,rank_city,rank_global,power_attack,power_defense,power_spy,power_scout,power_total,vip_until,is_vacation,vacation_days_used,season_id,joined_at,last_seen_at,created_at',
+        'id,username,email,role,race,army_name,city,turns,reputation,rank_city,rank_global,power_attack,power_defense,power_spy,power_scout,power_total,vip_until,is_vacation,vacation_days_used,season_id,joined_at,last_seen_at,created_at,has_completed_onboarding',
       )
       .eq('id', playerId)
       .single(),

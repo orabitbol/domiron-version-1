@@ -11,6 +11,8 @@ import { PlayerProvider } from '@/lib/context/PlayerContext'
 import { TickProvider } from '@/lib/context/TickContext'
 import { FreezeModeBanner } from '@/components/game/FreezeModeBanner'
 import { RealtimeSync } from './RealtimeSync'
+import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider'
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { PlayerData } from '@/types/game'
 
 function GameContent({ children }: { children: React.ReactNode }) {
@@ -52,7 +54,11 @@ export function GameLayout({ children, initial }: GameLayoutProps) {
     <ToastProvider>
       <PlayerProvider initial={initial}>
         <TickProvider>
-          <GameContent>{children}</GameContent>
+          <OnboardingProvider>
+            <GameContent>{children}</GameContent>
+            {/* OnboardingTour uses createPortal — renders to document.body above all game UI */}
+            <OnboardingTour />
+          </OnboardingProvider>
         </TickProvider>
       </PlayerProvider>
     </ToastProvider>
