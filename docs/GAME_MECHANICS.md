@@ -71,9 +71,7 @@ new_turns = min(50 + 1, 200) = 51
 
 ## 2. Resource Production
 
-Resources (gold, iron, wood, food) are produced **per tick** by **slaves**. Farmers produce food separately.
-
-> **⚠ City multipliers are `[TUNE: unassigned]`** — the code defaults to `cityMult = 1` via `?? 1` until values are explicitly set.
+Resources (gold, iron, wood, food) are produced **per tick** by **slaves**.
 
 ### 2.1 Slave Production Formula
 
@@ -90,28 +88,28 @@ production_avg = floor(slavesAllocated × ((rateMin + rateMax) / 2))
 Where:
 - `baseMin = 1.0`, `baseMax = 3.0` (production range at dev level 1, no modifiers)
 - `devLevel` = 1–10 (per resource: `gold_level`, `food_level`, `wood_level`, `iron_level`)
-- `cityMult` = city production multiplier `[TUNE: unassigned]` (defaults to 1)
+- `cityMult` = `slaveProductionMultByCity[city]` — see §11.1 for concrete values (1.0 – 3.0)
 - `vipMult` = 1.10 if VIP active, else 1.0
 - `raceGoldBonus` = race gold production bonus (human: 0.15, dwarf: 0.03, others: 0)
 - `slaveBonus` = clamped hero slave output bonus (0 – 0.50)
 
 > **Slave assignment:** Each slave is assigned to exactly **one** resource job (Gold Mine, Iron Foundry, Lumber Camp, or Farmlands). Only assigned slaves produce that resource per tick. Idle slaves produce nothing. Assignments are stored in `army.slaves_gold / slaves_iron / slaves_wood / slaves_food` and set via `/api/mine/allocate`. See [§3 — Population & Slaves System](#3-population--slaves-system) for full details.
 
-**Example — 100 slaves, dev level 3, no modifiers:**
+**Example — 100 slaves, dev level 3, city 1 (×1.0), no modifiers:**
 ```
 devOffset = (3-1) × 0.5 = 1.0
-rateMin   = (1.0 + 1.0) × 1 × 1 × 1 × 1 = 2.0
-rateMax   = (3.0 + 1.0) × 1 × 1 × 1 × 1 = 4.0
+rateMin   = (1.0 + 1.0) × 1.0 × 1 × 1 × 1 = 2.0
+rateMax   = (3.0 + 1.0) × 1.0 × 1 × 1 × 1 = 4.0
 min_output = floor(100 × 2.0) = 200 per tick
 max_output = floor(100 × 4.0) = 400 per tick
 avg_output = floor(100 × 3.0) = 300 per tick
 ```
 
-**Example — 100 slaves, dev level 10, human race, VIP, hero 30% slave boost:**
+**Example — 100 slaves, dev level 10, city 1 (×1.0), human race, VIP, hero 30% slave boost:**
 ```
 devOffset   = 9 × 0.5 = 4.5
-rateMin     = (1.0 + 4.5) × 1 × 1.10 × 1.15 × 1.30 = 9.09
-rateMax     = (3.0 + 4.5) × 1 × 1.10 × 1.15 × 1.30 = 12.38
+rateMin     = (1.0 + 4.5) × 1.0 × 1.10 × 1.15 × 1.30 = 9.09
+rateMax     = (3.0 + 4.5) × 1.0 × 1.10 × 1.15 × 1.30 = 12.38
 min_output  = floor(100 × 9.09)  = 909 per tick
 max_output  = floor(100 × 12.38) = 1238 per tick
 ```
@@ -124,17 +122,7 @@ max_output  = floor(100 × 12.38) = 1238 per tick
 
 No hard cap on resource storage. Bank is the only safe-storage mechanism with a 100% theft protection.
 
-### 2.3 Farmer Food Production
-
-Farmers produce food per tick using the same formula as slave production with `food_level` as the dev level. A `farmers` column in the `army` table stores this count. Farmers always produce food — they are **not** part of the slave assignment system. The tick computes food production as:
-
-```
-food_production = calcSlaveProduction(army.slaves_food + army.farmers, dev.food_level, city, vip)
-```
-
-Farmers cost 20 gold + 1 population to train (see §4.1). They have no capacity cost and cannot be reassigned.
-
-### 2.4 Mine UI — Next Upgrade Display
+### 2.3 Mine UI — Next Upgrade Display
 
 The `/mine` page shows a **"Next level" preview** below each job row so players know the benefit before upgrading development.
 
@@ -453,24 +441,24 @@ ECP = floor((10,000 × 1.20) + 2,000) = floor(14,000) = 14,000
 R = ECP_attacker / ECP_defender
   (if ECP_defender = 0: R = WIN_THRESHOLD + 1 → automatic win)
 
-Outcome thresholds:
-  R ≥ 1.30  →  'win'
-  R < 0.75  →  'loss'
-  otherwise →  'partial' (Draw)
+WIN_THRESHOLD = 1.0
+
+Outcome:
+  R ≥ 1.0  →  'win'
+  R < 1.0  →  'loss'
 ```
 
 **Example — ECP_attacker=14,000, ECP_defender=11,000:**
 ```
 R = 14,000 / 11,000 = 1.273
-Outcome: partial (0.75 ≤ 1.273 < 1.30)
+Outcome: win (1.273 ≥ 1.0)
 ```
 
 **Zone widths:**
-- Win zone: R ≥ 1.30 (unbounded upward)
-- Partial zone: 0.75 ≤ R < 1.30 — width = 0.55 around parity
-- Loss zone: R < 0.75 (unbounded downward)
+- Win zone: R ≥ 1.0 (unbounded upward)
+- Loss zone: R < 1.0 (unbounded downward)
 
-At equal ECP (R=1.0): **partial** outcome. Design target: ~50–60% of same-PP combats yield partial.
+At equal ECP (R=1.0): **win** for the attacker (threshold is inclusive).
 
 ### 6.6 Soldier Losses
 
@@ -502,9 +490,9 @@ if soldierShieldActive: defenderLosses = 0
 | R (ratio) | Attacker Loss Rate | Defender Loss Rate | Outcome |
 |-----------|-------------------|-------------------|---------|
 | 0.50      | clamp(0.30, …) = 30% | clamp(0.075, 0.05, 0.30) = 7.5% | loss |
-| 0.75      | clamp(0.20, …) = 20% | clamp(0.1125) = 11.25% | partial boundary |
-| 1.00      | 15%               | 15%               | partial |
-| 1.30      | clamp(0.115, …) = 11.5% | clamp(0.195) = 19.5% | win boundary |
+| 0.75      | clamp(0.20, …) = 20% | clamp(0.1125) = 11.25% | loss |
+| 1.00      | 15%               | 15%               | win |
+| 1.30      | clamp(0.115, …) = 11.5% | clamp(0.195) = 19.5% | win |
 | 2.00      | clamp(0.075) = 7.5% | clamp(0.30) = 30% | win |
 | 3.00+     | clamp(0.05→0.03) = 3% | 30% (capped) | win |
 
@@ -514,13 +502,14 @@ AttackerLossRate = clamp(0.15/1.273, 0.03, 0.30) = clamp(0.118) = 11.8%
 DefenderLossRate = clamp(0.15×1.273, 0.05, 0.30) = clamp(0.191) = 19.1%
 attackerLosses   = floor(1,000 × 0.118) = 118 soldiers
 defenderLosses   = floor(1,500 × 0.191) = 286 soldiers
+Outcome: win (R=1.273 ≥ 1.0)
 ```
 
 ### 6.7 Slave Conversion
 
 ```
 slavesCreated = floor(defenderLosses × CAPTURE_RATE)
-CAPTURE_RATE  = 0.35
+CAPTURE_RATE  = 0.10
 
 Blocked by:
   - killCooldownActive = true
@@ -530,7 +519,7 @@ Blocked by:
 
 **Example — 286 defender losses:**
 ```
-slavesCreated = floor(286 × 0.35) = floor(100.1) = 100 slaves
+slavesCreated = floor(286 × 0.10) = floor(28.6) = 28 slaves
 ```
 
 **DB note:** The attack route applies an additional safety clamp:
@@ -548,9 +537,8 @@ FinalLoot[r]  = floor(BaseLoot[r] × outcomeMult × decayFactor)
 BASE_LOOT_RATE = 0.20 (20% of each unbanked resource)
 
 outcomeMult:
-  win     → 1.0
-  partial → 0.5
-  loss    → 0.0  (loot = 0 regardless of other factors)
+  win  → 1.0
+  loss → 0.0  (loot = 0 regardless of other factors)
 
 Returns zero loot if:
   - outcome = 'loss'
@@ -1012,7 +1000,17 @@ upgradeCost = BALANCE.bank.upgradeBaseCost × (currentLevel + 1)
 
 ### 11.1 City Production Multipliers
 
-All 5 city production multipliers are `[TUNE: unassigned]`. The code defaults to `cityMult = 1` via `?? 1`. Higher cities are *intended* to produce more resources — this is the primary promotion incentive.
+Slave production is multiplied by a city-specific factor (`slaveProductionMultByCity` in `config/balance.config.ts`):
+
+| City | Name | Multiplier |
+|------|------|-----------|
+| 1 | Winterfell | ×1.0 |
+| 2 | King's Landing | ×1.3 |
+| 3 | Dragonstone | ×1.7 |
+| 4 | Highgarden | ×2.2 |
+| 5 | Casterly Rock | ×3.0 |
+
+Higher city production is the primary incentive for promotion. All values are fully assigned and active.
 
 ### 11.2 Development Upgrade Costs
 
@@ -1054,10 +1052,8 @@ costConfig by next level:
 **Cumulative cost (levels 1→10):** 3,180,850 gold + 3,180,850 secondary resource.
 
 **Fortification special side-effect:**
-```
-new_capacity = baseCapacity + new_level × capacityPerDevelopmentLevel
-             = 1,000 + fortification_level × 200
-```
+
+> `players.capacity` is a legacy DB column and is not used by any active training gate. Fortification upgrades do not enforce a troop cap in the current build.
 
 **Fortification defense multiplier (from power.ts):**
 ```
@@ -1069,13 +1065,16 @@ Level 4: 1.30× | Level 5: 1.40×
 
 ### 11.3 City Promotion Requirements
 
-All threshold values are `[TUNE: unassigned]`. The UI shows the checks (soldiers required, total resources required) but exact numbers must be set before promotion gates are meaningful.
+Promotion is fully implemented (`POST /api/city/promote`). Requirements check soldiers (not cavalry) and all 4 resources:
 
-The promotion formula structure (defined in comments, values unset):
-```
-SoldierThreshold(C) = S_base × s_growth ^ (C - 2)
-ResourceCost(C)     = R_base × r_growth ^ (C - 2)
-```
+| Target City | Soldiers Required | Each Resource Required |
+|-------------|------------------|----------------------|
+| 2 (King's Landing) | 200 | 120,000 |
+| 3 (Dragonstone) | 800 | 400,000 |
+| 4 (Highgarden) | 2,500 | 1,200,000 |
+| 5 (Casterly Rock) | 7,500 | 3,000,000 |
+
+Resources are consumed on promotion. Soldiers are NOT consumed — only checked.
 
 ---
 
@@ -1194,7 +1193,7 @@ VIP is activated by spending crystals (premium currency). One crystal package = 
 |---------|-------|--------|
 | Production multiplier | ×1.10 | Applied to all slave output + population growth |
 | Weekly turns bonus | +50 | [TUNE] — delivery mechanism not confirmed in tick code |
-| Bank interest bonus | 0 | [TUNE: unassigned] |
+| Bank interest bonus | 0 | Not implemented — no VIP bank multiplier in config |
 | Hero mana bonus | +1/tick | When VIP active |
 
 **VIP production benefit example — 100 slaves, dev level 3:**
@@ -1482,7 +1481,7 @@ Slaves produce resources that buy more slaves. The relationship is:
 more slaves → more resources/tick → can afford more slaves → more resources → ...
 ```
 
-With hero SLAVE_OUTPUT effects stacked (up to +50%), a whale-tier player at city 5 (once CITY_PRODUCTION_MULT is set) could have production rates that outpace any manual farming. The wealth gap widens every 30 minutes.
+With hero SLAVE_OUTPUT effects stacked (up to +50%), a whale-tier player at city 5 (×3.0 production mult) could have production rates that outpace any manual farming. The wealth gap widens every 30 minutes.
 
 **D. Advanced skill training has no level cap (LOW→HIGH RISK)**
 
@@ -1496,17 +1495,17 @@ This would make their attack power 9× any equal-sized army with no skill invest
 
 ### 19.2 Late-Game Breaks
 
-**A. City production multipliers unset**
+**A. City production multiplier curve**
 
-`CITY_PRODUCTION_MULT` is `[TUNE: unassigned]` for all 5 cities. City migration has no production incentive until these values are assigned. Currently all cities produce identically. Players have no reason to promote beyond social/capacity gains.
+City production multipliers are fully set (×1.0 → ×3.0 across 5 cities). The jump from city 4 → 5 (×2.2 → ×3.0) is steep — a player with 1,000 slaves at city 5 produces 36% more than one at city 4. Monitor for snowball acceleration.
 
-**B. Bank interest rates unset**
+**B. Bank interest rates**
 
-`BANK_INTEREST_RATE_BASE` and `BANK_INTEREST_RATE_PER_LEVEL` are both `[TUNE: unassigned]`. The bank generates zero interest in production. The bank is currently purely a safety vault, not a growth mechanism. This is fine for beta but must be set for season economy to function as designed.
+Bank interest is fully active (0% at level 0, up to 3.0%/tick at level 10). At high bank balance + high interest level, compound growth is significant. Monitor for late-game gold concentration.
 
-**C. City promotion requirements unset**
+**C. City promotion requirements**
 
-All promotion thresholds are `[TUNE: unassigned]`. The city promotion button is currently unconstrained (UI shows requirements but values are undefined). Any player can promote at any time.
+Promotion requirements are fully set and enforced. See §11.3 for concrete thresholds.
 
 **D. Loot decay hard-stops farming but not concentration**
 

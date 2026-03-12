@@ -38,8 +38,8 @@
 | Spy system | ✅ | `app/api/spy/route.ts`, `app/(game)/spy/` |
 | Real-time events | ✅ | `lib/game/realtime.ts` |
 | Vacation mode | ⚠️ Tick respects `is_vacation` flag; toggle route not yet built | `lib/game/tick.ts` |
-| City production multipliers | ⚠️ Structure exists; values `[TUNE: unassigned]`, default to ×1 | `config/balance.config.ts` |
-| City promotion thresholds | ⚠️ Structure exists; values `[TUNE: unassigned]`, route not built | `config/balance.config.ts` |
+| City production multipliers | ✅ | `config/balance.config.ts` — `slaveProductionMultByCity` (1.0/1.3/1.7/2.2/3.0) |
+| City promotion thresholds | ✅ | `config/balance.config.ts` + `app/api/city/promote/route.ts` — fully implemented |
 | Bank interest rates | ✅ Active — levels 1–10 at 0.5%…3% per day via `INTEREST_RATE_BY_LEVEL` | `lib/game/tick.ts`, `config/balance.config.ts` |
 | Hero XP / leveling | ❌ Not implemented | — |
 | City promotion route | ❌ Not implemented | — |
@@ -250,9 +250,8 @@ HeroBonus multiplies PP ONLY — never ClanBonus
 R = AttackerECP / DefenderECP
 (If DefenderECP = 0: R treated as WIN_THRESHOLD + 1 → automatic win)
 
-R ≥ WIN_THRESHOLD  (1.30) → win
-R < LOSS_THRESHOLD (0.75) → loss
-Otherwise                 → partial
+R ≥ WIN_THRESHOLD  (1.0) → win   [FIXED — binary only, no draw/partial]
+R <  WIN_THRESHOLD (1.0) → loss
 ```
 
 ### 3.5 Soldier Losses
@@ -283,7 +282,7 @@ Losses apply to deployed soldiers only (not total army).
 
 ```
 slaves_created = floor(defender_losses × CAPTURE_RATE)
-CAPTURE_RATE = 0.35 [TUNE]
+CAPTURE_RATE = 0.1 [TUNE]  — 10% of killed defender soldiers become attacker slaves
 
 Zero when defender_losses = 0 (cooldown, protection, or Soldier Shield).
 ```
@@ -297,9 +296,8 @@ FinalLoot[r] = BaseLoot[r] × OutcomeMult × DecayFactor
 BASE_LOOT_RATE = 0.20 [FIXED] — 20% of each unbanked resource
 
 Outcome multipliers:
-  win:     ×1.0
-  partial: ×0.5
-  loss:    ×0.0 (no loot on loss)
+  win:  ×1.0
+  loss: ×0.0 (no loot on loss)
 ```
 
 Anti-farm decay (per attack on same target within `DECAY_WINDOW_HOURS = 12`):
@@ -318,7 +316,9 @@ Banked gold is always theft-proof (100% — `bank.theftProtection: 1.00`).
 ### 3.8 Attack Cost
 
 ```
-food_cost = turns_used × foodCostPerTurn (= 1 [TUNE])
+food_cost = ceil(soldiers × FOOD_PER_SOLDIER × turns_used × foodMultiplier)
+FOOD_PER_SOLDIER = 0.05 [TUNE]
+foodMultiplier   = 1.0 normally; 0.75 if tribe battle_supply spell active (−25%)
 Turn range: 1–10 per attack (player chooses at attack screen)
 ```
 
@@ -351,7 +351,7 @@ Attacker always pays turns + food.
 ```typescript
 {
   result: {
-    outcome:         'win' | 'partial' | 'loss'
+    outcome:         'win' | 'loss'
     ratio:           number        // attackerECP / defenderECP
     attacker_ecp:    number
     defender_ecp:    number
@@ -460,75 +460,57 @@ Sell refund: 20% of original cost (`sellRefundPercent: 0.20`).
 ## 5. Training Costs
 
 **Files:** `config/balance.config.ts`, `app/api/training/basic/route.ts`
-**BALANCE keys:** `training.unitCost`, `training.baseCapacity`, `training.capacityPerDevelopmentLevel`
+**BALANCE keys:** `training.unitCost`
 **API route:** `POST /api/training/basic`
 
 ### Basic Training
-| Unit | Gold | Capacity Used | Notes |
-|------|------|--------------|-------|
-| Soldier | 60 | 1 | Consumes 1 `free_population` |
-| Slave | 10 | 0 | Consumes 1 `free_population` |
-| Spy | 80 | 1 | Consumes 1 `free_population` |
-| Scout | 80 | 1 | Consumes 1 `free_population` |
-| Cavalry | 10,000 | 2 | Costs 5 `free_population` per unit (`popCost = 5`) |
-| Farmer | 20 | 0 | Consumes 1 `free_population` |
+| Unit | Gold | Notes |
+|------|------|-------|
+| Soldier | 60 | Consumes 1 `free_population` |
+| Slave | 0 | Free — converts 1 `free_population` into 1 slave. No gold cost. |
+| Spy | 80 | Consumes 1 `free_population` |
+| Scout | 80 | Consumes 1 `free_population` |
+| Cavalry | 10,000 | Consumes 5 `free_population` per unit (`popCost = 5`). No soldier requirement. |
 
-### Capacity (max units that consume capacity)
-```
-max_capacity = baseCapacity(1,000) + fortification_level × capacityPerDevelopmentLevel(200)
-```
-- Farmers, slaves, and cavalry do NOT count toward capacity.
-- When at capacity, soldier/spy/scout training is blocked.
+**Note:** There is no capacity cap on combat units. `players.capacity` is a legacy DB column — not read by any training gate. The only constraints are gold cost and `free_population`.
+
+**Note:** Farmer unit does not exist in this version. Removed from training system.
 
 ### Advanced Training
 **Key function:** `advancedMultiplierPerLevel = 0.08`
-**Cost per level:** 1,500 gold + 1,500 food × (level + 1)
+**Cost per level:** 5,000 gold + 5,000 food × (level + 1)
 **Effect:** `trainMult = 1 + (level × 0.08)` applied to attack, defense, spy, or scout power.
 
 ---
 
 ## 5a. Training Flow (Population & Slave Rules)
 
-**Files:** `app/api/training/basic/route.ts`, `app/api/training/untrain/route.ts`
-**API routes:** `POST /api/training/basic`, `POST /api/training/untrain`
+**Files:** `app/api/training/basic/route.ts`
+**API route:** `POST /api/training/basic`
 
 ### Population ≠ Slaves
 
 | Pool | Source | Purpose |
 |------|--------|---------|
 | `free_population` | Gained per tick via `population_level` | Converts to trained units (consumed on train) |
-| `slaves` | Captured from combat OR trained from population with gold | Produce resources per tick |
+| `slaves` | Trained from population (free — 0 gold) OR captured from combat | Produce resources per tick |
 
 **Critical rules (enforced in API):**
 1. Training any unit consumes `free_population` — cavalry costs 5 per unit (`popCost = 5`), all others cost 1.
-2. Untraining any unit adds to `slaves` — NEVER to `free_population`.
+2. Training is **irreversible**. There is no untrain mechanic. `POST /api/training/untrain` returns 410 Gone.
 3. Free population and slaves are completely separate pools.
 4. Slaves produce all resource types simultaneously per tick.
-5. Slaves cannot be reassigned to combat roles for free — re-training costs gold.
+5. Slaves are created by: (a) training directly from population (0 gold), or (b) combat capture.
 
 ### Training Validations (per unit)
 
 | Unit | Requires | Consumes |
 |------|----------|----------|
-| Soldier | Enough gold, enough capacity, `free_population ≥ amount` | gold + free_population |
-| Slave | Enough gold, `free_population ≥ amount` | gold + free_population |
-| Spy | Enough gold, enough capacity, `free_population ≥ amount` | gold + free_population |
-| Scout | Enough gold, enough capacity, `free_population ≥ amount` | gold + free_population |
+| Soldier | Enough gold, `free_population ≥ amount` | gold + free_population |
+| Slave | `free_population ≥ amount` | free_population only (0 gold) |
+| Spy | Enough gold, `free_population ≥ amount` | gold + free_population |
+| Scout | Enough gold, `free_population ≥ amount` | gold + free_population |
 | Cavalry | Enough gold, `free_population ≥ amount × 5` (popCost = 5) | gold + free_population |
-| Farmer | Enough gold, `free_population ≥ amount` | gold + free_population |
-
-### Untrain API (`POST /api/training/untrain`)
-
-```typescript
-Body:     { unit: 'soldier' | 'spy' | 'scout' | 'farmer', amount: number }
-Response: { data: { army, untrainedCount, slavesGained } }
-```
-
-- Deducts `amount` from the unit column.
-- Adds `amount` to `army.slaves`.
-- Does NOT restore `free_population`.
-- Cavalry cannot be untrained.
-- Power recalculated immediately.
 
 ---
 
@@ -536,7 +518,7 @@ Response: { data: { army, untrainedCount, slavesGained } }
 
 **Files:** `lib/game/tick.ts`, `config/balance.config.ts`
 **Key function:** `calcSlaveProduction(slavesAllocated, devLevel, city, vipUntil, raceGoldBonus, slaveBonus)`
-**BALANCE keys:** `production.baseMin`, `production.baseMax`, `cities.CITY_PRODUCTION_MULT`, `vip.productionMultiplier`
+**BALANCE keys:** `production.baseMin`, `production.baseMax`, `cities.slaveProductionMultByCity`, `vip.productionMultiplier`
 
 ### Per Tick Formula
 ```
@@ -548,7 +530,8 @@ production per resource = random value in [slaves × rateMin, slaves × rateMax]
 
 baseMin = 1.0 [TUNE]
 baseMax = 3.0 [TUNE]
-cityMult = CITY_PRODUCTION_MULT[city] — ⚠️ not yet assigned, defaults to ×1
+cityMult = slaveProductionMultByCity[city]
+  City 1: ×1.0 | City 2: ×1.3 | City 3: ×1.7 | City 4: ×2.2 | City 5: ×3.0
 vipMult  = 1.10 if VIP active, else 1.0
 ```
 
@@ -712,15 +695,15 @@ manaPerMemberPerTick = 1 [TUNE]
 Example: 10 members → 10 mana/tick
 ```
 
-### Tribe Spells
+### Tribe Spells (V1 — active)
 
 | Key | Mana Cost | Duration | Effect |
 |-----|-----------|----------|--------|
-| combat_boost | 20 | 6 hours | +20% attack for all members |
-| tribe_shield | 30 | 12 hours | +40% defense for all members |
-| production_blessing | 25 | 8 hours | +50% production for all members |
-| mass_spy | 15 | Instant (0 h) | Reveals all enemy armies in city |
-| war_cry | 40 | 4 hours | +50% attack + removes defender tribe bonus |
+| war_cry | 40 | 4 hours | Attacker ECP ×1.25 (+25% attack) for all members |
+| tribe_shield | 30 | 12 hours | Defender ECP ×1.15 (+15% defense) for all members |
+| production_blessing | 25 | 8 hours | Slave output ×1.20 (+20% production) for all members |
+| spy_veil | 20 | 6 hours | Scout defense ×1.30 (improves resistance to enemy spying) |
+| battle_supply | 35 | 6 hours | Attack food cost −25% for all members |
 
 Tribe leader activates spells. Cost deducted from `tribes.mana`.
 
@@ -745,15 +728,28 @@ Leader and deputy are always tax-exempt.
 
 | City 1 | City 2 | City 3 | City 4 | City 5 |
 |--------|--------|--------|--------|--------|
-| Izrahland | Masterina | Rivercastlor | Grandoria | Nerokvor |
+| Winterfell | King's Landing | Dragonstone | Highgarden | Casterly Rock |
 
-### City Production Multipliers
+### City Production Multipliers (`slaveProductionMultByCity`)
 
-⚠️ `CITY_PRODUCTION_MULT[1–5]` are `[TUNE: unassigned]`. All cities currently produce at ×1 (`?? 1` fallback in `calcSlaveProduction`). Higher city production is a core promotion incentive but values are not yet set.
+Affects slave resource output per tick only. No effect on combat, power, loot, or bank.
+
+| City 1 | City 2 | City 3 | City 4 | City 5 |
+|--------|--------|--------|--------|--------|
+| ×1.0 | ×1.3 | ×1.7 | ×2.2 | ×3.0 |
 
 ### Promotion Requirements
 
-⚠️ Promotion threshold parameters (`S_base`, `P_base`, `R_base`, `s_growth`, `p_growth`, `r_growth`) are all `[TUNE: unassigned]`. The city promotion route is not yet built.
+Promotion route is **fully implemented** (`POST /api/city/promote`). Requirements (soldiers + all 4 resources equally):
+
+| Promote to | Soldiers | Resources (each) |
+|-----------|---------|-----------------|
+| City 2 | 200 | 120,000 |
+| City 3 | 800 | 400,000 |
+| City 4 | 2,500 | 1,200,000 |
+| City 5 | 7,500 | 3,000,000 |
+
+Soldiers-only check (not cavalry). Player must leave tribe before promoting.
 
 ### City Rules
 - Player must leave tribe before promoting.

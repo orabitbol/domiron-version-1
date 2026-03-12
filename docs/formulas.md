@@ -15,7 +15,7 @@
 
 ```
 devOffset  = (devLevel - 1) × 0.5
-cityMult   = CITY_PRODUCTION_MULT[city]   (currently [TUNE: unassigned] → defaults to 1)
+cityMult   = slaveProductionMultByCity[city]   (1.0 / 1.3 / 1.7 / 2.2 / 3.0 for cities 1–5)
 vipMult    = 1.10  if vip_until > now()  else  1.0
 slaveBonus = clamped hero SLAVE_OUTPUT bonus (0–0.50)  [UNCERTAIN: not applied in tick route]
 
@@ -29,14 +29,14 @@ output_tick = floor(output_min + random() × (output_max - output_min))
 
 **Constants:**
 - `baseMin = 1.0`, `baseMax = 3.0` `[TUNE]`
-- `CITY_PRODUCTION_MULT[1–5]` = `[TUNE: unassigned]` → `?? 1` fallback in code
+- `slaveProductionMultByCity` = City 1: ×1.0 | City 2: ×1.3 | City 3: ×1.7 | City 4: ×2.2 | City 5: ×3.0
 
 **Per-resource assignment (migration 0005):**
 ```
 gold produced by  slaves_gold  × f(gold_level)
 iron produced by  slaves_iron  × f(iron_level)
 wood produced by  slaves_wood  × f(wood_level)
-food produced by  (slaves_food + farmers) × f(food_level)
+food produced by  slaves_food × f(food_level)
 idle slaves (slaves - assigned total) produce nothing
 ```
 
@@ -106,44 +106,26 @@ goldCost = unitCost[unit].gold × amount
 | spy | 80 | 1 | intel |
 | scout | 80 | 1 | counter-intel |
 | cavalry | 10,000 | 5 | costs 5 `free_population` per unit (`popCost = 5`) |
-| farmer | 20 | 1 | food production |
-
 **Flow:**
 ```
-free_population  -= amount    (all units except cavalry)
+free_population  -= amount    (all units; cavalry costs 5 per unit, all others cost 1)
 [unit column]    += amount
 resources.gold   -= goldCost
 ```
 
-**Capacity check** (soldiers, spies, scouts only):
-```
-soldiers + spies + scouts + amount ≤ player.capacity
-player.capacity = BALANCE.training.baseCapacity + fortification_level × capacityPerDevelopmentLevel
-               = 1000 + fortification_level × 200
-```
-
-**Cavalry requirement:**
-```
-army.soldiers ≥ amount × 5
-```
+**Note:** Farmer unit does not exist in v5. Removed from training system.
+**Note:** No capacity cap on combat units. `players.capacity` is a legacy DB column — not used by any training gate.
+**Note:** Cavalry has **no soldier requirement**. Only requires gold + 5 `free_population` per unit.
 
 **Slave cost is FREE** — converts `free_population → army.slaves` (idle), no gold spent.
 
 ---
 
-## 4. Unit Untrain
+## 4. Unit Untrain — REMOVED
 
-**Source:** `app/api/training/untrain/route.ts`
+**Source:** `app/api/training/untrain/route.ts` (tombstone — returns 410 Gone)
 
-```
-Untrain soldiers/spies/scouts/farmers → always becomes slaves (never returns to free_population)
-[unit column] -= amount
-army.slaves   += amount
-```
-
-- Cavalry cannot be untrained.
-- No gold refund.
-- Power recalculated after change.
+Training is **irreversible**. There is no untrain mechanic in v5. The route exists only as a tombstone to return a clear error to stale clients. Any documentation or UI describing an untrain flow is stale.
 
 ---
 
@@ -375,9 +357,8 @@ Hero multiplies PP only — NEVER multiplies ClanBonus.
 ```
 R = attackerECP / defenderECP    (if defenderECP = 0 → R = WIN_THRESHOLD + 1)
 
-R ≥ 1.30  → 'win'
-R < 0.75  → 'loss'
-otherwise → 'partial'
+R ≥ 1.0  → 'win'   [FIXED — binary, no partial/draw]
+R <  1.0  → 'loss'
 ```
 
 ### Step 5: Soldier Losses
@@ -399,7 +380,7 @@ defenderLosses = floor(defenderSoldiers × defenderLossRate)
 
 ### Step 6: Slave Conversion
 ```
-slavesCreated = floor(defenderLosses × CAPTURE_RATE (0.35))
+slavesCreated = floor(defenderLosses × CAPTURE_RATE (0.10))
              = 0  if defenderLosses = 0
 ```
 Converts killed defender soldiers into slaves for the attacker. Does NOT touch defender's existing slaves.
@@ -408,7 +389,7 @@ Converts killed defender soldiers into slaves for the attacker. Does NOT touch d
 ```
 if defenderIsProtected OR outcome = 'loss':  loot = {0,0,0,0}
 
-outcomeMult = { win: 1.0, partial: 0.5, loss: 0.0 }
+outcomeMult = { win: 1.0, loss: 0.0 }
 decayFactor = LOOT_DECAY_STEPS[min(attackCount-1, 4)]  →  [1.0, 0.70, 0.40, 0.20, 0.10]
 totalMult   = BASE_LOOT_RATE (0.20) × outcomeMult × decayFactor
 
@@ -419,7 +400,8 @@ loot[r] = floor(unbanked[r] × totalMult)   for r in {gold, iron, wood, food}
 
 ### Step 8: Food Cost (gate, not formula)
 ```
-foodCost = turnsUsed × foodCostPerTurn (1)
+foodCost = ceil(soldiers × FOOD_PER_SOLDIER (0.05) × turnsUsed × foodMultiplier)
+foodMultiplier = 1.0 normally; 0.75 if tribe battle_supply active (−25%)
 ```
 Paid upfront before combat. Deducted regardless of outcome.
 
@@ -430,7 +412,7 @@ defenderLossRate = clamp(0.15×1.35, 0.05, 0.30) = clamp(0.2025, ...) = 0.2025
 
 attackerLosses = floor(200 × 0.111) = 22
 defenderLosses = floor(100 × 0.2025) = 20
-slavesCreated  = floor(20 × 0.35) = 7
+slavesCreated  = floor(20 × 0.10) = 2
 
 loot.gold = floor(1000 × 0.20 × 1.0 × 1.0) = 200  (win, first attack)
 ```
@@ -671,13 +653,17 @@ Applied only to starting gold/iron/wood/food. NOT applied to turns or population
 
 ## 22. City Production Multiplier
 
-**Source:** `config/balance.config.ts`
+**Source:** `config/balance.config.ts` → `slaveProductionMultByCity`
 
 ```
-CITY_PRODUCTION_MULT[1–5]  →  [TUNE: unassigned]
+City 1 → ×1.0   (baseline)
+City 2 → ×1.3   (+30%)
+City 3 → ×1.7   (+70%)
+City 4 → ×2.2   (+120%)
+City 5 → ×3.0   (+200%)
 ```
 
-Applied in `calcSlaveProduction` as `cityMult`. Code falls back to `?? 1` for unset values. Must be set before city tiers are meaningful.
+Applied in `calcSlaveProduction` as `cityMult`. Affects slave resource output only — no effect on combat, power, loot, or bank.
 
 ---
 
