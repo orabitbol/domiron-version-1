@@ -334,17 +334,17 @@ export const BALANCE = {
     // Levels 1–10 are upgrade-gated via POST /api/bank/upgrade.
     // Must remain monotonically non-decreasing — validated at boot by balance-validate.ts.
     INTEREST_RATE_BY_LEVEL: {
-      0: 0.0, // [FIXED] Default — no interest
-      1: 0.05, // [TUNE]  5.0 %
-      2: 0.075, // [TUNE]  7.5 %
-      3: 0.1, // [TUNE] 10.0 %
-      4: 0.125, // [TUNE] 12.5 %
-      5: 0.15, // [TUNE] 15.0 %
-      6: 0.175, // [TUNE] 17.5 %
-      7: 0.2, // [TUNE] 20.0 %
-      8: 0.225, // [TUNE] 22.5 %
-      9: 0.25, // [TUNE] 25.0 %
-      10: 0.3, // [TUNE] 30.0 % — max tier reward
+      0: 0.0,    // [FIXED] Default — no interest
+      1: 0.005,  // [TUNE]  0.5 %
+      2: 0.0075, // [TUNE]  0.75 %
+      3: 0.01,   // [TUNE]  1.0 %
+      4: 0.0125, // [TUNE]  1.25 %
+      5: 0.015,  // [TUNE]  1.5 %
+      6: 0.0175, // [TUNE]  1.75 %
+      7: 0.02,   // [TUNE]  2.0 %
+      8: 0.0225, // [TUNE]  2.25 %
+      9: 0.025,  // [TUNE]  2.5 %
+      10: 0.03,  // [TUNE]  3.0 % — max tier reward
     } as Record<number, number>,
     MAX_INTEREST_LEVEL: 10, // [FIXED] — must equal highest key in INTEREST_RATE_BY_LEVEL
 
@@ -385,7 +385,7 @@ export const BALANCE = {
     } as Record<number, number>,
 
     advancedMultiplierPerLevel: 0.08, // [TUNE]
-    advancedCost: { gold: 300, food: 300 }, // [TUNE]
+    advancedCost: { gold: 1500, food: 1500 }, // [TUNE]
     EXPONENTIAL_GROWTH_FLOOR: 10_000, // [TUNE]
     // NOTE: There is no capacity cap on combat units.
     // The players.capacity DB column is legacy — not used in any training gate.

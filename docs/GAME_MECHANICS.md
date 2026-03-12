@@ -340,8 +340,8 @@ Advanced training upgrades one of four skill dimensions: `attack`, `defense`, `s
 goldCost = BALANCE.training.advancedCost.gold × (currentLevel + 1)
 foodCost = BALANCE.training.advancedCost.food × (currentLevel + 1)
 
-advancedCost.gold = 300
-advancedCost.food = 300
+advancedCost.gold = 1500
+advancedCost.food = 1500
 ```
 
 **Cost by level (current → next):**
@@ -1480,7 +1480,7 @@ With hero SLAVE_OUTPUT effects stacked (up to +50%), a whale-tier player at city
 
 **D. Advanced skill training has no level cap (LOW→HIGH RISK)**
 
-The code does not enforce a maximum level on `attack_level`, `defense_level`, etc. Cost scales as `300 × (L+1)` which grows linearly — **not exponentially**. A player willing to spend enough gold can achieve:
+The code does not enforce a maximum level on `attack_level`, `defense_level`, etc. Cost scales as `1500 × (L+1)` which grows linearly — **not exponentially**. A player willing to spend enough gold can achieve:
 
 ```
 Level 100: trainMult = 1 + 100 × 0.08 = 9.00× attack multiplier

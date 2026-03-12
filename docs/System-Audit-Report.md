@@ -81,7 +81,7 @@ supabase/migrations/0011_attack_rpc_captives.sql   Current RPC (15-param)
 ### ✔ Bank System
 - Deposits limited to `depositsPerDay` (5) per calendar day. Day resets before limit check (bug fixed).
 - `deposits_today BETWEEN 0 AND 5` enforced by DB constraint (migration 0007 fixed original cap of 2).
-- Interest applied once per day at tick boundary. Level 0 = 0%, Level 1–3 = 5/7.5/10%.
+- Interest applied once per day at tick boundary. Level 0 = 0%, Level 1–3 = 0.5/0.75/1%, max level 10 = 3%.
 - Banked gold is 100% theft-protected.
 
 ### ✔ Spy System

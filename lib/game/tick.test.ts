@@ -25,25 +25,25 @@ describe('calcBankInterest', () => {
     expect(calcBankInterest(10_000, 0, null)).toBe(0)
   })
 
-  it('level 1 → 5% of balance', () => {
+  it('level 1 → 0.5% of balance', () => {
     const balance = 10_000
     const expected = Math.floor(balance * BALANCE.bank.INTEREST_RATE_BY_LEVEL[1])
     expect(calcBankInterest(balance, 1, null)).toBe(expected)
-    expect(expected).toBe(500)
+    expect(expected).toBe(50)
   })
 
-  it('level 2 → 7.5% of balance', () => {
+  it('level 2 → 0.75% of balance', () => {
     const balance = 10_000
     const expected = Math.floor(balance * BALANCE.bank.INTEREST_RATE_BY_LEVEL[2])
     expect(calcBankInterest(balance, 2, null)).toBe(expected)
-    expect(expected).toBe(750)
+    expect(expected).toBe(75)
   })
 
-  it('level 3 → 10% of balance', () => {
+  it('level 3 → 1% of balance', () => {
     const balance = 10_000
     const expected = Math.floor(balance * BALANCE.bank.INTEREST_RATE_BY_LEVEL[3])
     expect(calcBankInterest(balance, 3, null)).toBe(expected)
-    expect(expected).toBe(1_000)
+    expect(expected).toBe(100)
   })
 
   it('balance = 0 → 0 interest at any level', () => {
