@@ -17,7 +17,8 @@
  *   tribe_spells → tribe_members → hero_spells → player_hero_effects →
  *   spy_history → attacks → hero → bank → development → training →
  *   weapons → army → resources → hall_of_fame → tribes →
- *   [players.season_id nulled] → seasons → players
+ *   admin_logs → balance_overrides →
+ *   [seasons.created_by nulled] → players → seasons
  *
  * After reset:
  *   - No players exist. Admin must re-register via /api/auth/register.
@@ -79,6 +80,9 @@ export async function POST() {
       { table: 'resources',           query: supabase.from('resources').delete().not('player_id', 'is', null) },
       { table: 'hall_of_fame',        query: supabase.from('hall_of_fame').delete().not('id', 'is', null) },
       { table: 'tribes',              query: supabase.from('tribes').delete().not('id', 'is', null) },
+      // Must be deleted before players — both have FK references to players.id
+      { table: 'admin_logs',          query: supabase.from('admin_logs').delete().not('id', 'is', null) },
+      { table: 'balance_overrides',   query: supabase.from('balance_overrides').delete().not('id', 'is', null) },
     ]
 
     for (const { table, query } of sequentialDeletes) {
@@ -133,7 +137,13 @@ export async function POST() {
       throw new Error(`Failed to create Season 1: ${newSeasonErr?.message}`)
     }
 
-    const deletedTables = [...GAME_TABLES, 'seasons', 'players']
+    const deletedTables = [...GAME_TABLES, 'admin_logs', 'balance_overrides', 'seasons', 'players']
+
+    // NOTE: We intentionally do NOT write to admin_logs here.
+    // After the reset, ALL players (including the admin) are deleted,
+    // so there is no valid admin_id to reference in admin_logs.
+    // The action is instead captured here in the server log for auditability.
+    console.log(`[SEASON RESET] Hard reset executed by admin session ${session.user.id}. New season: ${newSeason.number} (id=${newSeason.id})`)
 
     return NextResponse.json({
       ok:            true,

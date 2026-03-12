@@ -26,6 +26,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
+import { writeAdminLog } from '@/lib/admin/log'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -235,6 +236,22 @@ export async function POST(_request: NextRequest) {
 
   const totalRepaired = results.filter(r => r.failedRows.length === 0).length
   const totalFailed   = results.filter(r => r.failedRows.length  >  0).length
+
+  // Write admin log (never throws — logging must not interrupt the response)
+  await writeAdminLog(
+    session.user.id,
+    'repair_players',
+    {
+      totalRepaired,
+      totalFailed,
+      repaired: results.map(r => ({
+        id:           r.id,
+        username:     r.username,
+        repairedRows: r.repairedRows,
+        failedRows:   r.failedRows,
+      })),
+    },
+  )
 
   return NextResponse.json({
     data: {
