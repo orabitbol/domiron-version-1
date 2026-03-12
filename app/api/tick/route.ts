@@ -85,19 +85,86 @@ export async function GET(request: NextRequest) {
 
     if (playersError) throw playersError
 
+    // ── STEP 0: Player integrity check (detect only — no writes) ────────────────
+    // Compare the strict !inner-join result against all active-season players.
+    // Any mismatch means a player is missing a required related row and has been
+    // silently excluded from this tick. We log the exact missing rows and do nothing
+    // else. Repair is handled out-of-band via POST /api/admin/repair-players.
+    {
+      const { data: activeSeason } = await supabase
+        .from('seasons').select('id').eq('status', 'active').maybeSingle()
+
+      if (activeSeason) {
+        const { data: allSeasonPlayers } = await supabase
+          .from('players').select('id').eq('season_id', activeSeason.id)
+
+        if (allSeasonPlayers) {
+          const joinedIds = new Set((players ?? []).map(p => p.id))
+          const excluded = allSeasonPlayers.filter(p => !joinedIds.has(p.id))
+
+          if (excluded.length > 0) {
+            console.error(`[TICK] INTEGRITY: ${excluded.length} player(s) excluded from this tick — run POST /api/admin/repair-players to fix`)
+
+            for (const ep of excluded) {
+              // Probe each table: data=null + error=null → row missing; error≠null → query failed
+              const [armyR, devR, heroR, bankR, resR, weaponsR, trainingR] = await Promise.all([
+                supabase.from('army')       .select('player_id').eq('player_id', ep.id).maybeSingle(),
+                supabase.from('development').select('player_id').eq('player_id', ep.id).maybeSingle(),
+                supabase.from('hero')       .select('player_id').eq('player_id', ep.id).maybeSingle(),
+                supabase.from('bank')       .select('player_id').eq('player_id', ep.id).maybeSingle(),
+                supabase.from('resources')  .select('player_id').eq('player_id', ep.id).maybeSingle(),
+                supabase.from('weapons')    .select('player_id').eq('player_id', ep.id).maybeSingle(),
+                supabase.from('training')   .select('player_id').eq('player_id', ep.id).maybeSingle(),
+              ])
+
+              const probeErrors = [
+                armyR.error     && `army: ${armyR.error.message}`,
+                devR.error      && `development: ${devR.error.message}`,
+                heroR.error     && `hero: ${heroR.error.message}`,
+                bankR.error     && `bank: ${bankR.error.message}`,
+                resR.error      && `resources: ${resR.error.message}`,
+                weaponsR.error  && `weapons: ${weaponsR.error.message}`,
+                trainingR.error && `training: ${trainingR.error.message}`,
+              ].filter(Boolean)
+              if (probeErrors.length > 0) {
+                console.error(`[TICK] INTEGRITY: probe failed for player ${ep.id}: ${probeErrors.join(' | ')}`)
+                continue
+              }
+
+              const missingRows = [
+                !armyR.data     && 'army',
+                !devR.data      && 'development',
+                !heroR.data     && 'hero',
+                !bankR.data     && 'bank',
+                !resR.data      && 'resources',
+                !weaponsR.data  && 'weapons',
+                !trainingR.data && 'training',
+              ].filter(Boolean)
+
+              if (missingRows.length === 0) {
+                console.error(`[TICK] INTEGRITY: player ${ep.id} excluded by !inner but all rows present — check RLS policies`)
+              } else {
+                console.error(`[TICK] INTEGRITY: player ${ep.id} missing [${missingRows.join(', ')}] — excluded from this tick`)
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Always log how many players the join returned
     console.log(`[TICK] playersFound=${players?.length ?? 0}`)
 
     if (!players || players.length === 0) {
-      // Diagnose why the join returned 0 rows: is the players table actually empty,
-      // or did !inner joins exclude someone missing a related row?
+      // Integrity check above has already diagnosed the cause (see INTEGRITY log lines).
+      // If rawCount > 0, players exist but are all missing related rows — repair them first.
       const { count: rawCount } = await supabase
         .from('players')
         .select('*', { count: 'exact', head: true })
       console.log(
         `[TICK] Raw players table count (no joins): ${rawCount}.` +
         (rawCount && rawCount > 0
-          ? ' A player is missing army/development/hero/bank/or resources row — !inner join excluded them.'
+          ? ' Players exist but all excluded — see INTEGRITY logs above, run POST /api/admin/repair-players.'
           : ' Players table is empty.')
       )
 
@@ -115,7 +182,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: { processed: 0, duration: 0 } })
     }
 
-    console.log(`[TICK] Processing ${players.length} player(s) at ${new Date().toISOString()}`)
+    // Normalize to a guaranteed array (Supabase types data as T[] | null; never null after error check above).
+    const activePlayers = players ?? []
+
+    console.log(`[TICK] Processing ${activePlayers.length} player(s) at ${new Date().toISOString()}`)
 
     // Process each player
     const now = new Date().toISOString()
@@ -145,7 +215,7 @@ export async function GET(request: NextRequest) {
     )
 
     let playerIdx = 0
-    for (const player of players) {
+    for (const player of activePlayers) {
       const army = player.army as unknown as {
         slaves: number; free_population: number
         slaves_gold: number; slaves_iron: number; slaves_wood: number; slaves_food: number
@@ -355,19 +425,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 9. Recalculate power for all players, then update rankings
-    const { data: allPlayers } = await supabase
-      .from('players')
-      .select('id, city')
+    // 9. Recalculate power for all players, then update rankings.
+    // Scoped to activePlayers — the set that passed the !inner join (current season, complete rows).
+    // Old-season players and players with missing rows are intentionally excluded.
+    const activePlayerIds = activePlayers.map(p => p.id)
 
-    if (allPlayers) {
-      // Recalculate all power columns for every player
-      await Promise.all(allPlayers.map(p => recalculatePower(p.id, supabase)))
+    if (activePlayerIds.length > 0) {
+      // Recalculate power for every player that passed the strict join.
+      await Promise.all(activePlayers.map(p => recalculatePower(p.id, supabase)))
 
-      // Re-fetch updated power_total values for ranking
+      // Re-fetch updated power_total values for ranking (scoped to active players only)
       const { data: powered } = await supabase
         .from('players')
         .select('id, power_total, city, joined_at')
+        .in('id', activePlayerIds)
 
       if (powered) {
         // Sort globally for rank_global
@@ -451,11 +522,11 @@ export async function GET(request: NextRequest) {
     await broadcastTickCompleted(supabase, nextTickAt)
 
     const duration = Date.now() - startTime
-    console.log(`[TICK] Completed: ${players.length} player(s) in ${duration}ms — next tick at ${nextTickAt}`)
+    console.log(`[TICK] Completed: ${activePlayers.length} player(s) in ${duration}ms — next tick at ${nextTickAt}`)
 
     return NextResponse.json({
       data: {
-        processed: players.length,
+        processed: activePlayers.length,
         duration,
         timestamp: now,
       },

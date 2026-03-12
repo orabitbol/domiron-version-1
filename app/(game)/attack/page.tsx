@@ -18,22 +18,24 @@ export default async function AttackPage() {
   const admin    = createAdminClient()
   const playerId = session.user.id
 
-  // Fetch player's city — needed to scope the target list. Player state comes from context.
+  // Fetch player's city and season — needed to scope the target list. Player state comes from context.
   const { data: player } = await supabase
     .from('players')
-    .select('id, city')
+    .select('id, city, season_id')
     .eq('id', playerId)
     .single()
 
   if (!player) return null
 
-  // Fetch all players in same city (including self — self row has no Attack button).
+  // Fetch all players in same city AND season (including self — self row has no Attack button).
+  // Season filter prevents old-season players from appearing as targets after a season reset.
   // created_at required for new-player protection check.
   const { data: cityPlayers } = await supabase
     .from('players')
     .select('id, army_name, city, rank_city, rank_global, power_total, is_vacation, created_at')
     .eq('city', player.city)
-    .order('rank_city', { ascending: true })
+    .eq('season_id', player.season_id)
+    .order('rank_city', { ascending: true, nullsFirst: false })
     .limit(100)
 
   const playerIds = cityPlayers?.map((p) => p.id) ?? []
