@@ -105,7 +105,7 @@ goldCost = unitCost[unit].gold × amount
 | slave | **0** | 1 | converts pop → idle slave (FREE) |
 | spy | 80 | 1 | intel |
 | scout | 80 | 1 | counter-intel |
-| cavalry | 200 | 0 | requires `amount × soldierRatio (5)` soldiers |
+| cavalry | 10,000 | 5 | costs 5 `free_population` per unit (`popCost = 5`) |
 | farmer | 20 | 1 | food production |
 
 **Flow:**
@@ -154,14 +154,14 @@ army.slaves   += amount
 ```
 goldCost = advancedCost.gold × (currentLevel + 1)
 foodCost = advancedCost.food × (currentLevel + 1)
-         = 300 × (currentLevel + 1)  for each resource
+         = 1500 × (currentLevel + 1)  for each resource
 ```
 
 **Effect:** Each level adds `advancedMultiplierPerLevel = 0.08` (8%) to the relevant power calculation.
 
 **Example:**
-- Level 0 → 1: costs 300 gold + 300 food. Multiplier: ×1.00 → ×1.08
-- Level 4 → 5: costs 1,500 gold + 1,500 food. Multiplier: ×1.32 → ×1.40
+- Level 0 → 1: costs 1,500 gold + 1,500 food. Multiplier: ×1.00 → ×1.08
+- Level 4 → 5: costs 7,500 gold + 7,500 food. Multiplier: ×1.32 → ×1.40
 
 **Scaling:** Linear cost growth. Multiplicative power gain. No upper level cap [UNCERTAIN: balance risk].
 
@@ -192,7 +192,7 @@ next = currentLevel + 1
 
 if next ≤ 2:  costConfig = level2  { gold: 3,   resource: 3   }
 elif next ≤ 3: costConfig = level3  { gold: 9,   resource: 9   }
-elif next ≤ 5: costConfig = level5  { gold: 50,  resource: 50  }
+elif next ≤ 5: costConfig = level5  { gold: 200, resource: 200 }
 else:          costConfig = level10 { gold: 500, resource: 500 }
 
 goldCost     = costConfig.gold     × next
@@ -582,13 +582,22 @@ maxLifetimeDeposits = 5  (total deposits ever — historical cap)
 
 ### Interest (daily, applied once at midnight tick)
 ```
-⚠ BANK_INTEREST_RATE_BASE and BANK_INTEREST_RATE_PER_LEVEL are [TUNE: unassigned]
-  Do not use until set.
-
-interest = floor(balance × BANK_INTEREST_RATE_BASE)
-         + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
-         + floor(balance × vipRate)      if VIP (vipRate = 0 currently)
+interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 ```
+
+| Level | Rate |
+|-------|------|
+| 0 | 0% |
+| 1 | 0.5% |
+| 2 | 0.75% |
+| 3 | 1.0% |
+| 4 | 1.25% |
+| 5 | 1.5% |
+| 6 | 1.75% |
+| 7 | 2.0% |
+| 8 | 2.25% |
+| 9 | 2.5% |
+| 10 | 3.0% |
 
 ---
 

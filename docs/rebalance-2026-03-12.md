@@ -13,8 +13,9 @@ Two changes implemented. Three systems reviewed and left unchanged.
 |---|---|---|
 | Bank interest rates | **Reduced ÷10** | Compound interest at 30%/day is catastrophically dominant |
 | Advanced training costs | **Increased ×5** | +80% combat power at max was trivially cheap |
-| Dev/infrastructure upgrade costs | No change | Existing cost cliff (lv5→6 ×12) is an intentional progression gate |
-| Basic training unit costs | No change | 60–200g per unit is reasonable relative to the corrected economy |
+| Dev/infrastructure upgrade costs (level5 bracket) | **Increased ×4** | Mid-game gate was too cheap; level 3–5 upgrades now cost 200g vs 50g |
+| Cavalry cost | **Increased ×50** | Cavalry is a rare premium late-game asset, not a spammable unit |
+| Basic training (soldier/spy/scout) | No change | 60–80g per unit is reasonable |
 | Shop (weapons) costs | No change | All-4-resource pricing model is well-calibrated |
 
 ---
@@ -95,21 +96,46 @@ Advanced training was trivially cheap and dominated combat with no meaningful re
 
 ## 3. Systems Left Unchanged
 
-### Dev/Infrastructure Upgrade Costs
+## 3. Development Level5 Bracket
 
-Cost formula: `config × nextLevel` where tier bracket determines config:
-- Levels 1→2: 3g + 3r
-- Levels 2→3: 9g + 9r
-- Levels 3→4: 27g + 27r (×3 per tier)
-- Levels 4→5: 50g + 50r (×1.85×)
-- Levels 5→6: 300g + 300r (×6×)
-- Levels 6→10: 500g + 500r × level
+### Problem
 
-The cost cliff at level 5→6 is an intentional progression gate. Total to max all 6 dev categories is high but well-distributed. No change.
+The mid-game development bracket (`next_level ≤ 5`) was only 50g + 50r per base cost, making levels 3–5 feel trivially cheap compared to the level 5→6 jump (500g × 6 = 3,000g). The gate between mid and late development had no real mid-section.
 
-### Basic Training
+### Change
 
-Soldier: 60g, Spy: 80g, Scout: 80g, Cavalry: 200g. These are calibrated relative to production rates. No change.
+`developmentUpgradeCost.level5`: `{ gold: 50, resource: 50 }` → `{ gold: 200, resource: 200 }`
+
+| Upgrade | Before | After |
+|---|---|---|
+| 3 → 4 | 50×4 = 200g | 200×4 = 800g |
+| 4 → 5 | 50×5 = 250g | 200×5 = 1,000g |
+
+Total cost to level 5 (per field, from level 1): was 483g → now 1,833g. This is intentional: hitting level 5 before the 500g/level cliff now requires real investment.
+
+---
+
+## 4. Cavalry Cost
+
+### Problem
+
+At 200g per cavalry, with `popCost = 5`, cavalry was cheap enough to bulk-train once a player had soldiers. At 200g, a player spending 10,000g on cavalry gets 50 cavalry. Given cavalry contributes as Tier 2 (×3 over soldiers), this was strong value for modest cost.
+
+### Change
+
+`cavalry.gold`: 200 → 10,000
+
+| Metric | Before | After |
+|---|---|---|
+| Cost per cavalry | 200g | 10,000g |
+| 10 cavalry | 2,000g | 100,000g |
+| 50 cavalry | 10,000g | 500,000g |
+
+**Design intent:** Cavalry is a rare, premium, irreversible asset. Even a small cavalry force represents a major late-game investment. This is acceptable; cavalry is meant to be exceptional, not a default combat choice.
+
+---
+
+## 5. Systems Left Unchanged
 
 ### Shop (Weapons)
 
@@ -121,8 +147,10 @@ All-4-resource pricing enforces economy-wide trade-offs. Power progression scale
 
 | File | Change |
 |---|---|
-| `config/balance.config.ts` | `INTEREST_RATE_BY_LEVEL` ÷10, `advancedCost` ×5 |
+| `config/balance.config.ts` | `INTEREST_RATE_BY_LEVEL` ÷10, `advancedCost` ×5, `level5` ×4, `cavalry.gold` ×50 |
 | `lib/game/tick.test.ts` | Updated 3 hardcoded bank interest test assertions |
-| `docs/GameMechanics-SingleSourceOfTruth.md` | Bank interest table, advanced training cost |
+| `docs/GameMechanics-SingleSourceOfTruth.md` | Bank interest table, advanced training cost, cavalry cost, dev level5 formula + example |
 | `docs/System-Audit-Report.md` | Bank interest rate mention |
-| `docs/GAME_MECHANICS.md` | `advancedCost` constants |
+| `docs/GAME_MECHANICS.md` | `advancedCost`, `cavalry`, dev level5 formula + cost table + cumulative |
+| `docs/formulas.md` | `cavalry` cost row, dev level5 formula line |
+| `game-logic.md` | Dev level 5 upgrade cost row |

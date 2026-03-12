@@ -140,13 +140,13 @@ export const BALANCE = {
       slave:    { goldCost: 10,    capacityCost: 150 },
       spy:      { goldCost: 80,    capacityCost: 62  },
       scout:    { goldCost: 80,    capacityCost: 62  },
-      cavalry:  { goldCost: 1000,  capacityCost: 0, soldierRatio: 10 }, // 1 per 10 soldiers
+      cavalry:  { goldCost: 10000, capacityCost: 2, popCost: 5 }, // 5 free_pop per cavalry
       farmer:   { goldCost: 150,   capacityCost: 0 },
     },
 
     // Advanced training
     advanced: {
-      costPerLevel: { gold: 300, food: 300 },
+      costPerLevel: { gold: 1500, food: 1500 },
       multiplierPerLevel: 0.08,  // level × 0.08 added to 1.0
       // Level 0: ×1.00, Level 5: ×1.40, Level 10: ×1.80, Level 20: ×2.60
     },
@@ -167,7 +167,7 @@ export const BALANCE = {
     developmentUpgradeCost: {
       level2:  { gold: 3,   resource: 3   },
       level3:  { gold: 9,   resource: 9   },
-      level5:  { gold: 50,  resource: 50  },
+      level5:  { gold: 200, resource: 200 },
       level10: { gold: 500, resource: 500 },
     },
 

@@ -40,7 +40,7 @@
 | Vacation mode | ⚠️ Tick respects `is_vacation` flag; toggle route not yet built | `lib/game/tick.ts` |
 | City production multipliers | ⚠️ Structure exists; values `[TUNE: unassigned]`, default to ×1 | `config/balance.config.ts` |
 | City promotion thresholds | ⚠️ Structure exists; values `[TUNE: unassigned]`, route not built | `config/balance.config.ts` |
-| Bank interest rates | ⚠️ Function exists; rates `[TUNE: unassigned]`, interest = 0 until set | `lib/game/tick.ts` |
+| Bank interest rates | ✅ Active — levels 1–10 at 0.5%…3% per day via `INTEREST_RATE_BY_LEVEL` | `lib/game/tick.ts`, `config/balance.config.ts` |
 | Hero XP / leveling | ❌ Not implemented | — |
 | City promotion route | ❌ Not implemented | — |
 | Season reset route | ❌ Not implemented | — |
@@ -470,7 +470,7 @@ Sell refund: 20% of original cost (`sellRefundPercent: 0.20`).
 | Slave | 10 | 0 | Consumes 1 `free_population` |
 | Spy | 80 | 1 | Consumes 1 `free_population` |
 | Scout | 80 | 1 | Consumes 1 `free_population` |
-| Cavalry | 200 | 2 | Requires `soldiers ≥ amount × 5`; no population consumed |
+| Cavalry | 10,000 | 2 | Costs 5 `free_population` per unit (`popCost = 5`) |
 | Farmer | 20 | 0 | Consumes 1 `free_population` |
 
 ### Capacity (max units that consume capacity)
@@ -482,7 +482,7 @@ max_capacity = baseCapacity(1,000) + fortification_level × capacityPerDevelopme
 
 ### Advanced Training
 **Key function:** `advancedMultiplierPerLevel = 0.08`
-**Cost per level:** 300 gold + 300 food
+**Cost per level:** 1,500 gold + 1,500 food × (level + 1)
 **Effect:** `trainMult = 1 + (level × 0.08)` applied to attack, defense, spy, or scout power.
 
 ---
@@ -500,7 +500,7 @@ max_capacity = baseCapacity(1,000) + fortification_level × capacityPerDevelopme
 | `slaves` | Captured from combat OR trained from population with gold | Produce resources per tick |
 
 **Critical rules (enforced in API):**
-1. Training any unit (except cavalry) consumes 1 `free_population`.
+1. Training any unit consumes `free_population` — cavalry costs 5 per unit (`popCost = 5`), all others cost 1.
 2. Untraining any unit adds to `slaves` — NEVER to `free_population`.
 3. Free population and slaves are completely separate pools.
 4. Slaves produce all resource types simultaneously per tick.
@@ -514,7 +514,7 @@ max_capacity = baseCapacity(1,000) + fortification_level × capacityPerDevelopme
 | Slave | Enough gold, `free_population ≥ amount` | gold + free_population |
 | Spy | Enough gold, enough capacity, `free_population ≥ amount` | gold + free_population |
 | Scout | Enough gold, enough capacity, `free_population ≥ amount` | gold + free_population |
-| Cavalry | Enough gold, `soldiers ≥ amount × soldierRatio(5)` | gold only (no population) |
+| Cavalry | Enough gold, `free_population ≥ amount × 5` (popCost = 5) | gold + free_population |
 | Farmer | Enough gold, `free_population ≥ amount` | gold + free_population |
 
 ### Untrain API (`POST /api/training/untrain`)
@@ -558,7 +558,7 @@ vipMult  = 1.10 if VIP active, else 1.0
 | 1 | 1.0 – 3.0 | — |
 | 2 | 1.5 – 3.5 | 3 gold + 3 [resource] |
 | 3 | 2.0 – 4.0 | 9 gold + 9 [resource] |
-| 5 | 3.0 – 5.0 | 50 gold + 50 [resource] |
+| 5 | 3.0 – 5.0 | 200 gold + 200 [resource] |
 | 10 | 5.5 – 7.5 | 500 gold + 500 [resource] |
 
 ### Population per Tick
@@ -577,7 +577,7 @@ Level 6: +8  | Level 7: +10 | Level 8: +14 | Level 9: +18 | Level 10: +23
 ## 7. Bank System
 
 **Files:** `app/api/bank/deposit/route.ts`, `app/api/bank/upgrade/route.ts`, `lib/game/tick.ts`
-**Key function:** `calcBankInterest(balance, interestLevel, vipUntil)` — ⚠️ rates unassigned
+**Key function:** `calcBankInterest(balance, interestLevel, vipUntil)` — active, levels 1–10 at 0.5%…3%
 **BALANCE keys:** `bank.*`
 **API routes:** `POST /api/bank/deposit`, `POST /api/bank/upgrade`
 
@@ -591,15 +591,14 @@ theft_protection      = 100% — banked gold cannot be stolen
 
 ### Interest Rate
 
-⚠️ **Not yet active.** Both `BANK_INTEREST_RATE_BASE` and `BANK_INTEREST_RATE_PER_LEVEL` are `[TUNE: unassigned]`. The function exists in `tick.ts` but produces 0 until values are set in `balance.config.ts`.
-
 ```
-interest = floor(balance × BANK_INTEREST_RATE_BASE)
-         + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
-         + floor(balance × vipRate)
+interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 
 Applied: once per day (on the first tick when the calendar date changes)
 ```
+
+Levels 0–10: 0%, 0.5%, 0.75%, 1%, 1.25%, 1.5%, 1.75%, 2%, 2.25%, 2.5%, 3%
+Source: `BALANCE.bank.INTEREST_RATE_BY_LEVEL`
 
 ---
 

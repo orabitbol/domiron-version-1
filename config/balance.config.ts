@@ -364,7 +364,7 @@ export const BALANCE = {
       slave: { gold: 0, capacityCost: 0 }, // [FIXED] Free: converts pop → idle slave, no gold cost
       spy: { gold: 80, capacityCost: 1 }, // [TUNE]
       scout: { gold: 80, capacityCost: 1 }, // [TUNE]
-      cavalry: { gold: 200, capacityCost: 2, popCost: 5 }, // [TUNE] 5 free_population per 1 cavalry
+      cavalry: { gold: 10_000, capacityCost: 2, popCost: 5 }, // [TUNE] 5 free_population per 1 cavalry — intentionally expensive late-game asset
     },
 
     // Set to false to instantly disable cavalry training across the whole game.
@@ -487,7 +487,7 @@ export const BALANCE = {
     developmentUpgradeCost: {
       level2: { gold: 3, resource: 3 }, // [TUNE]
       level3: { gold: 9, resource: 9 }, // [TUNE]
-      level5: { gold: 50, resource: 50 }, // [TUNE]
+      level5: { gold: 200, resource: 200 }, // [TUNE]
       level10: { gold: 500, resource: 500 }, // [TUNE]
     },
   },

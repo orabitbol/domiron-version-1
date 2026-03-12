@@ -292,7 +292,7 @@ resources.gold / iron / wood / food  (increased)
 | Slave | **0** | 1 | 0 | Free — converts 1 pop → 1 idle slave; must be assigned to a job to produce |
 | Spy | 80 | 1 | 1 | Used for spy missions |
 | Scout | 80 | 1 | 1 | Defends against spies |
-| Cavalry | 200 | **0** | 2 | Requires `amount × 5` soldiers |
+| Cavalry | 10,000 | **5** | 2 | Costs 5 `free_population` per unit (`popCost = 5`) |
 | Farmer | 20 | 1 | 0 | Always produces food (separate from slave assignment) |
 
 **Total gold cost formula:**
@@ -325,8 +325,7 @@ current_capacity = BALANCE.training.baseCapacity
 The API enforces in this order:
 1. Gold check
 2. Capacity check (soldiers/spies/scouts only)
-3. Population check (all units except cavalry)
-4. Soldier ratio check (cavalry only)
+3. Population check (all units; cavalry costs `amount × 5` free_population via `popCost`)
 
 ---
 
@@ -348,16 +347,16 @@ advancedCost.food = 1500
 
 | Current Level | Gold Cost | Food Cost |
 |--------------|-----------|-----------|
-| 0 → 1        | 300       | 300       |
-| 1 → 2        | 600       | 600       |
-| 2 → 3        | 900       | 900       |
-| 3 → 4        | 1,200     | 1,200     |
-| 4 → 5        | 1,500     | 1,500     |
-| 5 → 6        | 1,800     | 1,800     |
+| 0 → 1        | 1,500     | 1,500     |
+| 1 → 2        | 3,000     | 3,000     |
+| 2 → 3        | 4,500     | 4,500     |
+| 3 → 4        | 6,000     | 6,000     |
+| 4 → 5        | 7,500     | 7,500     |
+| 5 → 6        | 9,000     | 9,000     |
 | ...          | ...       | ...       |
-| L → L+1      | 300(L+1)  | 300(L+1)  |
+| L → L+1      | 1500(L+1) | 1500(L+1) |
 
-**Scaling:** Linear in cost. Each level costs exactly 300 more than the previous. There is no soft cap enforced — theoretically unbounded levels. **Balance risk:** high-level players get disproportionate combat power from skill multipliers (see §6 below).
+**Scaling:** Linear in cost. Each level costs exactly 1,500 more than the previous. There is no soft cap enforced — theoretically unbounded levels. **Balance risk:** high-level players get disproportionate combat power from skill multipliers (see §6 below).
 
 ### 5.2 Effect of Skill Levels
 
@@ -981,24 +980,31 @@ The bank protects gold from theft. Banked gold is **100% safe** (`theftProtectio
 ### 10.2 Bank Interest
 
 ```
-interest = floor(balance × BANK_INTEREST_RATE_BASE)
-         + floor(balance × interestLevel × BANK_INTEREST_RATE_PER_LEVEL)
-         + floor(balance × vipRate)
-
-BANK_INTEREST_RATE_BASE:      [TUNE: unassigned — not yet live]
-BANK_INTEREST_RATE_PER_LEVEL: [TUNE: unassigned — not yet live]
-vip.bankInterestBonus:        0 [TUNE: unassigned]
+interest = floor(balance × INTEREST_RATE_BY_LEVEL[interestLevel])
 ```
 
 Interest fires once per day on the tick where the calendar date changes.
 
+| Level | Rate | Upgrade Cost |
+|-------|------|--------------|
+| 0 (default) | 0% | — |
+| 1 | 0.5% | 2,000 gold |
+| 2 | 0.75% | 4,000 gold |
+| 3 | 1.0% | 6,000 gold |
+| 4 | 1.25% | 8,000 gold |
+| 5 | 1.5% | 10,000 gold |
+| 6 | 1.75% | 12,000 gold |
+| 7 | 2.0% | 14,000 gold |
+| 8 | 2.25% | 16,000 gold |
+| 9 | 2.5% | 18,000 gold |
+| 10 (max) | 3.0% | 20,000 gold |
+
 ### 10.3 Bank Upgrade Cost
 
 ```
-upgradeCost = BALANCE.bank.upgradeBaseCost = 2,000 gold per upgrade
+upgradeCost = BALANCE.bank.upgradeBaseCost × (currentLevel + 1)
+            = 2,000 × (currentLevel + 1)
 ```
-
-(Level determines the interest rate bonus — rates not assigned yet.)
 
 ---
 
@@ -1027,7 +1033,7 @@ Resource type paid:
 costConfig by next level:
   next_level ≤ 2:  { gold:   3, resource:   3 }
   next_level = 3:  { gold:   9, resource:   9 }
-  next_level ≤ 5:  { gold:  50, resource:  50 }
+  next_level ≤ 5:  { gold: 200, resource: 200 }
   next_level ≤ 10: { gold: 500, resource: 500 }
 ```
 
@@ -1037,15 +1043,15 @@ costConfig by next level:
 |----------------|--------------|------|-------------------|
 | 1 → 2 | 3 × 2 | 6 | 6 |
 | 2 → 3 | 9 × 3 | 27 | 27 |
-| 3 → 4 | 50 × 4 | 200 | 200 |
-| 4 → 5 | 50 × 5 | 250 | 250 |
+| 3 → 4 | 200 × 4 | 800 | 800 |
+| 4 → 5 | 200 × 5 | 1,000 | 1,000 |
 | 5 → 6 | 500 × 6 | 3,000 | 3,000 |
 | 6 → 7 | 500 × 7 | 3,500 | 3,500 |
 | 7 → 8 | 500 × 8 | 4,000 | 4,000 |
 | 8 → 9 | 500 × 9 | 4,500 | 4,500 |
 | 9 → 10 | 500 × 10 | 5,000 | 5,000 |
 
-**Cumulative cost (levels 1→10):** 26,289 gold + 26,289 secondary resource.
+**Cumulative cost (levels 1→10):** 21,833 gold + 21,833 secondary resource.
 
 **Fortification special side-effect:**
 ```

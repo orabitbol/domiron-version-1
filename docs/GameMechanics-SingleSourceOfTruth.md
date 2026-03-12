@@ -444,7 +444,7 @@ Source: `app/api/training/basic/route.ts`
 | slave | 0 | 1 free_pop | — |
 | spy | 80 | 1 free_pop | — |
 | scout | 80 | 1 free_pop | — |
-| cavalry | 200 | **5 free_pop per cavalry** (`popCost = 5`) | `BALANCE.training.enableCavalry = true` |
+| cavalry | 10,000 | **5 free_pop per cavalry** (`popCost = 5`) | `BALANCE.training.enableCavalry = true` |
 
 Source: `BALANCE.training.unitCost`
 
@@ -1747,7 +1747,7 @@ nextLevel = currentLevel + 1
 
 if nextLevel ≤ 2:  costCfg = { gold: 3,   resource: 3   }
 elif nextLevel ≤ 3: costCfg = { gold: 9,   resource: 9   }
-elif nextLevel ≤ 5: costCfg = { gold: 50,  resource: 50  }
+elif nextLevel ≤ 5: costCfg = { gold: 200, resource: 200 }
 else:               costCfg = { gold: 500, resource: 500 }
 
 totalGold     = costCfg.gold     × nextLevel
@@ -1756,7 +1756,7 @@ totalResource = costCfg.resource × nextLevel
 
 Examples:
 - Level 1→2: gold = 3×2 = 6, resource = 3×2 = 6
-- Level 4→5: gold = 50×5 = 250, resource = 50×5 = 250
+- Level 4→5: gold = 200×5 = 1,000, resource = 200×5 = 1,000
 - Level 9→10: gold = 500×10 = 5,000, resource = 500×10 = 5,000
 
 ### Development Fields
