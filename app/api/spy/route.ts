@@ -22,18 +22,9 @@ import { recalculatePower } from '@/lib/game/power'
 import { getActiveHeroEffects } from '@/lib/game/hero-effects'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
-// ─── Spy / scout weapon multipliers (mirrors power.ts) ────────────────────
-const SPY_WEAPON_MULT = {
-  shadow_cloak: 1.15,
-  dark_mask:    1.30,
-  elven_gear:   1.50,
-} as const
-
-const SCOUT_WEAPON_MULT = {
-  scout_boots:  1.15,
-  scout_cloak:  1.30,
-  elven_boots:  1.50,
-} as const
+// ─── Spy / scout weapon multipliers — read from BALANCE (single source of truth) ─
+const SPY_WEAPON_MULT   = BALANCE.pp.SPY_GEAR_MULT
+const SCOUT_WEAPON_MULT = BALANCE.pp.SCOUT_GEAR_MULT
 
 function calcSpyPower(
   spies:        number,

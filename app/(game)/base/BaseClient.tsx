@@ -192,7 +192,7 @@ export function BaseClient() {
           color="bg-game-red" colorClass="text-game-red-bright"
           bgClass="bg-game-red/5" borderClass="border-game-red/30"
           power={player.power_attack} units={(army?.soldiers ?? 0) + (army?.cavalry ?? 0)}
-          unitLabel="חיילים" level={training?.attack_level ?? 0}
+          unitLabel="חיילים + פרשים" level={training?.attack_level ?? 0}
           link="/attack" linkLabel="לתקיפה"
         />
         <StatPanel

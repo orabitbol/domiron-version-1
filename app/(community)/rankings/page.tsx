@@ -13,6 +13,7 @@ interface RankedPlayer {
   race: string
   city: number
   power_total: number
+  rank_global: number | null
 }
 
 interface RankedTribe {
@@ -26,9 +27,9 @@ interface RankedTribe {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const RACE_LABEL: Record<string, string> = {
-  orc: 'אורק',
-  human: 'אדם',
-  elf: 'אלף',
+  orc:   'אורק',
+  human: 'אנושי',
+  elf:   'אלף',
   dwarf: 'גמד',
 }
 
@@ -435,8 +436,8 @@ export default async function RankingsPage() {
   const [{ data: players }, { data: tribes }, { data: activeSeason }] = await Promise.all([
     supabase
       .from('players')
-      .select('id,username,army_name,race,city,power_total')
-      .order('power_total', { ascending: false })
+      .select('id,username,army_name,race,city,power_total,rank_global')
+      .order('rank_global', { ascending: true, nullsFirst: false })
       .limit(20),
     supabase
       .from('tribes')
@@ -451,7 +452,8 @@ export default async function RankingsPage() {
   ])
 
   const myRankIdx = myId ? (players ?? []).findIndex((p) => p.id === myId) : -1
-  const myRankNum = myRankIdx >= 0 ? myRankIdx + 1 : null
+  const myPlayer  = myRankIdx >= 0 ? (players ?? [])[myRankIdx] : null
+  const myRankNum = myPlayer?.rank_global ?? (myRankIdx >= 0 ? myRankIdx + 1 : null)
 
   return (
     <div className="space-y-6">
@@ -519,7 +521,7 @@ export default async function RankingsPage() {
           {(players ?? []).length > 0 ? (
             <div>
               {(players ?? []).map((p, i) => (
-                <PlayerRow key={p.id} player={p} rank={i + 1} isMe={p.id === myId} />
+                <PlayerRow key={p.id} player={p} rank={p.rank_global ?? (i + 1)} isMe={p.id === myId} />
               ))}
             </div>
           ) : (

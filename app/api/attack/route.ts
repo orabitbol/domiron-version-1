@@ -26,7 +26,7 @@ interface AttackRpcResult {
 
 const attackSchema = z.object({
   defender_id: z.string().uuid(),
-  turns: z.number().int().min(1).max(10),
+  turns: z.number().int().min(1).max(BALANCE.combat.MAX_TURNS_PER_ATTACK),
 })
 
 function getAttackerRaceBonus(race: string): number {
