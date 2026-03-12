@@ -339,24 +339,24 @@ Advanced training upgrades one of four skill dimensions: `attack`, `defense`, `s
 goldCost = BALANCE.training.advancedCost.gold × (currentLevel + 1)
 foodCost = BALANCE.training.advancedCost.food × (currentLevel + 1)
 
-advancedCost.gold = 1500
-advancedCost.food = 1500
+advancedCost.gold = 5000
+advancedCost.food = 5000
 ```
 
 **Cost by level (current → next):**
 
 | Current Level | Gold Cost | Food Cost |
 |--------------|-----------|-----------|
-| 0 → 1        | 1,500     | 1,500     |
-| 1 → 2        | 3,000     | 3,000     |
-| 2 → 3        | 4,500     | 4,500     |
-| 3 → 4        | 6,000     | 6,000     |
-| 4 → 5        | 7,500     | 7,500     |
-| 5 → 6        | 9,000     | 9,000     |
+| 0 → 1        | 5,000     | 5,000     |
+| 1 → 2        | 10,000    | 10,000    |
+| 2 → 3        | 15,000    | 15,000    |
+| 3 → 4        | 20,000    | 20,000    |
+| 4 → 5        | 25,000    | 25,000    |
+| 5 → 6        | 30,000    | 30,000    |
 | ...          | ...       | ...       |
-| L → L+1      | 1500(L+1) | 1500(L+1) |
+| L → L+1      | 5000(L+1) | 5000(L+1) |
 
-**Scaling:** Linear in cost. Each level costs exactly 1,500 more than the previous. There is no soft cap enforced — theoretically unbounded levels. **Balance risk:** high-level players get disproportionate combat power from skill multipliers (see §6 below).
+**Scaling:** Linear in cost. Each level costs exactly 5,000 more than the previous. Aggressive economy pass (2026-03-12): base raised ×3.33 from 1,500 to align with development/shop tier progression. There is no soft cap enforced — theoretically unbounded levels. **Balance risk:** high-level players get disproportionate combat power from skill multipliers (see §6 below).
 
 ### 5.2 Effect of Skill Levels
 
@@ -1486,7 +1486,7 @@ With hero SLAVE_OUTPUT effects stacked (up to +50%), a whale-tier player at city
 
 **D. Advanced skill training has no level cap (LOW→HIGH RISK)**
 
-The code does not enforce a maximum level on `attack_level`, `defense_level`, etc. Cost scales as `1500 × (L+1)` which grows linearly — **not exponentially**. A player willing to spend enough gold can achieve:
+The code does not enforce a maximum level on `attack_level`, `defense_level`, etc. Cost scales as `5000 × (L+1)` which grows linearly — **not exponentially**. A player willing to spend enough gold can achieve:
 
 ```
 Level 100: trainMult = 1 + 100 × 0.08 = 9.00× attack multiplier

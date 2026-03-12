@@ -154,14 +154,14 @@ army.slaves   += amount
 ```
 goldCost = advancedCost.gold × (currentLevel + 1)
 foodCost = advancedCost.food × (currentLevel + 1)
-         = 1500 × (currentLevel + 1)  for each resource
+         = 5000 × (currentLevel + 1)  for each resource
 ```
 
 **Effect:** Each level adds `advancedMultiplierPerLevel = 0.08` (8%) to the relevant power calculation.
 
 **Example:**
-- Level 0 → 1: costs 1,500 gold + 1,500 food. Multiplier: ×1.00 → ×1.08
-- Level 4 → 5: costs 7,500 gold + 7,500 food. Multiplier: ×1.32 → ×1.40
+- Level 0 → 1: costs 5,000 gold + 5,000 food. Multiplier: ×1.00 → ×1.08
+- Level 4 → 5: costs 25,000 gold + 25,000 food. Multiplier: ×1.32 → ×1.40
 
 **Scaling:** Linear cost growth. Multiplicative power gain. No upper level cap [UNCERTAIN: balance risk].
 

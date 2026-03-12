@@ -385,7 +385,7 @@ export const BALANCE = {
     } as Record<number, number>,
 
     advancedMultiplierPerLevel: 0.08, // [TUNE]
-    advancedCost: { gold: 1500, food: 1500 }, // [TUNE]
+    advancedCost: { gold: 5_000, food: 5_000 }, // [TUNE] aggressive economy: ~3.3× increase from 1500
     EXPONENTIAL_GROWTH_FLOOR: 10_000, // [TUNE]
     // NOTE: There is no capacity cap on combat units.
     // The players.capacity DB column is legacy — not used in any training gate.

@@ -148,7 +148,7 @@ export function BankClient() {
           <div>
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Interest Rate</p>
             <p className="text-game-base text-game-gold font-body font-semibold">
-              {interestRate.toFixed(3)}%/tick
+              {interestRate.toFixed(2)}%/tick
             </p>
             <p className="text-game-xs text-game-text-muted font-body">Level {currentBank.interest_level}</p>
           </div>
@@ -248,8 +248,8 @@ export function BankClient() {
           <div>
             <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Upgrade Interest Rate</h2>
             <p className="text-game-sm text-game-text-secondary font-body mt-1">
-              Next level rate: {((BALANCE.bank.INTEREST_RATE_BY_LEVEL[currentBank.interest_level + 1] ?? 0) * 100).toFixed(1)}%.
-              Current: Level {currentBank.interest_level} ({interestRate.toFixed(1)}%/tick)
+              Next level rate: {((BALANCE.bank.INTEREST_RATE_BY_LEVEL[currentBank.interest_level + 1] ?? 0) * 100).toFixed(2)}%.
+              Current: Level {currentBank.interest_level} ({interestRate.toFixed(2)}%/tick)
             </p>
             <div className="mt-2 flex items-center gap-2">
               <span className="text-game-xs text-game-text-muted font-body">Cost:</span>

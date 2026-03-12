@@ -85,11 +85,11 @@ const OUTCOME_LABELS: Record<string, string> = {
 
 const REASON_LABELS: Record<BattleReportReason, string> = {
   OUTCOME_LOSS_NO_LOOT:         'You lost the battle — no loot is gained on defeat',
-  DEFENDER_PROTECTED:           'Target has New Player Protection (24h) — no loot and no soldier losses to defender',
+  DEFENDER_PROTECTED:           `Target has New Player Protection (${BALANCE.combat.PROTECTION_HOURS}h) — no loot and no soldier losses to defender`,
   RESOURCE_SHIELD_ACTIVE:       'Enemy Resource Shield active — resources were protected from theft',
   NO_UNBANKED_RESOURCES:        'Enemy had no unbanked resources to steal',
   KILL_COOLDOWN_NO_LOSSES:      `Kill Cooldown (${BALANCE.combat.KILL_COOLDOWN_HOURS}h) — you killed this target's soldiers recently; defender loses no soldiers this attack`,
-  ATTACKER_PROTECTED_NO_LOSSES: 'You are under New Player Protection (24h) — your soldiers took no losses',
+  ATTACKER_PROTECTED_NO_LOSSES: `You are under New Player Protection (${BALANCE.combat.PROTECTION_HOURS}h) — your soldiers took no losses`,
   SOLDIER_SHIELD_NO_LOSSES:     'Enemy Soldier Shield active — their soldiers were protected from losses',
   LOOT_DECAY_REDUCED:           'Repeated attacks on same target reduce plunder (anti-farm decay active)',
 }
@@ -324,7 +324,7 @@ interface StatusIndicatorProps {
 const STATUS_DOTS = [
   { key: 'resource',  activeClass: 'bg-game-gold-bright border-game-gold-bright', title: 'Resource Shield active — resources protected'  },
   { key: 'soldier',   activeClass: 'bg-blue-400 border-blue-400',                 title: 'Soldier Shield active — soldiers protected'     },
-  { key: 'protected', activeClass: 'bg-green-400 border-green-400',               title: 'New Player Protection (24h) — no loot/losses'   },
+  { key: 'protected', activeClass: 'bg-green-400 border-green-400',               title: `New Player Protection (${BALANCE.combat.PROTECTION_HOURS}h) — no loot/losses`   },
   { key: 'cooldown',  activeClass: 'bg-amber-400 border-amber-400',               title: `Kill Cooldown (${BALANCE.combat.KILL_COOLDOWN_HOURS}h) — defender loses no soldiers` },
 ] as const
 
