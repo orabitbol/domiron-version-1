@@ -485,10 +485,10 @@ export const BALANCE = {
     DEV_OFFSET_PER_LEVEL: 0.5, // [TUNE]
 
     developmentUpgradeCost: {
-      level2: { gold: 3, resource: 3 }, // [TUNE]
-      level3: { gold: 9, resource: 9 }, // [TUNE]
-      level5: { gold: 200, resource: 200 }, // [TUNE]
-      level10: { gold: 500, resource: 500 }, // [TUNE]
+      level2:  { gold: 50,     resource: 50     }, // [TUNE]
+      level3:  { gold: 250,    resource: 250    }, // [TUNE]
+      level5:  { gold: 20_000, resource: 20_000 }, // [TUNE]
+      level10: { gold: 75_000, resource: 75_000 }, // [TUNE]
     },
   },
 
@@ -511,33 +511,33 @@ export const BALANCE = {
   weapons: {
     attack: {
       // cost: { gold, iron, wood, food } — per unit, all 4 equal [TUNE]
-      slingshot:    { power: 2,   cost: { gold: 200,    iron: 200,    wood: 200,    food: 200    } },
-      boomerang:    { power: 5,   cost: { gold: 400,    iron: 400,    wood: 400,    food: 400    } },
-      pirate_knife: { power: 12,  cost: { gold: 800,    iron: 800,    wood: 800,    food: 800    } },
-      axe:          { power: 28,  cost: { gold: 1_600,  iron: 1_600,  wood: 1_600,  food: 1_600  } },
-      master_knife: { power: 64,  cost: { gold: 3_200,  iron: 3_200,  wood: 3_200,  food: 3_200  } },
-      knight_axe:   { power: 148, cost: { gold: 6_400,  iron: 6_400,  wood: 6_400,  food: 6_400  } },
-      iron_ball:    { power: 340, cost: { gold: 12_800, iron: 12_800, wood: 12_800, food: 12_800 } },
+      slingshot:    { power: 2,   cost: { gold: 2_000,   iron: 2_000,   wood: 2_000,   food: 2_000   } },
+      boomerang:    { power: 5,   cost: { gold: 4_000,   iron: 4_000,   wood: 4_000,   food: 4_000   } },
+      pirate_knife: { power: 12,  cost: { gold: 8_000,   iron: 8_000,   wood: 8_000,   food: 8_000   } },
+      axe:          { power: 28,  cost: { gold: 16_000,  iron: 16_000,  wood: 16_000,  food: 16_000  } },
+      master_knife: { power: 64,  cost: { gold: 32_000,  iron: 32_000,  wood: 32_000,  food: 32_000  } },
+      knight_axe:   { power: 148, cost: { gold: 64_000,  iron: 64_000,  wood: 64_000,  food: 64_000  } },
+      iron_ball:    { power: 340, cost: { gold: 128_000, iron: 128_000, wood: 128_000, food: 128_000 } },
     },
     defense: {
-      // one per player; cost total matches original (~same gold equivalent, split equally) [TUNE]
-      wood_shield:   { multiplier: 1.10, cost: { gold: 375,    iron: 375,    wood: 375,    food: 375    } },
-      iron_shield:   { multiplier: 1.25, cost: { gold: 2_000,  iron: 2_000,  wood: 2_000,  food: 2_000  } },
-      leather_armor: { multiplier: 1.40, cost: { gold: 6_250,  iron: 6_250,  wood: 6_250,  food: 6_250  } },
-      chain_armor:   { multiplier: 1.55, cost: { gold: 20_000, iron: 20_000, wood: 20_000, food: 20_000 } },
-      plate_armor:   { multiplier: 1.70, cost: { gold: 62_500, iron: 62_500, wood: 62_500, food: 62_500 } },
-      mithril_armor: { multiplier: 1.90, cost: { gold: 175_000, iron: 175_000, wood: 175_000, food: 175_000 } },
-      gods_armor:    { multiplier: 2.20, cost: { gold: 250_000, iron: 250_000, wood: 250_000, food: 250_000 } },
+      // one per player; cost: all 4 resources equally [TUNE]
+      wood_shield:   { multiplier: 1.10, cost: { gold: 3_750,     iron: 3_750,     wood: 3_750,     food: 3_750     } },
+      iron_shield:   { multiplier: 1.25, cost: { gold: 20_000,    iron: 20_000,    wood: 20_000,    food: 20_000    } },
+      leather_armor: { multiplier: 1.40, cost: { gold: 62_500,    iron: 62_500,    wood: 62_500,    food: 62_500    } },
+      chain_armor:   { multiplier: 1.55, cost: { gold: 200_000,   iron: 200_000,   wood: 200_000,   food: 200_000   } },
+      plate_armor:   { multiplier: 1.70, cost: { gold: 625_000,   iron: 625_000,   wood: 625_000,   food: 625_000   } },
+      mithril_armor: { multiplier: 1.90, cost: { gold: 1_750_000, iron: 1_750_000, wood: 1_750_000, food: 1_750_000 } },
+      gods_armor:    { multiplier: 2.20, cost: { gold: 2_500_000, iron: 2_500_000, wood: 2_500_000, food: 2_500_000 } },
     },
     spy: {
-      shadow_cloak: { cost: { gold: 1_250,  iron: 1_250,  wood: 1_250,  food: 1_250  } },
-      dark_mask:    { cost: { gold: 5_000,  iron: 5_000,  wood: 5_000,  food: 5_000  } },
-      elven_gear:   { cost: { gold: 20_000, iron: 20_000, wood: 20_000, food: 20_000 } },
+      shadow_cloak: { cost: { gold: 12_500,  iron: 12_500,  wood: 12_500,  food: 12_500  } },
+      dark_mask:    { cost: { gold: 50_000,  iron: 50_000,  wood: 50_000,  food: 50_000  } },
+      elven_gear:   { cost: { gold: 200_000, iron: 200_000, wood: 200_000, food: 200_000 } },
     },
     scout: {
-      scout_boots:  { cost: { gold: 1_250,  iron: 1_250,  wood: 1_250,  food: 1_250  } },
-      scout_cloak:  { cost: { gold: 5_000,  iron: 5_000,  wood: 5_000,  food: 5_000  } },
-      elven_boots:  { cost: { gold: 20_000, iron: 20_000, wood: 20_000, food: 20_000 } },
+      scout_boots:  { cost: { gold: 12_500,  iron: 12_500,  wood: 12_500,  food: 12_500  } },
+      scout_cloak:  { cost: { gold: 50_000,  iron: 50_000,  wood: 50_000,  food: 50_000  } },
+      elven_boots:  { cost: { gold: 200_000, iron: 200_000, wood: 200_000, food: 200_000 } },
     },
     sellRefundPercent: 0.2,
   },

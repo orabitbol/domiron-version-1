@@ -417,41 +417,41 @@ PP feeds ECP for combat outcomes. Stored power columns feed leaderboard rankings
 **BALANCE keys:** `weapons.*`, `pp.EQUIPMENT_PP`
 **API routes:** `POST /api/weapons/buy`, `POST /api/weapons/sell`
 
-### Attack Weapons (additive per unit — iron cost)
-| Key | Power (PP per unit) | Max | Cost (iron) |
-|-----|---------------------|-----|-------------|
-| slingshot | 2 | 25 | 200 |
-| boomerang | 5 | 12 | 400 |
-| pirate_knife | 12 | 6 | 800 |
-| axe | 28 | 3 | 1,600 |
-| master_knife | 64 | 1 | 3,200 |
-| knight_axe | 148 | 1 | 6,400 |
-| iron_ball | 340 | 1 | 12,800 |
+### Attack Weapons (additive per unit — cost: all 4 resources equally per unit)
+| Key | Power (PP per unit) | Cost per resource |
+|-----|---------------------|-------------------|
+| slingshot | 2 | 2,000 |
+| boomerang | 5 | 4,000 |
+| pirate_knife | 12 | 8,000 |
+| axe | 28 | 16,000 |
+| master_knife | 64 | 32,000 |
+| knight_axe | 148 | 64,000 |
+| iron_ball | 340 | 128,000 |
 
 ### Defense Weapons (binary — multiplier on `power_defense`)
-| Key | Multiplier | Cost (gold) |
-|-----|-----------|-------------|
-| wood_shield | ×1.10 | 1,500 |
-| iron_shield | ×1.25 | 8,000 |
-| leather_armor | ×1.40 | 25,000 |
-| chain_armor | ×1.55 | 80,000 |
-| plate_armor | ×1.70 | 250,000 |
-| mithril_armor | ×1.90 | 700,000 |
-| gods_armor | ×2.20 | 1,000,000 gold + 500,000 iron + 300,000 wood |
+| Key | Multiplier | Total cost (all 4 resources equal) |
+|-----|-----------|-------------------------------------|
+| wood_shield | ×1.10 | 15,000 |
+| iron_shield | ×1.25 | 80,000 |
+| leather_armor | ×1.40 | 250,000 |
+| chain_armor | ×1.55 | 800,000 |
+| plate_armor | ×1.70 | 2,500,000 |
+| mithril_armor | ×1.90 | 7,000,000 |
+| gods_armor | ×2.20 | 10,000,000 |
 
 ### Spy Weapons (binary — multiplier on `power_spy` and spy mission power)
-| Key | Multiplier | Cost (gold) |
-|-----|-----------|-------------|
-| shadow_cloak | ×1.15 | 5,000 |
-| dark_mask | ×1.30 | 20,000 |
-| elven_gear | ×1.50 | 80,000 |
+| Key | Multiplier | Total cost (all 4 resources equal) |
+|-----|-----------|-------------------------------------|
+| shadow_cloak | ×1.15 | 50,000 |
+| dark_mask | ×1.30 | 200,000 |
+| elven_gear | ×1.50 | 800,000 |
 
 ### Scout Weapons (binary — multiplier on `power_scout` and scout defense)
-| Key | Multiplier | Cost (gold) |
-|-----|-----------|-------------|
-| scout_boots | ×1.15 | 5,000 |
-| scout_cloak | ×1.30 | 20,000 |
-| elven_boots | ×1.50 | 80,000 |
+| Key | Multiplier | Total cost (all 4 resources equal) |
+|-----|-----------|-------------------------------------|
+| scout_boots | ×1.15 | 50,000 |
+| scout_cloak | ×1.30 | 200,000 |
+| elven_boots | ×1.50 | 800,000 |
 
 Sell refund: 20% of original cost (`sellRefundPercent: 0.20`).
 
@@ -553,13 +553,13 @@ vipMult  = 1.10 if VIP active, else 1.0
 ```
 
 ### Development Levels (production rate range per slave)
-| Level | Rate range | Dev Upgrade Cost |
-|-------|-----------|-----------------|
+| Level | Rate range | Dev Upgrade Cost (base × next_level each) |
+|-------|-----------|-------------------------------------------|
 | 1 | 1.0 – 3.0 | — |
-| 2 | 1.5 – 3.5 | 3 gold + 3 [resource] |
-| 3 | 2.0 – 4.0 | 9 gold + 9 [resource] |
-| 5 | 3.0 – 5.0 | 200 gold + 200 [resource] |
-| 10 | 5.5 – 7.5 | 500 gold + 500 [resource] |
+| 2 | 1.5 – 3.5 | 50 gold + 50 [resource] (base) |
+| 3 | 2.0 – 4.0 | 250 gold + 250 [resource] (base) |
+| 5 | 3.0 – 5.0 | 20,000 gold + 20,000 [resource] (base) |
+| 10 | 5.5 – 7.5 | 75,000 gold + 75,000 [resource] (base) |
 
 ### Population per Tick
 

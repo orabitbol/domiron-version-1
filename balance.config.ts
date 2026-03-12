@@ -165,10 +165,10 @@ export const BALANCE = {
 
     // Development upgrade costs (multiplied per level)
     developmentUpgradeCost: {
-      level2:  { gold: 3,   resource: 3   },
-      level3:  { gold: 9,   resource: 9   },
-      level5:  { gold: 200, resource: 200 },
-      level10: { gold: 500, resource: 500 },
+      level2:  { gold: 50,     resource: 50     },
+      level3:  { gold: 250,    resource: 250    },
+      level5:  { gold: 20_000, resource: 20_000 },
+      level10: { gold: 75_000, resource: 75_000 },
     },
 
     // Population per tick by level
@@ -183,23 +183,23 @@ export const BALANCE = {
   // ─────────────────────────────────────────
   weapons: {
     attack: {
-      slingshot:    { power: 2,   maxPerPlayer: 25, costIron: 200 },
-      boomerang:    { power: 5,   maxPerPlayer: 12, costIron: 400 },
-      pirate_knife: { power: 12,  maxPerPlayer: 6,  costIron: 800 },
-      axe:          { power: 28,  maxPerPlayer: 3,  costIron: 1600 },
-      master_knife: { power: 64,  maxPerPlayer: 1,  costIron: 3200 },
-      knight_axe:   { power: 148, maxPerPlayer: 1,  costIron: 6400 },
-      iron_ball:    { power: 340, maxPerPlayer: 1,  costIron: 12800 },
+      slingshot:    { power: 2,   costIron: 2_000 },
+      boomerang:    { power: 5,   costIron: 4_000 },
+      pirate_knife: { power: 12,  costIron: 8_000 },
+      axe:          { power: 28,  costIron: 16_000 },
+      master_knife: { power: 64,  costIron: 32_000 },
+      knight_axe:   { power: 148, costIron: 64_000 },
+      iron_ball:    { power: 340, costIron: 128_000 },
     },
 
     defense: {
-      wood_shield:   { multiplier: 1.10, costGold: 1500 },
-      iron_shield:   { multiplier: 1.25, costGold: 8000 },
-      leather_armor: { multiplier: 1.40, costGold: 25000 },
-      chain_armor:   { multiplier: 1.55, costGold: 80000 },
-      plate_armor:   { multiplier: 1.70, costGold: 250000 },
-      mithril_armor: { multiplier: 1.90, costGold: 700000 },
-      gods_armor:    { multiplier: 2.20, costGold: 1000000, costIron: 500000, costWood: 300000 },
+      wood_shield:   { multiplier: 1.10, costGold: 15_000 },
+      iron_shield:   { multiplier: 1.25, costGold: 80_000 },
+      leather_armor: { multiplier: 1.40, costGold: 250_000 },
+      chain_armor:   { multiplier: 1.55, costGold: 800_000 },
+      plate_armor:   { multiplier: 1.70, costGold: 2_500_000 },
+      mithril_armor: { multiplier: 1.90, costGold: 7_000_000 },
+      gods_armor:    { multiplier: 2.20, costGold: 10_000_000 },
     },
 
     sellRefundPercent: 0.20,   // 20% of original cost (iron/wood only)

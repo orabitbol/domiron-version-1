@@ -190,10 +190,10 @@ idle = army.slaves - (gold + iron + wood + food)
 ```
 next = currentLevel + 1
 
-if next ≤ 2:  costConfig = level2  { gold: 3,   resource: 3   }
-elif next ≤ 3: costConfig = level3  { gold: 9,   resource: 9   }
-elif next ≤ 5: costConfig = level5  { gold: 200, resource: 200 }
-else:          costConfig = level10 { gold: 500, resource: 500 }
+if next ≤ 2:  costConfig = level2  { gold: 50,     resource: 50     }
+elif next ≤ 3: costConfig = level3  { gold: 250,    resource: 250    }
+elif next ≤ 5: costConfig = level5  { gold: 20,000, resource: 20,000 }
+else:          costConfig = level10 { gold: 75,000, resource: 75,000 }
 
 goldCost     = costConfig.gold     × next
 resourceCost = costConfig.resource × next
@@ -204,8 +204,8 @@ resourceCost = costConfig.resource × next
 **Example (iron_level 4 → 5):**
 ```
 next = 5, costConfig = level5
-goldCost     = 50 × 5 = 250 gold
-resourceCost = 50 × 5 = 250 iron
+goldCost     = 20,000 × 5 = 100,000 gold
+resourceCost = 20,000 × 5 = 100,000 iron
 ```
 
 **Max levels:** gold/food/wood/iron/population = 10; fortification = 5.

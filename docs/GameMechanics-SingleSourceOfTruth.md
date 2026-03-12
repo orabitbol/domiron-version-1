@@ -1585,13 +1585,13 @@ totalDeducted.X = cost.X × amount
 
 | Weapon | PP / Combat power | Cost per resource (all 4 equal) |
 |---|---|---|
-| slingshot | 2 | 200 |
-| boomerang | 5 | 400 |
-| pirate_knife | 12 | 800 |
-| axe | 28 | 1,600 |
-| master_knife | 64 | 3,200 |
-| knight_axe | 148 | 6,400 |
-| iron_ball | 340 | 12,800 |
+| slingshot | 2 | 2,000 |
+| boomerang | 5 | 4,000 |
+| pirate_knife | 12 | 8,000 |
+| axe | 28 | 16,000 |
+| master_knife | 64 | 32,000 |
+| knight_axe | 148 | 64,000 |
+| iron_ball | 340 | 128,000 |
 
 PP values = combat power values (same numbers). PP is **additive per unit**.
 Attack power formula in `power.ts`: `floor((baseUnits + Σ weaponCount×power) × trainMult)`
@@ -1605,13 +1605,13 @@ Race bonuses are **not** applied in stored power — stored power is race-agnost
 
 | Armor | PP bonus (binary) | Combat multiplier | Cost per resource (all 4 equal) |
 |---|---|---|---|
-| wood_shield | 150 | ×1.10 | 375 |
-| iron_shield | 800 | ×1.25 | 2,000 |
-| leather_armor | 2,500 | ×1.40 | 6,250 |
-| chain_armor | 8,000 | ×1.55 | 20,000 |
-| plate_armor | 25,000 | ×1.70 | 62,500 |
-| mithril_armor | 70,000 | ×1.90 | 175,000 |
-| gods_armor | 150,000 | ×2.20 | 250,000 |
+| wood_shield | 150 | ×1.10 | 3,750 |
+| iron_shield | 800 | ×1.25 | 20,000 |
+| leather_armor | 2,500 | ×1.40 | 62,500 |
+| chain_armor | 8,000 | ×1.55 | 200,000 |
+| plate_armor | 25,000 | ×1.70 | 625,000 |
+| mithril_armor | 70,000 | ×1.90 | 1,750,000 |
+| gods_armor | 150,000 | ×2.20 | 2,500,000 |
 
 Defense multipliers **stack multiplicatively**. Full stack: 1.10×1.25×1.40×1.55×1.70×1.90×2.20 ≈ ×29.7.
 
@@ -1621,9 +1621,9 @@ Defense multipliers **stack multiplicatively**. Full stack: 1.10×1.25×1.40×1.
 
 | Gear | PP bonus | Combat multiplier | Cost per resource (all 4 equal) |
 |---|---|---|---|
-| shadow_cloak / scout_boots | 500 | ×1.15 | 1,250 |
-| dark_mask / scout_cloak | 2,000 | ×1.30 | 5,000 |
-| elven_gear / elven_boots | 8,000 | ×1.50 | 20,000 |
+| shadow_cloak / scout_boots | 500 | ×1.15 | 12,500 |
+| dark_mask / scout_cloak | 2,000 | ×1.30 | 50,000 |
+| elven_gear / elven_boots | 8,000 | ×1.50 | 200,000 |
 
 ### Atomicity (2026-03-07 pass 4+5)
 
@@ -1745,19 +1745,19 @@ Source: `BALANCE.weapons.sellRefundPercent = 0.20`
 ```
 nextLevel = currentLevel + 1
 
-if nextLevel ≤ 2:  costCfg = { gold: 3,   resource: 3   }
-elif nextLevel ≤ 3: costCfg = { gold: 9,   resource: 9   }
-elif nextLevel ≤ 5: costCfg = { gold: 200, resource: 200 }
-else:               costCfg = { gold: 500, resource: 500 }
+if nextLevel ≤ 2:  costCfg = { gold: 50,     resource: 50     }
+elif nextLevel ≤ 3: costCfg = { gold: 250,    resource: 250    }
+elif nextLevel ≤ 5: costCfg = { gold: 20,000, resource: 20,000 }
+else:               costCfg = { gold: 75,000, resource: 75,000 }
 
 totalGold     = costCfg.gold     × nextLevel
 totalResource = costCfg.resource × nextLevel
 ```
 
 Examples:
-- Level 1→2: gold = 3×2 = 6, resource = 3×2 = 6
-- Level 4→5: gold = 200×5 = 1,000, resource = 200×5 = 1,000
-- Level 9→10: gold = 500×10 = 5,000, resource = 500×10 = 5,000
+- Level 1→2: gold = 50×2 = 100, resource = 50×2 = 100
+- Level 4→5: gold = 20,000×5 = 100,000, resource = 20,000×5 = 100,000
+- Level 9→10: gold = 75,000×10 = 750,000, resource = 75,000×10 = 750,000
 
 ### Development Fields
 

@@ -1031,27 +1031,27 @@ Resource type paid:
   fortification_level → pay in gold
 
 costConfig by next level:
-  next_level ≤ 2:  { gold:   3, resource:   3 }
-  next_level = 3:  { gold:   9, resource:   9 }
-  next_level ≤ 5:  { gold: 200, resource: 200 }
-  next_level ≤ 10: { gold: 500, resource: 500 }
+  next_level ≤ 2:  { gold:    50, resource:    50 }
+  next_level = 3:  { gold:   250, resource:   250 }
+  next_level ≤ 5:  { gold: 20000, resource: 20000 }
+  next_level ≤ 10: { gold: 75000, resource: 75000 }
 ```
 
 **Full upgrade cost table (both gold + secondary resource):**
 
 | Current → Next | Cost Formula | Gold | Secondary Resource |
 |----------------|--------------|------|-------------------|
-| 1 → 2 | 3 × 2 | 6 | 6 |
-| 2 → 3 | 9 × 3 | 27 | 27 |
-| 3 → 4 | 200 × 4 | 800 | 800 |
-| 4 → 5 | 200 × 5 | 1,000 | 1,000 |
-| 5 → 6 | 500 × 6 | 3,000 | 3,000 |
-| 6 → 7 | 500 × 7 | 3,500 | 3,500 |
-| 7 → 8 | 500 × 8 | 4,000 | 4,000 |
-| 8 → 9 | 500 × 9 | 4,500 | 4,500 |
-| 9 → 10 | 500 × 10 | 5,000 | 5,000 |
+| 1 → 2 | 50 × 2 | 100 | 100 |
+| 2 → 3 | 250 × 3 | 750 | 750 |
+| 3 → 4 | 20,000 × 4 | 80,000 | 80,000 |
+| 4 → 5 | 20,000 × 5 | 100,000 | 100,000 |
+| 5 → 6 | 75,000 × 6 | 450,000 | 450,000 |
+| 6 → 7 | 75,000 × 7 | 525,000 | 525,000 |
+| 7 → 8 | 75,000 × 8 | 600,000 | 600,000 |
+| 8 → 9 | 75,000 × 9 | 675,000 | 675,000 |
+| 9 → 10 | 75,000 × 10 | 750,000 | 750,000 |
 
-**Cumulative cost (levels 1→10):** 21,833 gold + 21,833 secondary resource.
+**Cumulative cost (levels 1→10):** 3,180,850 gold + 3,180,850 secondary resource.
 
 **Fortification special side-effect:**
 ```
@@ -1240,15 +1240,15 @@ Expressed as `raceGoldBonus = 0.15` in `calcSlaveProduction`. Applied as `(1 + 0
 
 ### 16.1 Attack Weapons (Additive per unit)
 
-| Weapon | Combat Power/unit | Max Units | Iron Cost/unit | PP Contribution/unit |
-|--------|------------------|-----------|----------------|---------------------|
-| Slingshot | 2 | 25 | 200 | 2 |
-| Boomerang | 5 | 12 | 400 | 5 |
-| Pirate Knife | 12 | 6 | 800 | 12 |
-| Axe | 28 | 3 | 1,600 | 28 |
-| Master Knife | 64 | 1 | 3,200 | 64 |
-| Knight Axe | 148 | 1 | 6,400 | 148 |
-| Iron Ball | 340 | 1 | 12,800 | 340 |
+| Weapon | Combat Power/unit | Cost per resource (all 4) | PP Contribution/unit |
+|--------|------------------|---------------------------|---------------------|
+| Slingshot | 2 | 2,000 | 2 |
+| Boomerang | 5 | 4,000 | 5 |
+| Pirate Knife | 12 | 8,000 | 12 |
+| Axe | 28 | 16,000 | 28 |
+| Master Knife | 64 | 32,000 | 64 |
+| Knight Axe | 148 | 64,000 | 148 |
+| Iron Ball | 340 | 128,000 | 340 |
 
 **Sell refund:** 20% of purchase price.
 
@@ -1259,15 +1259,15 @@ Expressed as `raceGoldBonus = 0.15` in `calcSlaveProduction`. Applied as `(1 + 0
 
 ### 16.2 Defense Weapons (Multiplicative, binary — owned or not)
 
-| Item | Multiplier | Gold Cost |
-|------|-----------|-----------|
-| Wood Shield | ×1.10 | 1,500 |
-| Iron Shield | ×1.25 | 8,000 |
-| Leather Armor | ×1.40 | 25,000 |
-| Chain Armor | ×1.55 | 80,000 |
-| Plate Armor | ×1.70 | 250,000 |
-| Mithril Armor | ×1.90 | 700,000 |
-| God's Armor | ×2.20 | 1,000,000 gold + 500,000 iron + 300,000 wood |
+| Item | Multiplier | Total cost (all 4 resources equal) |
+|------|-----------|-------------------------------------|
+| Wood Shield | ×1.10 | 15,000 |
+| Iron Shield | ×1.25 | 80,000 |
+| Leather Armor | ×1.40 | 250,000 |
+| Chain Armor | ×1.55 | 800,000 |
+| Plate Armor | ×1.70 | 2,500,000 |
+| Mithril Armor | ×1.90 | 7,000,000 |
+| God's Armor | ×2.20 | 10,000,000 |
 
 **All defense multipliers stack multiplicatively:**
 ```
@@ -1281,21 +1281,21 @@ defWeaponMult = product of all owned defense items' multipliers
 
 ### 16.3 Spy Gear (Multiplicative, binary)
 
-| Item | Spy Power Multiplier | Gold Cost |
-|------|---------------------|-----------|
-| Shadow Cloak | ×1.15 | 5,000 |
-| Dark Mask | ×1.30 | 20,000 |
-| Elven Gear | ×1.50 | 80,000 |
+| Item | Spy Power Multiplier | Total cost (all 4 resources equal) |
+|------|---------------------|-------------------------------------|
+| Shadow Cloak | ×1.15 | 50,000 |
+| Dark Mask | ×1.30 | 200,000 |
+| Elven Gear | ×1.50 | 800,000 |
 
 **Max spy weapon multiplier:** `1.15 × 1.30 × 1.50 = 2.2425×`
 
 ### 16.4 Scout Gear (Multiplicative, binary)
 
-| Item | Scout Defense Multiplier | Gold Cost |
-|------|--------------------------|-----------|
-| Scout Boots | ×1.15 | 5,000 |
-| Scout Cloak | ×1.30 | 20,000 |
-| Elven Boots | ×1.50 | 80,000 |
+| Item | Scout Defense Multiplier | Total cost (all 4 resources equal) |
+|------|--------------------------|-------------------------------------|
+| Scout Boots | ×1.15 | 50,000 |
+| Scout Cloak | ×1.30 | 200,000 |
+| Elven Boots | ×1.50 | 800,000 |
 
 **Max scout weapon multiplier:** `1.15 × 1.30 × 1.50 = 2.2425×`
 
