@@ -32,43 +32,43 @@ interface DevConfig {
 const DEV_ROWS: DevConfig[] = [
   {
     field: "gold_level",
-    title: "Gold Mine",
+    title: "מכרה זהב",
     icon: "🪙",
     maxLevel: 10,
     resourceType: "gold",
-    effectLabel: "Gold/tick per slave",
+    effectLabel: "זהב/טיק לעבד",
   },
   {
     field: "food_level",
-    title: "Farmlands",
+    title: "שדות חקלאים",
     icon: "🌾",
     maxLevel: 10,
     resourceType: "food",
-    effectLabel: "Food/tick per slave",
+    effectLabel: "מזון/טיק לעבד",
   },
   {
     field: "wood_level",
-    title: "Lumber Mill",
+    title: "טחנת עץ",
     icon: "🪵",
     maxLevel: 10,
     resourceType: "wood",
-    effectLabel: "Wood/tick per slave",
+    effectLabel: "עץ/טיק לעבד",
   },
   {
     field: "iron_level",
-    title: "Iron Foundry",
+    title: "יציקת ברזל",
     icon: "⚙️",
     maxLevel: 10,
     resourceType: "iron",
-    effectLabel: "Iron/tick per slave",
+    effectLabel: "ברזל/טיק לעבד",
   },
   {
     field: "fortification_level",
-    title: "Fortifications",
+    title: "ביצורים",
     icon: "🏰",
     maxLevel: 5,
     resourceType: "gold",
-    effectLabel: "Defense & capacity",
+    effectLabel: "הגנה וקיבולת",
   },
 ];
 
@@ -437,9 +437,9 @@ function ReqTableHeader() {
         gap: "8px",
       }}
     >
-      <span style={cellStyle}>Requirement</span>
-      <span style={{ ...cellStyle, textAlign: "right" }}>Have</span>
-      <span style={{ ...cellStyle, textAlign: "right" }}>Need</span>
+      <span style={cellStyle}>דרישה</span>
+      <span style={{ ...cellStyle, textAlign: "right" }}>ברשותך</span>
+      <span style={{ ...cellStyle, textAlign: "right" }}>נדרש</span>
       <span />
     </div>
   );
@@ -544,9 +544,9 @@ export function DevelopClient() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ text: data.error ?? "Upgrade failed", type: "error" });
+        setMessage({ text: data.error ?? "שדרוג נכשל", type: "error" });
       } else {
-        setMessage({ text: "Upgrade successful!", type: "success" });
+        setMessage({ text: "שדרוג בוצע בהצלחה!", type: "success" });
         if (development) {
           applyPatch({
             development: {
@@ -560,7 +560,7 @@ export function DevelopClient() {
         refresh();
       }
     } catch {
-      setMessage({ text: "Network error", type: "error" });
+      setMessage({ text: "שגיאת רשת", type: "error" });
     } finally {
       setLoading(null);
     }
@@ -576,12 +576,12 @@ export function DevelopClient() {
       const data = await res.json();
       if (!res.ok) {
         setMessage({
-          text: data.error ?? "Failed to promote city",
+          text: data.error ?? "קידום עיר נכשל",
           type: "error",
         });
       } else {
         setMessage({
-          text: `Promoted to ${data.data.city_name}!`,
+          text: `קודמת ל-${data.data.city_name}!`,
           type: "success",
         });
         if (data.data?.resources)
@@ -589,7 +589,7 @@ export function DevelopClient() {
         refresh();
       }
     } catch {
-      setMessage({ text: "Network error", type: "error" });
+      setMessage({ text: "שגיאת רשת", type: "error" });
     } finally {
       setLoadingCity(false);
     }
@@ -685,25 +685,25 @@ export function DevelopClient() {
           {[
             {
               icon: "🪙",
-              label: "Gold",
+              label: "זהב",
               value: resources?.gold ?? 0,
               color: "text-res-gold",
             },
             {
               icon: "⚙️",
-              label: "Iron",
+              label: "ברזל",
               value: resources?.iron ?? 0,
               color: "text-res-iron",
             },
             {
               icon: "🪵",
-              label: "Wood",
+              label: "עץ",
               value: resources?.wood ?? 0,
               color: "text-res-wood",
             },
             {
               icon: "🌾",
-              label: "Food",
+              label: "מזון",
               value: resources?.food ?? 0,
               color: "text-res-food",
             },
@@ -920,7 +920,7 @@ export function DevelopClient() {
                 <ReqTableHeader />
                 <ReqRow
                   icon="⚔️"
-                  label="Soldiers"
+                  label="חיילים"
                   have={army?.soldiers ?? 0}
                   need={nextReq}
                   meets={meetsArmy}
@@ -944,10 +944,10 @@ export function DevelopClient() {
               >
                 <ReqTableHeader />
                 {[
-                  { label: "Gold", icon: "🪙", have: resources?.gold ?? 0, need: nextCost.gold, meets: meetsGold },
-                  { label: "Iron", icon: "⚙️", have: resources?.iron ?? 0, need: nextCost.iron, meets: meetsIron },
-                  { label: "Wood", icon: "🪵", have: resources?.wood ?? 0, need: nextCost.wood, meets: meetsWood },
-                  { label: "Food", icon: "🌾", have: resources?.food ?? 0, need: nextCost.food, meets: meetsFood },
+                  { label: "זהב", icon: "🪙", have: resources?.gold ?? 0, need: nextCost.gold, meets: meetsGold },
+                  { label: "ברזל", icon: "⚙️", have: resources?.iron ?? 0, need: nextCost.iron, meets: meetsIron },
+                  { label: "עץ", icon: "🪵", have: resources?.wood ?? 0, need: nextCost.wood, meets: meetsWood },
+                  { label: "מזון", icon: "🌾", have: resources?.food ?? 0, need: nextCost.food, meets: meetsFood },
                 ].map(({ label, icon, have, need, meets }, idx) => (
                   <ReqRow
                     key={label}
@@ -986,7 +986,7 @@ export function DevelopClient() {
                     lineHeight: 1.4,
                   }}
                 >
-                  You must leave your tribe before promoting your city.
+                  עליך לעזוב את השבט לפני שתוכל לקדם את עירך.
                 </span>
               </div>
             )}
@@ -1264,16 +1264,16 @@ export function DevelopClient() {
           onClick={() => setShowPopTable((v) => !v)}
         >
           <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted">
-            Population Growth Rate Table
+            טבלת קצב גידול אוכלוסייה
           </span>
           <span className="text-game-text-muted text-xs">
-            {showPopTable ? "▲ Hide" : "▼ Show"}
+            {showPopTable ? "▲ הסתר" : "▼ הצג"}
           </span>
         </button>
         {showPopTable && (
           <div className="p-3 border-t border-game-border/40">
             <GameTable
-              headers={["Level", "Population / Tick"]}
+              headers={["רמה", "אוכלוסייה / טיק"]}
               striped
               rows={popPerTickEntries.map(([lvl, pop]) => {
                 const isCurrent = Number(lvl) === popLevel;
@@ -1283,7 +1283,7 @@ export function DevelopClient() {
                     className={`font-heading text-game-sm flex items-center gap-2 ${isCurrent ? "text-game-gold-bright" : "text-game-text"}`}
                   >
                     {lvl}
-                    {isCurrent && <Badge variant="gold">Current</Badge>}
+                    {isCurrent && <Badge variant="gold">נוכחי</Badge>}
                   </span>,
                   <span
                     key="pop"

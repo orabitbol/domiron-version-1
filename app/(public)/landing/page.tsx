@@ -22,6 +22,9 @@ export default function LandingPage() {
           <span className="font-display text-game-xl text-game-gold-bright uppercase tracking-widest text-title-glow">Domiron</span>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/guide" className="text-game-sm text-game-text-secondary font-heading uppercase tracking-wide hover:text-game-text transition-colors">
+            מדריך
+          </Link>
           <Link href="/rankings" className="text-game-sm text-game-text-secondary font-heading uppercase tracking-wide hover:text-game-text transition-colors">
             דירוג
           </Link>
@@ -79,7 +82,7 @@ export default function LandingPage() {
               🎮 התחל לשחק — בחינם!
             </Link>
             <Link
-              href="/rankings"
+              href="/guide"
               className={cn(
                 'px-6 py-3 rounded-game font-heading text-sm uppercase tracking-wider',
                 'border border-game-border text-game-text-secondary',
@@ -88,7 +91,7 @@ export default function LandingPage() {
                 'transition-all duration-200'
               )}
             >
-              צפה בדירוג
+              📖 איך משחקים?
             </Link>
           </div>
         </div>

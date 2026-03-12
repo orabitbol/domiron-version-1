@@ -3,15 +3,11 @@
 import React, { useState, useEffect } from 'react'
 import { cn, formatNumber, formatCountdown } from '@/lib/utils'
 import { useTickCountdownState } from '@/lib/context/TickContext'
+import { useTranslations } from 'next-intl'
 import { Crown, Trophy, Scroll } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePlayer } from '@/lib/context/PlayerContext'
-
-const TOP_NAV = [
-  { href: '/rankings',   icon: Trophy, label: 'Rankings'     },
-  { href: '/halloffame', icon: Scroll, label: 'Hall of Fame' },
-]
 
 // Reads from shared TickContext — always identical to the Sidebar countdown.
 function MobileTickCountdown() {
@@ -21,8 +17,8 @@ function MobileTickCountdown() {
 
 // ─── Season countdown (desktop center, hydration-safe) ────────────────────────
 
-function formatSeasonMs(ms: number): string {
-  if (ms <= 0) return 'Season Ended'
+function formatSeasonMs(ms: number, seasonEndedText: string): string {
+  if (ms <= 0) return seasonEndedText
   const s   = Math.floor(ms / 1000)
   const d   = Math.floor(s / 86400)
   const h   = Math.floor((s % 86400) / 3600)
@@ -34,26 +30,26 @@ function formatSeasonMs(ms: number): string {
   return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`
 }
 
-function SeasonCountdown({ endsAt }: { endsAt: string }) {
+function SeasonCountdown({ endsAt, seasonEndedText, seasonLabel }: { endsAt: string; seasonEndedText: string; seasonLabel: string }) {
   const [display, setDisplay] = useState<string | null>(null)
 
   useEffect(() => {
     function update() {
-      setDisplay(formatSeasonMs(new Date(endsAt).getTime() - Date.now()))
+      setDisplay(formatSeasonMs(new Date(endsAt).getTime() - Date.now(), seasonEndedText))
     }
     update()
     const id = setInterval(update, 1000)
     return () => clearInterval(id)
-  }, [endsAt])
+  }, [endsAt, seasonEndedText])
 
   // null on first render → avoid hydration mismatch
   if (display === null) return <div className="hidden md:flex flex-1" />
 
-  const isEnded = display === 'Season Ended'
+  const isEnded = display === seasonEndedText
   return (
     <div className="hidden md:flex flex-1 flex-col items-center gap-0.5 pointer-events-none select-none">
       <span className="font-heading text-[9px] uppercase tracking-widest text-game-text-muted">
-        ⚔ Season
+        ⚔ {seasonLabel}
       </span>
       <span
         className={cn(
@@ -71,21 +67,21 @@ function SeasonCountdown({ endsAt }: { endsAt: string }) {
 
 // ─── Mobile season badge ──────────────────────────────────────────────────────
 
-function MobileSeasonCountdown({ endsAt }: { endsAt: string }) {
+function MobileSeasonCountdown({ endsAt, seasonEndedText }: { endsAt: string; seasonEndedText: string }) {
   const [display, setDisplay] = useState<string | null>(null)
 
   useEffect(() => {
     function update() {
-      setDisplay(formatSeasonMs(new Date(endsAt).getTime() - Date.now()))
+      setDisplay(formatSeasonMs(new Date(endsAt).getTime() - Date.now(), seasonEndedText))
     }
     update()
     const id = setInterval(update, 1000)
     return () => clearInterval(id)
-  }, [endsAt])
+  }, [endsAt, seasonEndedText])
 
   if (display === null) return null
 
-  const isEnded = display === 'Season Ended'
+  const isEnded = display === seasonEndedText
   return (
     <div className={cn(
       'flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full',
@@ -107,6 +103,15 @@ function MobileSeasonCountdown({ endsAt }: { endsAt: string }) {
 export function ResourceBar() {
   const pathname = usePathname()
   const { player, resources, season } = usePlayer()
+  const t = useTranslations()
+
+  const TOP_NAV = [
+    { href: '/rankings',   icon: Trophy, label: t('nav.rankings')    },
+    { href: '/halloffame', icon: Scroll, label: t('nav.halloffame')  },
+  ]
+
+  const seasonEndedText = t('season.ended')
+  const seasonLabel = t('season.label')
 
   return (
     <header
@@ -150,12 +155,12 @@ export function ResourceBar() {
             <MobileTickCountdown />
           </span>
         </div>
-        {season?.ends_at && <MobileSeasonCountdown endsAt={season.ends_at} />}
+        {season?.ends_at && <MobileSeasonCountdown endsAt={season.ends_at} seasonEndedText={seasonEndedText} />}
       </div>
 
       {/* Desktop: centered season countdown (replaces empty flex-1 spacer) */}
       {season?.ends_at
-        ? <SeasonCountdown endsAt={season.ends_at} />
+        ? <SeasonCountdown endsAt={season.ends_at} seasonEndedText={seasonEndedText} seasonLabel={seasonLabel} />
         : <div className="hidden md:flex flex-1" />
       }
 

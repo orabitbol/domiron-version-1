@@ -23,34 +23,34 @@ type PathDef = { name: string; tiers: [string, string, string, string, string] }
 
 const MASTERY_PATHS: Record<string, [PathDef, PathDef, PathDef]> = {
   combat: [
-    { name: "Berserker's Fury",  tiers: ['Fierce Strike',   'Battle Rage',    'Iron Fury',      'War Frenzy',      "Berserker's Wrath"] },
-    { name: "Warlord's Edge",    tiers: ['Tactical Strike', 'Combat Mastery', 'War Command',    'Siege Expertise', "Warlord's Will"]    },
-    { name: 'Blood Oath',        tiers: ['Blood Price',     'Battle Hunger',  "Warrior's Bond", 'Honor Surge',     "Death's Covenant"]  },
+    { name: 'זעם הברסרקר',    tiers: ['מכה עזה',        'זעם קרב',        'זעם ברזל',       'טירוף מלחמה',     'חרב הברסרקר']   },
+    { name: 'קצה האדון',      tiers: ['מכה טקטית',      'שליטת קרב',      'פיקוד מלחמה',    'מומחיות מצור',    'רצון האדון']    },
+    { name: 'שבועת דם',       tiers: ['מחיר הדם',       'רעב קרב',        'ברית לוחמים',    'גאות כבוד',       'ברית המוות']    },
   ],
   defense: [
-    { name: 'Stone Bastion',     tiers: ['Hardened',        'Ramparts',       'Fortress Mind',  'Granite Ward',    'Unbreakable']       },
-    { name: "Guardian's Oath",   tiers: ['Watch',           'Sentinel',       'Shield Wall',    'Iron Guard',      'Eternal Bastion']   },
-    { name: 'Steel Resolve',     tiers: ['Steady',          'Grit',           'Iron Will',      'Adamant',         'Indomitable']       },
+    { name: 'מבצר האבן',      tiers: ['מוקשה',          'חומות',          'רוח מבצר',       'שמירת גרניט',     'בלתי שביר']     },
+    { name: 'שבועת השומר',    tiers: ['משמר',            'שומר',           'חומת מגנים',     'שומר ברזל',       'מבצר נצחי']     },
+    { name: 'נחישות פלדה',    tiers: ['יציב',            'עמידות',         'רצון ברזל',      'איתן',            'בלתי מנוצח']    },
   ],
   spy: [
-    { name: 'Shadow Steps',      tiers: ['Light Foot',      'Shadow Blend',   'Phantom Walk',   'Ghost Stride',    'Vanishing Act']     },
-    { name: 'Veil of Deceit',    tiers: ['Misdirection',    'False Trail',    'Mind Trick',     'Deep Cover',      'Master Deceiver']   },
-    { name: 'Eye of the Void',   tiers: ['Keen Eye',        'Night Vision',   'Void Sight',     "Mind's Eye",      'Omniscience']       },
+    { name: 'צעדי הצל',       tiers: ['רגל קלה',        'מיזוג בצל',      'הליכת רוח',      'צעד רפאים',       'היעלמות']       },
+    { name: 'מסך הרמייה',     tiers: ['הטעיה',           'שביל מזויף',     'תעלול מחשבה',    'כיסוי עמוק',      'אדון הרמייה']   },
+    { name: 'עין הריק',       tiers: ['עין חדה',         'ראיית לילה',     'ראיית ריק',      'עין הנפש',        'כול-ידיעה']     },
   ],
   scout: [
-    { name: "Ranger's Path",     tiers: ['Forest Walk',     'Trail Sense',    'Range Scout',    'Far Reach',       "Eagle's Path"]      },
-    { name: "Eagle's Watch",     tiers: ['High Perch',      'Eagle Eye',      "Hawk's Gaze",    'All-Seeing',      'Transcendent']      },
-    { name: 'Wind Rider',        tiers: ['Swift',           'Fleet Foot',     'Wind Step',      'Gale Rush',       'Storm Rider']       },
+    { name: 'שביל הסייר',     tiers: ['הליכת יער',      'חוש שביל',       'סיור מרוחק',     'טווח רחוק',       'שביל הנשר']     },
+    { name: 'משמר הנשר',      tiers: ['מצפה גבוה',      'עין נשר',        'מבט הבז',        'רואה-הכל',        'נשגב']          },
+    { name: 'רוכב הרוח',      tiers: ['מהיר',            'קל רגל',         'צעד רוח',        'גאות סערה',       'רוכב סערה']     },
   ],
   production: [
-    { name: 'Slave Driver',      tiers: ['Overseer',        'Task Master',    'Whip Hand',      'Iron Grip',       'Total Control']     },
-    { name: 'Field Marshal',     tiers: ['Organized',       'Efficient',      'Optimized',      'Peak Output',     'Maximum Yield']     },
-    { name: 'Resource Lord',     tiers: ['Stockpile',       'Hoarding',       'Cache Master',   'Vault Keeper',    'Resource Deity']    },
+    { name: 'מנהל העבדים',    tiers: ['מפקח',            'אדון משימות',    'יד השוט',        'אחיזת ברזל',      'שליטה מוחלטת']  },
+    { name: 'מרשל השדה',      tiers: ['מאורגן',          'יעיל',           'אופטימלי',       'תפוקת שיא',       'תשואה מרבית']   },
+    { name: 'אדון המשאבים',   tiers: ['מלאי',            'אגירה',          'אדון מאגר',      'שומר הכספת',      'אל המשאבים']    },
   ],
   utility: [
-    { name: 'Arcane Flow',       tiers: ['Mana Tap',        'Ley Line',       'Flow State',     'Power Channel',   'Mana Flood']        },
-    { name: 'Turn Mastery',      tiers: ['Quick Study',     'Time Sense',     'Action Surge',   'Haste',           'Temporal Lord']     },
-    { name: "Fortune's Favor",   tiers: ['Lucky',           'Blessed',        'Fortune Smiled', 'Fated',           "Destiny's Child"]   },
+    { name: 'זרימת הארקן',    tiers: ['ברז מאנה',        'קו כוח',         'מצב זרימה',      'ערוץ כוח',        'שיטפון מאנה']   },
+    { name: 'שליטת תורות',    tiers: ['לומד מהיר',       'חוש זמן',        'פריצת פעולה',    'חיפזון',          'אדון הזמן']     },
+    { name: 'חסד המזל',       tiers: ['מזלן',            'ברוך',           'חיוך המזל',      'גורלי',           'בן הגורל']      },
   ],
 }
 
@@ -60,27 +60,27 @@ type CategoryMeta = {
 }
 
 const CATEGORY_META: Record<string, CategoryMeta> = {
-  combat:     { label: 'Combat Mastery', icon: '\u2694\uFE0F',  subtitle: 'Command the Battlefield',
+  combat:     { label: 'שליטת קרב',    icon: '\u2694\uFE0F',  subtitle: 'שלוט בשדה הקרב',
                 color: '#FF5555', glowRgb: '255,85,85',
                 panelBg: 'linear-gradient(160deg, rgba(35,6,6,0.97), rgba(16,3,3,1))',
                 headerBg: 'rgba(255,85,85,0.1)' },
-  defense:    { label: 'Iron Bastion',   icon: '\uD83D\uDEE1\uFE0F',  subtitle: 'Unyielding Protection',
+  defense:    { label: 'מבצר ברזל',    icon: '\uD83D\uDEE1\uFE0F',  subtitle: 'הגנה בלתי נשברת',
                 color: '#F0C030', glowRgb: '240,192,48',
                 panelBg: 'linear-gradient(160deg, rgba(35,28,3,0.97), rgba(16,13,2,1))',
                 headerBg: 'rgba(240,192,48,0.1)' },
-  spy:        { label: 'Shadow Arts',    icon: '\uD83C\uDF11',  subtitle: 'Master of Deception',
+  spy:        { label: 'אמנות הצל',    icon: '\uD83C\uDF11',  subtitle: 'אדון הרמייה',
                 color: '#C070FF', glowRgb: '192,112,255',
                 panelBg: 'linear-gradient(160deg, rgba(22,7,40,0.97), rgba(10,3,20,1))',
                 headerBg: 'rgba(192,112,255,0.1)' },
-  scout:      { label: "Ranger's Path",  icon: '\uD83D\uDC41\uFE0F',  subtitle: 'Eyes of the Realm',
+  scout:      { label: 'שביל הסייר',   icon: '\uD83D\uDC41\uFE0F',  subtitle: 'עיני הממלכה',
                 color: '#60B0FF', glowRgb: '96,176,255',
                 panelBg: 'linear-gradient(160deg, rgba(3,16,38,0.97), rgba(2,8,18,1))',
                 headerBg: 'rgba(96,176,255,0.1)' },
-  production: { label: 'Slave Mastery',  icon: '\u2699\uFE0F',  subtitle: 'Total Resource Control',
+  production: { label: 'שליטת ייצור',  icon: '\u2699\uFE0F',  subtitle: 'שליטה מוחלטת במשאבים',
                 color: '#48D0A0', glowRgb: '72,208,160',
                 panelBg: 'linear-gradient(160deg, rgba(3,24,18,0.97), rgba(2,11,8,1))',
                 headerBg: 'rgba(72,208,160,0.1)' },
-  utility:    { label: 'Arcane Arts',    icon: '\u2736',   subtitle: 'Secrets of the Unseen',
+  utility:    { label: 'אמנות הארקן',  icon: '\u2736',   subtitle: 'סודות הנסתר',
                 color: '#9898C0', glowRgb: '152,152,192',
                 panelBg: 'linear-gradient(160deg, rgba(10,10,22,0.97), rgba(5,5,14,1))',
                 headerBg: 'rgba(152,152,192,0.1)' },
@@ -103,11 +103,11 @@ function timeRemaining(endsAt: string): string | null {
 }
 
 function heroTitle(level: number): string {
-  if (level >= 50) return 'Grand Archmage'
-  if (level >= 25) return 'Archmage'
-  if (level >= 10) return 'Adept'
-  if (level >= 5)  return 'Initiate'
-  return 'Recruit'
+  if (level >= 50) return 'ארכימאג גרנד'
+  if (level >= 25) return 'ארכימאג'
+  if (level >= 10) return 'בקיא'
+  if (level >= 5)  return 'חניך'
+  return 'טירון'
 }
 
 type ShieldStatus =
@@ -180,15 +180,15 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ text: data.error ?? 'Failed to purchase spell', type: 'error' })
+        setMessage({ text: data.error ?? 'רכישת לחש נכשלה', type: 'error' })
       } else {
-        setMessage({ text: 'Spell learned!', type: 'success' })
+        setMessage({ text: 'לחש נלמד!', type: 'success' })
         setPurchasedSpells((prev) => new Set<string>([...Array.from(prev), spellKey]))
         applyPatch({ hero: { ...hero, spell_points: hero.spell_points - 1 } })
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoading(null)
     }
@@ -207,10 +207,10 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ text: data.error ?? 'Failed to activate shield', type: 'error' })
+        setMessage({ text: data.error ?? 'הפעלת מגן נכשלה', type: 'error' })
       } else {
-        const label = shieldType === 'soldier_shield' ? 'Soldier Shield' : 'Resource Shield'
-        setMessage({ text: `${label} activated for ${CFG.SHIELD_HOURS}h!`, type: 'success' })
+        const label = shieldType === 'soldier_shield' ? 'מגן חיילים' : 'מגן משאבים'
+        setMessage({ text: `${label} הופעל ל-${CFG.SHIELD_HOURS} שעות!`, type: 'success' })
         applyPatch({ hero: { ...hero, mana: hero.mana - manaCost } })
         const effectType: 'SOLDIER_SHIELD' | 'RESOURCE_SHIELD' = shieldType === 'soldier_shield' ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD'
         setLocalEffects((prev) => [
@@ -228,7 +228,7 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setShieldLoading(null)
     }
@@ -307,7 +307,7 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
                   letterSpacing: '0.05em',
                   whiteSpace: 'nowrap',
                 }}>
-                  {'\u2736'} {hero.spell_points} Spell {hero.spell_points === 1 ? 'Point' : 'Points'} Ready
+                  {'\u2736'} {hero.spell_points} {hero.spell_points === 1 ? 'נקודת לחש' : 'נקודות לחש'} מוכנות
                 </div>
               )}
             </div>
@@ -315,9 +315,9 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
             {/* XP bar */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 10, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(192,112,255,0.65)' }}>Experience</span>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(192,112,255,0.65)' }}>ניסיון</span>
                 <span style={{ fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.35)' }}>
-                  {formatNumber(hero.xp)} / {formatNumber(xpForNextLevel)} &mdash; {xpPct}% to Level {hero.level + 1}
+                  {formatNumber(hero.xp)} / {formatNumber(xpForNextLevel)} &mdash; {xpPct}% לרמה {hero.level + 1}
                 </span>
               </div>
               <div style={{ height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 7, overflow: 'hidden' }}>
@@ -334,10 +334,10 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
             {/* Mana bar */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 10, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(96,176,255,0.65)' }}>Mana</span>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(96,176,255,0.65)' }}>מאנה</span>
                 <span style={{ fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.35)' }}>
-                  {hero.mana} / 100 &nbsp;&middot;&nbsp; +{manaPerTickTotal}/tick
-                  {hero.level >= 10 && <span style={{ color: 'rgba(255,255,255,0.22)' }}> (Lv10+ bonus active)</span>}
+                  {hero.mana} / 100 &nbsp;&middot;&nbsp; +{manaPerTickTotal}/טיק
+                  {hero.level >= 10 && <span style={{ color: 'rgba(255,255,255,0.22)' }}> (בונוס רמה 10+ פעיל)</span>}
                 </span>
               </div>
               <div style={{ height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 7, overflow: 'hidden' }}>
@@ -589,8 +589,8 @@ function ShieldAbility({
             loading={loading}
             onClick={onActivate}
           >
-            {status.state === 'active'   ? 'Shielded'  :
-             status.state === 'cooldown' ? 'Cooldown'  : 'Activate'}
+            {status.state === 'active'   ? 'מוגן'     :
+             status.state === 'cooldown' ? 'המתנה'    : 'הפעל'}
           </Button>
         </div>
       </div>

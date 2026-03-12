@@ -11,10 +11,10 @@ import { cn } from '@/lib/utils'
 import type { Race } from '@/types/game'
 
 const RACES: { value: Race; label: string; bonus: string; image: string }[] = [
-  { value: 'orc',   label: 'Orc',   bonus: '+10% Attack, +3% Defense',          image: '/character/orc.png' },
-  { value: 'human', label: 'Human', bonus: '+15% Gold Production, +3% Attack',  image: '/character/human.png' },
-  { value: 'elf',   label: 'Elf',   bonus: '+20% Spy & Scout Power',            image: '/character/fairy.png' },
-  { value: 'dwarf', label: 'Dwarf', bonus: '+15% Defense, +3% Gold Production', image: '/character/dwarf.png' },
+  { value: 'orc',   label: 'אורק',  bonus: '+10% תקיפה, +3% הגנה',              image: '/character/orc.png' },
+  { value: 'human', label: 'אנושי', bonus: '+15% ייצור זהב, +3% תקיפה',         image: '/character/human.png' },
+  { value: 'elf',   label: 'אלף',   bonus: '+20% כוח ריגול וסיור',              image: '/character/fairy.png' },
+  { value: 'dwarf', label: 'גמד',   bonus: '+15% הגנה, +3% ייצור זהב',          image: '/character/dwarf.png' },
 ]
 
 export default function RegisterPage() {
@@ -47,7 +47,7 @@ export default function RegisterPage() {
     const data = await res.json()
 
     if (!res.ok) {
-      setError(data.error ?? 'Registration failed')
+      setError(data.error ?? 'הרשמה נכשלה')
       setLoading(false)
       return
     }
@@ -69,35 +69,35 @@ export default function RegisterPage() {
           <h1 className="font-display text-game-4xl gold-gradient-text uppercase tracking-widest text-title-glow">
             Domiron
           </h1>
-          <p className="text-game-text-secondary font-body mt-2">Join the Battle</p>
+          <p className="text-game-text-secondary font-body mt-2">הצטרף לקרב</p>
         </div>
 
         <div className="panel-ornate p-6">
           <h2 className="font-heading text-game-xl text-game-gold-bright uppercase tracking-wide mb-2 text-center text-title-glow">
-            Create Account
+            יצירת חשבון
           </h2>
           <div className="divider-gold mb-6" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="Username"
+                label="שם משתמש"
                 value={form.username}
                 onChange={(e) => update('username', e.target.value)}
-                placeholder="YourName"
-                hint="3–20 alphanumeric chars"
+                placeholder="שמך"
+                hint="3–20 תווים אלפאנומריים"
                 required
               />
               <Input
-                label="Army Name"
+                label="שם הצבא"
                 value={form.army_name}
                 onChange={(e) => update('army_name', e.target.value)}
-                placeholder="The Iron Legion"
+                placeholder="הלגיון הברזלי"
                 required
               />
             </div>
             <Input
-              label="Email"
+              label="אימייל"
               type="email"
               value={form.email}
               onChange={(e) => update('email', e.target.value)}
@@ -105,18 +105,18 @@ export default function RegisterPage() {
               required
             />
             <Input
-              label="Password"
+              label="סיסמה"
               type="password"
               value={form.password}
               onChange={(e) => update('password', e.target.value)}
-              placeholder="Min 8 characters"
+              placeholder="מינימום 8 תווים"
               required
             />
 
             {/* Race selection */}
             <div className="space-y-2">
               <label className="text-game-sm font-heading text-game-text-secondary font-semibold uppercase tracking-wider block">
-                Choose Race
+                בחר גזע
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {RACES.map((race) => (
@@ -167,14 +167,14 @@ export default function RegisterPage() {
               loading={loading}
               className="w-full mt-2"
             >
-              Begin Your Conquest
+              התחל את כיבושך
             </Button>
           </form>
 
           <p className="text-center text-game-sm text-game-text-secondary font-body mt-4">
-            Already have an account?{' '}
+            כבר יש לך חשבון?{' '}
             <Link href="/login" className="text-game-gold-bright hover:text-game-gold transition-colors font-semibold">
-              Login
+              התחבר
             </Link>
           </p>
         </div>

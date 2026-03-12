@@ -21,10 +21,10 @@ interface JobConfig {
 }
 
 const JOBS: JobConfig[] = [
-  { key: 'gold', armyField: 'slaves_gold', devLevelField: 'gold_level', label: 'Gold Mine',    resourceType: 'gold', icon: '⛏' },
-  { key: 'iron', armyField: 'slaves_iron', devLevelField: 'iron_level', label: 'Iron Foundry', resourceType: 'iron', icon: '🔩' },
-  { key: 'wood', armyField: 'slaves_wood', devLevelField: 'wood_level', label: 'Lumber Camp',  resourceType: 'wood', icon: '🪵' },
-  { key: 'food', armyField: 'slaves_food', devLevelField: 'food_level', label: 'Farmlands',    resourceType: 'food', icon: '🌾' },
+  { key: 'gold', armyField: 'slaves_gold', devLevelField: 'gold_level', label: 'מכרה זהב',    resourceType: 'gold', icon: '⛏' },
+  { key: 'iron', armyField: 'slaves_iron', devLevelField: 'iron_level', label: 'יציקת ברזל', resourceType: 'iron', icon: '🔩' },
+  { key: 'wood', armyField: 'slaves_wood', devLevelField: 'wood_level', label: 'מחנה עצים',  resourceType: 'wood', icon: '🪵' },
+  { key: 'food', armyField: 'slaves_food', devLevelField: 'food_level', label: 'שדות חקלאים',    resourceType: 'food', icon: '🌾' },
 ]
 
 const MAX_DEV_LEVEL = 10
@@ -131,10 +131,10 @@ export function MineClient() {
       })
       const data = await res.json()
       if (!res.ok) {
-        const msg = data.details ? `${data.error}: ${data.details}` : (data.error ?? 'Allocation failed')
+        const msg = data.details ? `${data.error}: ${data.details}` : (data.error ?? 'הקצאה נכשלה')
         setMessage({ text: msg, type: 'error' })
       } else {
-        setMessage({ text: 'Slave assignment saved!', type: 'success' })
+        setMessage({ text: 'הקצאת עבדים נשמרה!', type: 'success' })
         if (data.data?.army) {
           const a = data.data.army
           applyPatch({ army: a })
@@ -150,7 +150,7 @@ export function MineClient() {
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoading(false)
     }
@@ -199,9 +199,9 @@ export function MineClient() {
       <div className="rounded-game-lg border border-game-border overflow-hidden bg-gradient-to-b from-game-elevated to-game-surface">
         <div className="flex divide-x divide-game-border/50">
           {[
-            { label: 'Total',    value: totalSlaves,             color: 'text-game-gold' },
-            { label: 'Assigned', value: totalAssigned,           color: 'text-game-text-white' },
-            { label: 'Idle',     value: Math.max(0, idleSlaves), color: idleSlaves > 0 ? 'text-amber-400' : 'text-game-text-muted' },
+            { label: 'סה"כ',    value: totalSlaves,             color: 'text-game-gold' },
+            { label: 'מוקצים', value: totalAssigned,           color: 'text-game-text-white' },
+            { label: 'פנויים',  value: Math.max(0, idleSlaves), color: idleSlaves > 0 ? 'text-amber-400' : 'text-game-text-muted' },
           ].map(({ label, value, color }) => (
             <div key={label} className="flex-1 flex flex-col items-center py-3 px-2 gap-0.5 min-w-0">
               <span className={`font-heading text-game-lg font-bold tabular-nums leading-none ${color}`}>
@@ -220,10 +220,10 @@ export function MineClient() {
 
         {/* Desktop column headers */}
         <div className="hidden sm:grid grid-cols-[1fr_96px_136px_152px] gap-0 px-4 py-2 bg-game-bg/55 border-b border-game-border/60">
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Job</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Assigned</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Amount</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Action</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">עבודה</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">מוקצים</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">כמות</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">פעולה</span>
         </div>
 
         {/* Job allocation rows */}
@@ -399,7 +399,7 @@ export function MineClient() {
         <div className="border-t border-game-gold/15 bg-game-bg/45 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted">Total / tick</span>
+              <span className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted">סה"כ / טיק</span>
               <span className="font-heading text-game-base font-bold tabular-nums text-game-gold-bright">
                 {formatNumber(grandMin)}–{formatNumber(grandMax)}
               </span>
@@ -426,7 +426,7 @@ export function MineClient() {
       {/* ── Output summary — compact always-visible reference grid ────────── */}
       <div className="rounded-game-lg border border-game-border/50 overflow-hidden">
         <div className="px-4 py-2 bg-game-bg/50 border-b border-game-border/50 flex items-center gap-2">
-          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted">Output Summary</span>
+          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted">סיכום תפוקה</span>
         </div>
         <div className="divide-y divide-game-border/30">
           {JOBS.map((job) => {
@@ -458,7 +458,7 @@ export function MineClient() {
           })}
           {/* Grand total row */}
           <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2 bg-game-bg/30">
-            <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">Grand Total</span>
+            <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">סה"כ כולל</span>
             <span />
             <span className="text-game-xs font-heading tabular-nums text-game-gold-bright text-right min-w-[80px]">
               {formatNumber(grandMin)}–{formatNumber(grandMax)}/tick

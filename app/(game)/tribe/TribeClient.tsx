@@ -73,19 +73,19 @@ interface Props {
 type SpellKey = 'war_cry' | 'tribe_shield' | 'production_blessing' | 'spy_veil' | 'battle_supply'
 
 const SPELL_LABELS: Record<SpellKey, string> = {
-  war_cry:             'War Cry',
-  tribe_shield:        'Tribe Shield',
-  production_blessing: 'Production Blessing',
-  spy_veil:            'Spy Veil',
-  battle_supply:       'Battle Supply',
+  war_cry:             'קריאת מלחמה',
+  tribe_shield:        'מגן שבט',
+  production_blessing: 'ברכת ייצור',
+  spy_veil:            'מסך ריגול',
+  battle_supply:       'אספקת קרב',
 }
 
 const SPELL_EFFECT: Record<SpellKey, string> = {
-  war_cry:             `Attacker ECP ×${BALANCE.tribe.spellEffects.war_cry.combatMultiplier}`,
-  tribe_shield:        `Defender ECP ×${BALANCE.tribe.spellEffects.tribe_shield.defenseMultiplier}`,
-  production_blessing: `Slave output ×${BALANCE.tribe.spellEffects.production_blessing.productionMultiplier}`,
-  spy_veil:            `Scout defense ×${BALANCE.tribe.spellEffects.spy_veil.scoutDefenseMultiplier}`,
-  battle_supply:       `Attack food cost −${(BALANCE.tribe.spellEffects.battle_supply.foodReduction * 100).toFixed(0)}%`,
+  war_cry:             `ECP תוקף ×${BALANCE.tribe.spellEffects.war_cry.combatMultiplier}`,
+  tribe_shield:        `ECP מגן ×${BALANCE.tribe.spellEffects.tribe_shield.defenseMultiplier}`,
+  production_blessing: `תפוקת עבדים ×${BALANCE.tribe.spellEffects.production_blessing.productionMultiplier}`,
+  spy_veil:            `הגנת סיירים ×${BALANCE.tribe.spellEffects.spy_veil.scoutDefenseMultiplier}`,
+  battle_supply:       `עלות מזון בתקיפה −${(BALANCE.tribe.spellEffects.battle_supply.foodReduction * 100).toFixed(0)}%`,
 }
 
 const SPELL_ACCENT: Record<SpellKey, { borderL: string; text: string }> = {
@@ -105,10 +105,10 @@ const V1_SPELLS: SpellKey[] = [
 type TribeTab = 'overview' | 'members' | 'upgrade' | 'chat'
 
 const TRIBE_TABS: Array<{ key: string; label: string }> = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'members',  label: 'Members'  },
-  { key: 'upgrade',  label: 'Upgrade'  },
-  { key: 'chat',     label: 'Chat'     },
+  { key: 'overview', label: 'סקירה'   },
+  { key: 'members',  label: 'חברים'   },
+  { key: 'upgrade',  label: 'שדרוג'   },
+  { key: 'chat',     label: 'צ׳אט'    },
 ]
 
 // ── Clan efficiency type (matches ClanDevLevel in balance.config.ts) ──────────
@@ -117,7 +117,7 @@ type ClanLevel = 1 | 2 | 3 | 4 | 5
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatCountdown(ms: number): string {
-  if (ms <= 0) return 'Soon'
+  if (ms <= 0) return 'בקרוב'
   const h = Math.floor(ms / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
   const s = Math.floor((ms % 60_000) / 1_000)
@@ -128,11 +128,11 @@ function formatCountdown(ms: number): string {
 
 function formatTimeLeft(expiresAt: string): string {
   const ms = new Date(expiresAt).getTime() - Date.now()
-  if (ms <= 0) return 'Expired'
+  if (ms <= 0) return 'פג תוקף'
   const h = Math.floor(ms / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
-  if (h > 0) return `${h}h ${m}m left`
-  return `${m}m left`
+  if (h > 0) return `נותרו ${h}ש ${m}ד`
+  return `נותרו ${m}ד`
 }
 
 function formatChatTime(iso: string): string {
@@ -140,12 +140,12 @@ function formatChatTime(iso: string): string {
   const now = new Date()
   const sameDay = d.toDateString() === now.toDateString()
   if (sameDay) {
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
   return (
-    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) +
     ' ' +
-    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false })
   )
 }
 
@@ -291,9 +291,9 @@ export function TribeClient({
         body: JSON.stringify({ name: tribeName, anthem: tribeAnthem }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to create tribe', 'error')
+      if (!res.ok) showMsg(data.error ?? 'יצירת שבט נכשלה', 'error')
       else router.refresh()
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -307,9 +307,9 @@ export function TribeClient({
         body: JSON.stringify({ tribe_id: tribeId }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to join tribe', 'error')
+      if (!res.ok) showMsg(data.error ?? 'הצטרפות לשבט נכשלה', 'error')
       else router.refresh()
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -319,9 +319,9 @@ export function TribeClient({
     try {
       const res  = await fetch('/api/tribe/leave', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) { showMsg(data.error ?? 'Failed to leave tribe', 'error'); setShowLeaveModal(false) }
+      if (!res.ok) { showMsg(data.error ?? 'עזיבת שבט נכשלה', 'error'); setShowLeaveModal(false) }
       else router.refresh()
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -331,9 +331,9 @@ export function TribeClient({
     try {
       const res  = await fetch('/api/tribe/disband', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) { showMsg(data.error ?? 'Failed to disband tribe', 'error'); setShowDisbandModal(false) }
+      if (!res.ok) { showMsg(data.error ?? 'פירוק שבט נכשל', 'error'); setShowDisbandModal(false) }
       else router.refresh()
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -347,9 +347,9 @@ export function TribeClient({
         body: JSON.stringify({ spell_key: spellKey }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to activate spell', 'error')
+      if (!res.ok) showMsg(data.error ?? 'הפעלת לחש נכשלה', 'error')
       else {
-        showMsg(`${SPELL_LABELS[spellKey]} activated!`, 'success')
+        showMsg(`${SPELL_LABELS[spellKey]} הופעל!`, 'success')
         const cfg     = BALANCE.tribe.spells[spellKey]
         const cost    = cfg?.manaCost ?? 0
         const hours   = cfg?.durationHours ?? 1
@@ -361,7 +361,7 @@ export function TribeClient({
         ])
         refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -381,13 +381,13 @@ export function TribeClient({
         body: JSON.stringify({ player_id: memberId }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to kick member', 'error')
+      if (!res.ok) showMsg(data.error ?? 'הרחקת חבר נכשלה', 'error')
       else {
-        showMsg('Member removed from tribe', 'success')
+        showMsg('חבר הוסר מהשבט', 'success')
         setLocalMembers((prev) => prev.filter((m) => m.member.player_id !== memberId))
         refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -403,14 +403,14 @@ export function TribeClient({
         body: JSON.stringify({ amount: amt }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to set tax', 'error')
+      if (!res.ok) showMsg(data.error ?? 'קביעת מס נכשלה', 'error')
       else {
-        showMsg('Daily tribute updated', 'success')
+        showMsg('מס יומי עודכן', 'success')
         setLocalTaxAmount(amt)
         setTaxAmount('')
         refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -426,16 +426,16 @@ export function TribeClient({
         body: JSON.stringify({ amount: amt }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to contribute mana', 'error')
+      if (!res.ok) showMsg(data.error ?? 'תרומת מאנה נכשלה', 'error')
       else {
-        showMsg(`Contributed ${amt} mana to tribe`, 'success')
+        showMsg(`תרמת ${amt} מאנה לשבט`, 'success')
         setManaAmount('')
         if (data.data?.new_tribe_mana !== undefined) {
           setLocalTribeMana(data.data.new_tribe_mana as number)
         }
         refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -445,15 +445,15 @@ export function TribeClient({
     try {
       const res  = await fetch('/api/tribe/upgrade-level', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Failed to upgrade tribe level', 'error')
+      if (!res.ok) showMsg(data.error ?? 'שדרוג רמת שבט נכשל', 'error')
       else {
         const newLevel: number = data.data.new_level
-        showMsg(`Tribe advanced to Level ${newLevel}!`, 'success')
+        showMsg(`השבט התקדם לרמה ${newLevel}!`, 'success')
         setLocalTribeLevel(newLevel)
         setLocalTribeMana(data.data.new_tribe_mana as number)
         refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -468,9 +468,9 @@ export function TribeClient({
         body: JSON.stringify({ target_player_id: targetId, action }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Role change failed', 'error')
+      if (!res.ok) showMsg(data.error ?? 'שינוי תפקיד נכשל', 'error')
       else {
-        showMsg(action === 'appoint' ? 'Deputy appointed' : 'Deputy removed', 'success')
+        showMsg(action === 'appoint' ? 'סגן מונה' : 'סגן הוסר', 'success')
         setLocalMembers((prev) =>
           prev.map((m) =>
             m.member.player_id === targetId
@@ -480,7 +480,7 @@ export function TribeClient({
         )
         refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -494,13 +494,13 @@ export function TribeClient({
         body: JSON.stringify({ new_leader_id: newLeaderId }),
       })
       const data = await res.json()
-      if (!res.ok) showMsg(data.error ?? 'Leadership transfer failed', 'error')
+      if (!res.ok) showMsg(data.error ?? 'העברת מנהיגות נכשלה', 'error')
       else {
         setShowTransferModal(false)
         setTransferTarget(null)
         router.refresh()
       }
-    } catch { showMsg('Network error', 'error') }
+    } catch { showMsg('שגיאת רשת', 'error') }
     finally { setLoading(null) }
   }
 
@@ -531,7 +531,7 @@ export function TribeClient({
         // Remove the optimistic message on failure
         setChatMessages((prev) => prev.filter((m) => m.id !== optimisticId))
         setChatInput(msg) // restore input
-        showMsg(data.error ?? 'Failed to send message', 'error')
+        showMsg(data.error ?? 'שליחת הודעה נכשלה', 'error')
       } else {
         // Replace the optimistic message with the real one from server
         const real = data.data?.message as ChatMessage
@@ -542,7 +542,7 @@ export function TribeClient({
     } catch {
       setChatMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       setChatInput(msg)
-      showMsg('Network error', 'error')
+      showMsg('שגיאת רשת', 'error')
     }
     finally { setLoading(null) }
   }
@@ -559,12 +559,12 @@ export function TribeClient({
       {/* Page header */}
       <div>
         <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide text-title-glow">
-          {tribe ? tribe.name : 'Tribe'}
+          {tribe ? tribe.name : 'שבט'}
         </h1>
         <p className="text-game-text-secondary font-body mt-1 text-game-sm">
           {tribe
-            ? `City ${tribe.city} · Level ${tribe.level} · ${myRole ? myRole.charAt(0).toUpperCase() + myRole.slice(1) : ''}`
-            : 'Join or found a tribe in your city'}
+            ? `עיר ${tribe.city} · רמה ${tribe.level} · ${myRole === 'leader' ? 'מנהיג' : myRole === 'deputy' ? 'סגן' : myRole === 'member' ? 'חבר' : ''}`
+            : 'הצטרף או ייסד שבט בעירך'}
         </p>
       </div>
 
@@ -588,21 +588,21 @@ export function TribeClient({
         <>
           <div className="card-game rounded-game-lg p-5 space-y-4">
             <div className="panel-header">
-              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Found a Tribe</h2>
+              <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">ייסד שבט</h2>
             </div>
             <p className="text-game-sm text-game-text-muted font-body">
-              Costs{' '}
-              <span className="text-purple-400 font-semibold">{BALANCE.tribe.creationManaCost} personal mana</span>
-              {' '}to establish.
+              עולה{' '}
+              <span className="text-purple-400 font-semibold">{BALANCE.tribe.creationManaCost} מאנה אישית</span>
+              {' '}לייסוד.
             </p>
             <div className="space-y-3">
-              <Input label="Tribe Name" placeholder="Enter tribe name (3–40 characters)" value={tribeName}
+              <Input label="שם השבט" placeholder="הכנס שם שבט (3–40 תווים)" value={tribeName}
                 onChange={(e) => setTribeName(e.target.value)} maxLength={40} />
-              <Input label="Anthem (optional)" placeholder="Your tribe's motto or battle cry" value={tribeAnthem}
+              <Input label="המנון (אופציונלי)" placeholder="סיסמת הקרב של השבט שלך" value={tribeAnthem}
                 onChange={(e) => setTribeAnthem(e.target.value)} maxLength={120} />
               <Button variant="primary" disabled={tribeName.trim().length < 3 || !!loading}
                 loading={loading === 'create'} onClick={handleCreateTribe}>
-                Create Tribe
+                צור שבט
               </Button>
             </div>
           </div>
@@ -610,24 +610,24 @@ export function TribeClient({
           <div className="card-game rounded-game-lg p-5">
             <div className="panel-header mb-4">
               <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">
-                Tribes in City {player.city}
+                שבטים בעיר {player.city}
               </h2>
             </div>
             {joinableTribes.length === 0 ? (
-              <EmptyState title="No Tribes Available" description="No tribes exist in your city yet. Be the first to found one." />
+              <EmptyState title="אין שבטים זמינים" description="עדיין אין שבטים בעירך. היה הראשון לייסד אחד." />
             ) : (
               <GameTable
-                headers={['Name', 'Level', 'Members', 'Anthem', 'Action']}
+                headers={['שם', 'רמה', 'חברים', 'המנון', 'פעולה']}
                 hoverable
                 rows={joinableTribes.map((t) => [
                   <span key="name" className="font-heading text-game-sm uppercase text-game-text-white">{t.name}</span>,
-                  <Badge key="level" variant="default">Lvl {t.level}</Badge>,
+                  <Badge key="level" variant="default">רמה {t.level}</Badge>,
                   <span key="members" className="text-game-sm font-body tabular-nums">{t.member_count} / {t.max_members}</span>,
                   <span key="anthem" className="text-game-sm text-game-text-muted font-body italic">{t.anthem ?? '—'}</span>,
                   <Button key="join" variant="primary" size="sm"
                     disabled={t.member_count >= t.max_members || !!loading}
                     loading={loading === `join-${t.id}`}
-                    onClick={() => handleJoinTribe(t.id)}>Join</Button>,
+                    onClick={() => handleJoinTribe(t.id)}>הצטרף</Button>,
                 ])}
               />
             )}
@@ -671,10 +671,10 @@ export function TribeClient({
                 {/* Stats strip */}
                 <div className="grid grid-cols-4 gap-2 mt-4">
                   {[
-                    { label: 'Level',   value: String(tribe.level)                          },
-                    { label: 'Rep',     value: formatNumber(tribe.reputation)                },
-                    { label: 'Members', value: `${localMembers.length}/${tribe.max_members}` },
-                    { label: 'Power',   value: formatNumber(tribe.power_total)               },
+                    { label: 'רמה',    value: String(tribe.level)                          },
+                    { label: 'מוניטין', value: formatNumber(tribe.reputation)                },
+                    { label: 'חברים',  value: `${localMembers.length}/${tribe.max_members}` },
+                    { label: 'כוח',    value: formatNumber(tribe.power_total)               },
                   ].map(({ label, value }) => (
                     <div key={label}
                       className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-2.5 text-center">
@@ -693,10 +693,10 @@ export function TribeClient({
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
                       <p className="text-game-xs font-heading uppercase tracking-widest text-amber-500/80 mb-1">
-                        Daily Tribute
+                        מס יומי
                       </p>
                       <p className="text-3xl font-body font-bold text-amber-300 tabular-nums leading-none">
-                        {formatNumber(localTaxAmount)}<span className="text-xl text-amber-400/70 ms-1">Gold</span>
+                        {formatNumber(localTaxAmount)}<span className="text-xl text-amber-400/70 ms-1">זהב</span>
                       </p>
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
                         <div className="flex items-center gap-1.5">
@@ -725,7 +725,7 @@ export function TribeClient({
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
-                            placeholder="Gold"
+                            placeholder="זהב"
                             value={taxAmount}
                             min={0}
                             onChange={(e) => setTaxAmount(e.target.value)}
@@ -754,14 +754,14 @@ export function TribeClient({
               <div className="bg-gradient-to-b from-purple-950/40 to-game-surface border border-purple-800/40 rounded-game-lg p-4">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
-                    <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400 mb-0.5">Tribe Mana</p>
+                    <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400 mb-0.5">מאנת שבט</p>
                     <p className="text-2xl font-body font-bold text-purple-300 tabular-nums">{formatNumber(localTribeMana)}</p>
                     <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                      +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} per tick · {localMembers.length} members
+                      +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} לטיק · {localMembers.length} חברים
                     </p>
                   </div>
                   <Button variant="link" size="sm" onClick={() => setActiveTab('upgrade')}>
-                    Spells &amp; Upgrade →
+                    לחשים ושדרוג →
                   </Button>
                 </div>
               </div>
@@ -769,7 +769,7 @@ export function TribeClient({
               {/* Active spells strip */}
               {localSpells.length > 0 && (
                 <div className="card-game rounded-game-lg px-4 py-3">
-                  <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400 mb-2">Active Spells</p>
+                  <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400 mb-2">לחשים פעילים</p>
                   <div className="flex flex-wrap gap-2">
                     {localSpells.map((spell) => (
                       <div key={spell.spell_key}
@@ -790,21 +790,21 @@ export function TribeClient({
               <div className="card-game rounded-game-lg p-4 space-y-3">
                 <div className="flex items-center gap-3">
                   <span>
-                    {myRole === 'leader' && <Badge variant="gold">Leader</Badge>}
-                    {myRole === 'deputy' && <Badge variant="purple">Deputy</Badge>}
-                    {myRole === 'member' && <Badge variant="default">Member</Badge>}
+                    {myRole === 'leader' && <Badge variant="gold">מנהיג</Badge>}
+                    {myRole === 'deputy' && <Badge variant="purple">סגן</Badge>}
+                    {myRole === 'member' && <Badge variant="default">חבר</Badge>}
                   </span>
                   <span className="text-game-sm font-body text-game-text-secondary">
-                    {myRole === 'leader' && 'You lead this tribe.'}
-                    {myRole === 'deputy' && 'You are a deputy.'}
+                    {myRole === 'leader' && 'אתה מנהיג שבט זה.'}
+                    {myRole === 'deputy' && 'אתה סגן.'}
                     {myRole === 'member' && (
                       membership.tax_exempt
-                        ? 'Personal tribute exemption.'
-                        : `Pays ${formatNumber(localTaxAmount)} gold/day.`
+                        ? 'פטור ממס אישי.'
+                        : `משלם ${formatNumber(localTaxAmount)} זהב/יום.`
                     )}
                   </span>
                   {(myRole === 'leader' || myRole === 'deputy') && (
-                    <span className="text-game-xs text-amber-400/70 font-body">Tax exempt</span>
+                    <span className="text-game-xs text-amber-400/70 font-body">פטור ממס</span>
                   )}
                 </div>
 
@@ -814,7 +814,7 @@ export function TribeClient({
                   {/* Non-leaders: Leave */}
                   {!isLeader && (
                     <Button variant="ghost" size="sm" onClick={() => setShowLeaveModal(true)}>
-                      Leave Tribe
+                      עזוב שבט
                     </Button>
                   )}
 
@@ -828,14 +828,14 @@ export function TribeClient({
                         setShowTransferModal(true)
                       }}
                     >
-                      Transfer Leadership
+                      העברת מנהיגות
                     </Button>
                   )}
 
                   {/* Leader: Disband (only when alone) */}
                   {isLeader && localMembers.length <= 1 && (
                     <Button variant="danger" size="sm" onClick={() => setShowDisbandModal(true)}>
-                      Disband Tribe
+                      פרק שבט
                     </Button>
                   )}
 
@@ -859,9 +859,9 @@ export function TribeClient({
                 <div className="absolute inset-y-0 start-0 w-[3px] bg-gradient-to-b from-amber-400 to-amber-700 rounded-s-game-lg" />
                 <div className="flex items-center gap-4 ps-5 pe-4 py-3 flex-wrap">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-game-xs font-heading uppercase tracking-widest text-amber-500/80">Tribute</span>
+                    <span className="text-game-xs font-heading uppercase tracking-widest text-amber-500/80">מס</span>
                     <span className="font-body font-bold text-amber-300 tabular-nums text-game-base">
-                      {formatNumber(localTaxAmount)} <span className="text-amber-400/70 text-game-xs font-normal">gold/day</span>
+                      {formatNumber(localTaxAmount)} <span className="text-amber-400/70 text-game-xs font-normal">זהב/יום</span>
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-game-xs font-body">
@@ -869,7 +869,7 @@ export function TribeClient({
                     <span className="text-amber-300/80 tabular-nums">{countdown || '—'}</span>
                   </div>
                   <span className="text-game-xs text-amber-700/60 font-body ms-auto">
-                    Daily at {taxCollectionHour}:00 Israel time
+                    יומי בשעה {taxCollectionHour}:00 שעון ישראל
                   </span>
                 </div>
               </div>
@@ -893,7 +893,7 @@ export function TribeClient({
                       size="sm"
                       onClick={() => { setTransferTarget(null); setShowTransferModal(true) }}
                     >
-                      Transfer Leadership
+                      העברת מנהיגות
                     </Button>
                   )}
                 </div>
@@ -960,7 +960,7 @@ export function TribeClient({
                             {mp?.username ?? '—'}
                             {mp?.power_total != null && (
                               <span className="ms-2 text-game-text-muted/60 tabular-nums">
-                                · {formatNumber(mp.power_total)} pwr
+                                · {formatNumber(mp.power_total)} כוח
                               </span>
                             )}
                           </p>
@@ -968,26 +968,26 @@ export function TribeClient({
 
                         {/* Role badge */}
                         <div className="shrink-0 min-w-[72px] flex justify-center">
-                          {member.role === 'leader' && <Badge variant="gold">Leader</Badge>}
-                          {member.role === 'deputy' && <Badge variant="purple">Deputy</Badge>}
-                          {member.role === 'member' && <Badge variant="default">Member</Badge>}
+                          {member.role === 'leader' && <Badge variant="gold">מנהיג</Badge>}
+                          {member.role === 'deputy' && <Badge variant="purple">סגן</Badge>}
+                          {member.role === 'member' && <Badge variant="default">חבר</Badge>}
                         </div>
 
                         {/* Tax status pill */}
                         <div className="shrink-0 min-w-[80px] flex justify-end">
                           {isExempt ? (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-game-xs font-body font-medium bg-blue-900/30 border border-blue-700/30 text-blue-300">
-                              Exempt
+                              פטור
                             </span>
                           ) : taxEntry === undefined ? (
                             <span className="text-game-xs text-game-text-muted/50 font-body">—</span>
                           ) : taxEntry.paid ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-game-xs font-body font-semibold bg-emerald-900/30 border border-emerald-700/30 text-emerald-300">
-                              ✓ Paid
+                              ✓ שולם
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-game-xs font-body font-semibold bg-red-900/30 border border-red-700/30 text-game-red-bright">
-                              ✗ Unpaid
+                              ✗ לא שולם
                             </span>
                           )}
                         </div>
@@ -1012,7 +1012,7 @@ export function TribeClient({
                                 setOpenMenu(member.player_id)
                               }}
                             >
-                              Manage
+                              נהל
                               <span className="text-[9px] opacity-50 leading-none">▾</span>
                             </button>
 
@@ -1041,7 +1041,7 @@ export function TribeClient({
                                         onClick={() => handleSetRole(member.player_id, 'appoint')}
                                       >
                                         <span className="shrink-0 size-5 rounded-full bg-purple-900/60 border border-purple-700/50 flex items-center justify-center text-[10px] text-purple-300">↑</span>
-                                        Appoint Deputy
+                                        מנה סגן
                                       </button>
                                     )}
                                     {canRemove && (
@@ -1050,7 +1050,7 @@ export function TribeClient({
                                         onClick={() => handleSetRole(member.player_id, 'remove')}
                                       >
                                         <span className="shrink-0 size-5 rounded-full bg-game-border/50 border border-game-border flex items-center justify-center text-[10px] text-game-text-muted">↓</span>
-                                        Remove Deputy
+                                        הסר סגן
                                       </button>
                                     )}
                                   </div>
@@ -1068,7 +1068,7 @@ export function TribeClient({
                                         onClick={() => handleKickMember(member.player_id)}
                                       >
                                         <span className="shrink-0 size-5 rounded-full bg-red-950/70 border border-red-800/50 flex items-center justify-center text-[10px] text-red-400">✕</span>
-                                        Kick Member
+                                        הרחק חבר
                                       </button>
                                     </div>
                                   </>
@@ -1087,7 +1087,7 @@ export function TribeClient({
                 {isLeader && deputyCount >= 3 && (
                   <div className="px-6 py-3 border-t border-game-border/25 rounded-b-game-lg overflow-hidden bg-amber-950/10">
                     <p className="text-game-xs text-amber-400/70 font-body">
-                      Deputy cap reached (3/3). Remove a deputy before appointing another.
+                      הגעת לתקרת הסגנים (3/3). הסר סגן לפני מינוי נוסף.
                     </p>
                   </div>
                 )}
@@ -1105,10 +1105,10 @@ export function TribeClient({
                 {/* Panel header */}
                 <div className="px-5 py-3 bg-gradient-to-r from-purple-950/60 to-game-elevated/40 border-b border-purple-800/40">
                   <h2 className="font-heading text-game-sm uppercase tracking-widest text-purple-300">
-                    Tribe Level
+                    רמת שבט
                   </h2>
                   <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                    Permanent progression · Spend tribe mana to advance · Irreversible
+                    התקדמות קבועה · בזבז מאנת שבט להתקדמות · בלתי הפיכה
                   </p>
                 </div>
 
@@ -1120,11 +1120,11 @@ export function TribeClient({
                     </div>
                     <div>
                       <p className="font-heading text-game-base uppercase tracking-wide text-purple-200">
-                        Maximum Level Reached
+                        הרמה המקסימלית הושגה
                       </p>
                       <p className="text-game-xs text-game-text-muted font-body mt-1">
-                        Clan bonus efficiency: {((BALANCE.clan.EFFICIENCY[5 as ClanLevel] ?? 0) * 100).toFixed(0)}%
-                        &nbsp;·&nbsp;Your tribe has reached full ascension
+                        יעילות בונוס שבט: {((BALANCE.clan.EFFICIENCY[5 as ClanLevel] ?? 0) * 100).toFixed(0)}%
+                        &nbsp;·&nbsp;השבט שלך הגיע לעלייה מלאה
                       </p>
                     </div>
                   </div>
@@ -1136,12 +1136,12 @@ export function TribeClient({
                     <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
                       {/* Current */}
                       <div className="bg-game-elevated/60 border border-game-border rounded-game-lg p-3 text-center">
-                        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Current</p>
+                        <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">נוכחי</p>
                         <p className="text-2xl font-body font-bold text-purple-300 tabular-nums mt-0.5">
-                          Lv {localTribeLevel}
+                          רמה {localTribeLevel}
                         </p>
                         <p className="text-game-xs text-purple-400/70 font-body mt-0.5">
-                          {((BALANCE.clan.EFFICIENCY[localTribeLevel as ClanLevel] ?? 0) * 100).toFixed(0)}% efficiency
+                          {((BALANCE.clan.EFFICIENCY[localTribeLevel as ClanLevel] ?? 0) * 100).toFixed(0)}% יעילות
                         </p>
                       </div>
 
@@ -1152,12 +1152,12 @@ export function TribeClient({
 
                       {/* Next */}
                       <div className="bg-purple-950/50 border border-purple-700/60 rounded-game-lg p-3 text-center shadow-[0_0_16px_rgba(168,85,247,0.12)]">
-                        <p className="text-game-xs text-purple-400/80 font-heading uppercase tracking-wide">Next</p>
+                        <p className="text-game-xs text-purple-400/80 font-heading uppercase tracking-wide">הבא</p>
                         <p className="text-2xl font-body font-bold text-purple-200 tabular-nums mt-0.5">
-                          Lv {localTribeLevel + 1}
+                          רמה {localTribeLevel + 1}
                         </p>
                         <p className="text-game-xs text-purple-300/60 font-body mt-0.5">
-                          {((BALANCE.clan.EFFICIENCY[(localTribeLevel + 1) as ClanLevel] ?? 0) * 100).toFixed(0)}% efficiency
+                          {((BALANCE.clan.EFFICIENCY[(localTribeLevel + 1) as ClanLevel] ?? 0) * 100).toFixed(0)}% יעילות
                         </p>
                       </div>
                     </div>
@@ -1171,18 +1171,18 @@ export function TribeClient({
                           <div className="flex items-center justify-between gap-4 rounded-game-lg border border-purple-800/40 bg-purple-950/20 px-4 py-3">
                             <div>
                               <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">
-                                Upgrade Cost
+                                עלות שדרוג
                               </p>
                               <div className="flex items-baseline gap-1.5 mt-0.5">
                                 <span className="text-xl font-body font-bold text-purple-300 tabular-nums">
                                   {formatNumber(upgradeCost)}
                                 </span>
-                                <span className="text-game-xs text-purple-400/70 font-body">tribe mana</span>
+                                <span className="text-game-xs text-purple-400/70 font-body">מאנת שבט</span>
                               </div>
                             </div>
                             <div className="text-end">
                               <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">
-                                Available
+                                זמין
                               </p>
                               <p className={`text-game-base font-body font-semibold tabular-nums mt-0.5 ${
                                 canAfford ? 'text-purple-300' : 'text-red-400'
@@ -1195,7 +1195,7 @@ export function TribeClient({
                           {canManage ? (
                             <div className="space-y-2">
                               <p className="text-game-xs text-amber-500/70 font-body text-center">
-                                ⚠ Tribe level upgrades are permanent and irreversible.
+                                ⚠ שדרוגי רמת שבט הם קבועים ובלתי הפיכים.
                               </p>
                               <Button
                                 variant="magic"
@@ -1204,12 +1204,12 @@ export function TribeClient({
                                 onClick={handleUpgradeTribeLevel}
                                 className="w-full"
                               >
-                                Upgrade to Level {localTribeLevel + 1}
+                                שדרג לרמה {localTribeLevel + 1}
                               </Button>
                             </div>
                           ) : (
                             <p className="text-game-xs text-game-text-muted font-body text-center py-1">
-                              Only the tribe leader and deputies can upgrade tribe level.
+                              רק מנהיג השבט וסגניו יכולים לשדרג את רמת השבט.
                             </p>
                           )}
                         </>
@@ -1223,34 +1223,34 @@ export function TribeClient({
               <div className="bg-gradient-to-b from-purple-950/40 to-game-surface border border-purple-800/40 rounded-game-lg p-4">
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex-1">
-                    <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400">Tribe Mana Pool</p>
+                    <p className="text-game-xs font-heading uppercase tracking-wide text-purple-400">מאגר מאנת שבט</p>
                     <p className="text-2xl font-body font-bold text-purple-300 tabular-nums mt-0.5">
                       {formatNumber(localTribeMana)}
                     </p>
                     <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-                      +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} per tick · regen from members
+                      +{localMembers.length * BALANCE.tribe.manaPerMemberPerTick} לטיק · התחדשות מחברים
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Input type="number" placeholder="Mana" value={manaAmount} min={1}
+                    <Input type="number" placeholder="מאנה" value={manaAmount} min={1}
                       onChange={(e) => setManaAmount(e.target.value)} className="w-24" />
                     <Button variant="magic" size="sm"
                       loading={loading === 'contribute-mana'}
                       disabled={!manaAmount || parseInt(manaAmount) <= 0 || !!loading}
                       onClick={handleContributeMana}>
-                      Contribute
+                      תרום
                     </Button>
                   </div>
                 </div>
                 <p className="text-game-xs text-purple-400/50 font-body mt-2.5 pt-2.5 border-t border-purple-800/30">
-                  Contributions are permanent. Only leaders and deputies can cast spells or upgrade tribe level.
+                  תרומות הן קבועות. רק מנהיגים וסגנים יכולים להפעיל לחשים או לשדרג את רמת השבט.
                 </p>
               </div>
 
               {/* ── Active Spells ─────────────────────────────────────────── */}
               <div>
                 <p className="text-game-xs font-heading uppercase tracking-widest text-purple-400 px-1 mb-2">
-                  Spells
+                  לחשים
                 </p>
                 <div className="card-game rounded-game-lg overflow-hidden divide-y divide-game-border/40">
                   {V1_SPELLS.map((spellKey) => {
@@ -1272,7 +1272,7 @@ export function TribeClient({
                             <span className={`font-heading text-game-sm uppercase tracking-wide ${accent.text}`}>
                               {SPELL_LABELS[spellKey]}
                             </span>
-                            {isActive && <Badge variant="purple">Active</Badge>}
+                            {isActive && <Badge variant="purple">פעיל</Badge>}
                           </div>
                           <p className="text-game-xs text-game-text-muted font-body mt-0.5">
                             {SPELL_EFFECT[spellKey]}
@@ -1285,7 +1285,7 @@ export function TribeClient({
                         </div>
                         <div className="shrink-0 text-end">
                           <ResourceBadge type="mana" amount={cfg.manaCost} />
-                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">{cfg.durationHours}h</p>
+                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">{cfg.durationHours}ש׳</p>
                         </div>
                         {canManage && (
                           <Button
@@ -1295,7 +1295,7 @@ export function TribeClient({
                             loading={loading === `spell-${spellKey}`}
                             onClick={() => handleActivateSpell(spellKey)}
                           >
-                            {isActive ? 'Active' : 'Cast'}
+                            {isActive ? 'פעיל' : 'הפעל'}
                           </Button>
                         )}
                       </div>
@@ -1305,7 +1305,7 @@ export function TribeClient({
 
                 {!canManage && (
                   <p className="text-game-xs text-game-text-muted font-body text-center py-2">
-                    Only the tribe leader and deputies can activate spells.
+                    רק מנהיג השבט וסגניו יכולים להפעיל לחשים.
                   </p>
                 )}
               </div>
@@ -1320,18 +1320,18 @@ export function TribeClient({
               {/* Header */}
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-game-border/60 bg-game-elevated/40 shrink-0">
                 <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-secondary">
-                  Tribe Chat
+                  צ׳אט שבט
                 </span>
                 <span className="text-game-xs text-game-text-muted font-body ms-1">
-                  · {localMembers.length} members
+                  · {localMembers.length} חברים
                 </span>
                 <button
                   className="ms-auto flex items-center gap-1 px-2 py-1 rounded-game text-game-xs text-game-text-muted hover:text-game-text-white hover:bg-game-elevated transition-colors font-body disabled:opacity-40 cursor-pointer"
                   disabled={chatLoading}
                   onClick={() => { setChatFetched(false) }}
-                  title="Refresh messages"
+                  title="רענן הודעות"
                 >
-                  ↻ Refresh
+                  ↻ רענן
                 </button>
               </div>
 
@@ -1343,7 +1343,7 @@ export function TribeClient({
                   </div>
                 ) : chatMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
-                    <p className="text-game-sm text-game-text-muted font-body">No messages yet.</p>
+                    <p className="text-game-sm text-game-text-muted font-body">אין הודעות עדיין.</p>
                     <p className="text-game-xs text-game-text-muted font-body">
                       Be the first to speak — your words echo through the halls of {tribe.name}.
                     </p>
@@ -1392,7 +1392,7 @@ export function TribeClient({
               <div className="shrink-0 border-t border-game-border/60 px-4 py-3 bg-game-surface flex items-center gap-2">
                 <input
                   className="flex-1 bg-game-elevated border border-game-border rounded-game px-3 py-2 text-game-sm font-body text-game-text-white placeholder:text-game-text-muted focus:outline-none focus:border-game-border-active transition-colors"
-                  placeholder="Type a message…"
+                  placeholder="הקלד הודעה…"
                   value={chatInput}
                   maxLength={500}
                   onChange={(e) => setChatInput(e.target.value)}
@@ -1405,7 +1405,7 @@ export function TribeClient({
                   disabled={!chatInput.trim() || !!loading}
                   onClick={handleSendChat}
                 >
-                  Send
+                  שלח
                 </Button>
               </div>
             </div>
@@ -1420,17 +1420,17 @@ export function TribeClient({
       <Modal
         isOpen={showTransferModal}
         onClose={() => { setShowTransferModal(false); setTransferTarget(null) }}
-        title="Transfer Leadership"
+        title="העברת מנהיגות"
         size="sm"
       >
         <p className="text-game-sm font-body text-game-text-secondary mb-4">
-          Select a deputy to become the new tribe leader.
-          You will become a deputy after the transfer.
+          בחר סגן שיהפוך למנהיג השבט החדש.
+          אתה תהפוך לסגן לאחר ההעברה.
         </p>
 
         {deputies.length === 0 ? (
           <div className="bg-amber-950/30 border border-amber-800/40 rounded-game-lg px-4 py-3 text-game-sm font-body text-amber-400/80">
-            No deputies are currently appointed. Go to the Members tab to appoint a deputy before transferring leadership.
+            אין סגנים ממונים כרגע. עבור ללשונית החברים כדי למנות סגן לפני העברת המנהיגות.
           </div>
         ) : (
           <div className="space-y-2">
@@ -1462,11 +1462,11 @@ export function TribeClient({
         {transferTarget && (
           <div className="mt-4 pt-4 border-t border-game-border/40 flex items-center justify-between gap-3">
             <p className="text-game-xs text-amber-400/70 font-body">
-              This action cannot be undone from this screen.
+              לא ניתן לבטל פעולה זו מהמסך הזה.
             </p>
             <div className="flex gap-2 shrink-0">
               <Button variant="ghost" size="sm" onClick={() => setTransferTarget(null)}>
-                Cancel
+                ביטול
               </Button>
               <Button
                 variant="primary"
@@ -1475,7 +1475,7 @@ export function TribeClient({
                 disabled={!!loading}
                 onClick={() => handleTransferLeadership(transferTarget)}
               >
-                Confirm Transfer
+                אשר העברה
               </Button>
             </div>
           </div>
@@ -1486,20 +1486,20 @@ export function TribeClient({
       <Modal
         isOpen={showLeaveModal}
         onClose={() => setShowLeaveModal(false)}
-        title="Leave Tribe"
+        title="עזיבת שבט"
         size="sm"
       >
         <p className="text-game-sm font-body text-game-text-secondary">
-          Are you sure you want to leave <span className="text-game-text-white font-semibold">{tribe?.name}</span>?
+          האם אתה בטוח שברצונך לעזוב את <span className="text-game-text-white font-semibold">{tribe?.name}</span>?
         </p>
         <p className="text-game-xs text-game-text-muted font-body mt-2">
-          This is immediate and permanent for this season. Any mana you contributed stays with the tribe.
+          פעולה זו מיידית וקבועה לעונה זו. כל המאנה שתרמת נשארת בשבט.
         </p>
         <div className="flex gap-3 mt-5 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setShowLeaveModal(false)}>Stay</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowLeaveModal(false)}>הישאר</Button>
           <Button variant="danger" size="sm" loading={loading === 'leave'} disabled={!!loading}
             onClick={handleLeaveTribe}>
-            Leave Tribe
+            עזוב שבט
           </Button>
         </div>
       </Modal>
@@ -1508,20 +1508,20 @@ export function TribeClient({
       <Modal
         isOpen={showDisbandModal}
         onClose={() => setShowDisbandModal(false)}
-        title="Disband Tribe"
+        title="פירוק שבט"
         size="sm"
       >
         <p className="text-game-sm font-body text-game-text-secondary">
-          Permanently dissolve <span className="text-game-text-white font-semibold">{tribe?.name}</span>?
+          לפרק לצמיתות את <span className="text-game-text-white font-semibold">{tribe?.name}</span>?
         </p>
         <p className="text-game-xs text-game-text-muted font-body mt-2">
-          All members will be removed. Tribe mana, history, and reputation will be lost. This cannot be undone.
+          כל החברים יוסרו. מאנה השבט, ההיסטוריה והמוניטין יאבדו. לא ניתן לבטל פעולה זו.
         </p>
         <div className="flex gap-3 mt-5 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setShowDisbandModal(false)}>Cancel</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowDisbandModal(false)}>ביטול</Button>
           <Button variant="danger" size="sm" loading={loading === 'disband'} disabled={!!loading}
             onClick={handleDisbandTribe}>
-            Disband Forever
+            פרק לצמיתות
           </Button>
         </div>
       </Modal>

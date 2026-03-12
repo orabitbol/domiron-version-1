@@ -173,7 +173,7 @@ function AttackRow({ row, perspective, isLast }: AttackRowProps) {
             fontFamily: 'var(--font-heading, sans-serif)',
             letterSpacing: '0.07em', textTransform: 'uppercase' as const,
           }}>
-            {isWin ? 'Victory' : 'Defeat'}
+            {isWin ? 'ניצחון' : 'הפסד'}
           </div>
           <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-body, sans-serif)', marginTop: 3, whiteSpace: 'nowrap' as const }}>
             {date} {time}
@@ -193,14 +193,14 @@ function AttackRow({ row, perspective, isLast }: AttackRowProps) {
         {/* Losses */}
         <div style={{ flexShrink: 0, display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ textAlign: 'center' as const }}>
-            <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.65)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 2 }}>Lost</div>
+            <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.65)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 2 }}>אבדות</div>
             <div style={{ fontSize: 12, color: myLosses > 0 ? '#FF5555' : 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)' }}>
               {formatNumber(myLosses)}
             </div>
           </div>
           <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
           <div style={{ textAlign: 'center' as const }}>
-            <div style={{ fontSize: 9, color: 'rgba(80,208,128,0.65)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 2 }}>Killed</div>
+            <div style={{ fontSize: 9, color: 'rgba(80,208,128,0.65)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 2 }}>הרוגים</div>
             <div style={{ fontSize: 12, color: theirLosses > 0 ? '#50D080' : 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)' }}>
               {formatNumber(theirLosses)}
             </div>
@@ -378,9 +378,9 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
 
         {/* Army */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>Army</div>
+          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>צבא</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-            {[['Soldiers', soldiers], ['Cavalry', cavalry], ['Spies', spies], ['Scouts', scouts], ['Slaves', slaves]].map(([label, val]) => (
+            {[['חיילים', soldiers], ['פרשים', cavalry], ['מרגלים', spies], ['סיירים', scouts], ['עבדים', slaves]].map(([label, val]) => (
               <div key={label as string} style={fieldStyle}>
                 <span style={labelStyle}>{label}</span>
                 <span style={valStyle}>{formatNumber(val as number)}</span>
@@ -391,13 +391,13 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
 
         {/* Resources */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>Resources</div>
+          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>משאבים</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
             {[
-              ['Gold', gold, '#F0C030'],
-              ['Iron', iron, '#9898C0'],
-              ['Wood', wood, '#64B450'],
-              ['Food', food, '#F08C3C'],
+              ['זהב', gold, '#F0C030'],
+              ['ברזל', iron, '#9898C0'],
+              ['עץ', wood, '#64B450'],
+              ['מזון', food, '#F08C3C'],
             ].map(([label, val, color]) => (
               <div key={label as string} style={fieldStyle}>
                 <span style={labelStyle}>{label}</span>
@@ -406,8 +406,8 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             ))}
             {bankGold !== undefined && (
               <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-                <span style={labelStyle}>Bank</span>
-                <span style={{ ...valStyle, color: '#F0C030' }}>{formatNumber(bankGold)} gold</span>
+                <span style={labelStyle}>בנק</span>
+                <span style={{ ...valStyle, color: '#F0C030' }}>{formatNumber(bankGold)} זהב</span>
               </div>
             )}
           </div>
@@ -415,23 +415,23 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
 
         {/* Power + Shields */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>Power &amp; Shields</div>
+          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>כוח ומגנים</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', marginBottom: 8 }}>
-            <div style={fieldStyle}><span style={labelStyle}>Attack</span><span style={valStyle}>{formatNumber(pwrAtk)}</span></div>
-            <div style={fieldStyle}><span style={labelStyle}>Defense</span><span style={valStyle}>{formatNumber(pwrDef)}</span></div>
+            <div style={fieldStyle}><span style={labelStyle}>תקיפה</span><span style={valStyle}>{formatNumber(pwrAtk)}</span></div>
+            <div style={fieldStyle}><span style={labelStyle}>הגנה</span><span style={valStyle}>{formatNumber(pwrDef)}</span></div>
             <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Total</span>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>כולל</span>
               <span style={{ color: '#F0C030', fontWeight: 700 }}>{formatNumber(pwrTotal)}</span>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8 }}>
             {[
-              { label: 'Soldier Shield', active: soldierShield, color: '#60B0FF' },
-              { label: 'Resource Shield', active: resourceShield, color: '#F0C030' },
+              { label: 'מגן חיילים', active: soldierShield, color: '#60B0FF' },
+              { label: 'מגן משאבים', active: resourceShield, color: '#F0C030' },
             ].map(({ label, active, color }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontFamily: 'var(--font-body, sans-serif)' }}>
                 <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: active ? color : 'rgba(255,255,255,0.1)', border: `1px solid ${active ? color : 'rgba(255,255,255,0.2)'}`, boxShadow: active ? `0 0 6px ${color}` : 'none', flexShrink: 0 }} />
-                <span style={{ color: active ? color : 'rgba(255,255,255,0.3)' }}>{label} {active ? 'Active' : 'Inactive'}</span>
+                <span style={{ color: active ? color : 'rgba(255,255,255,0.3)' }}>{label} {active ? 'פעיל' : 'לא פעיל'}</span>
               </div>
             ))}
           </div>
@@ -440,10 +440,10 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
         {/* Weapons (new intel — only on missions after 2026-03-06) */}
         {hasWeapons && (
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
-            <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>Weapons</div>
+            <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>נשקים</div>
             {hasAtkWeapons && (
               <div style={{ marginBottom: 6 }}>
-                <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Attack</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>תקיפה</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(atkWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#FF8080', background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
@@ -455,7 +455,7 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             )}
             {hasDefWeapons && (
               <div>
-                <div style={{ fontSize: 9, color: 'rgba(240,192,48,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Defense</div>
+                <div style={{ fontSize: 9, color: 'rgba(240,192,48,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>הגנה</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(defWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#F0C030', background: 'rgba(240,192,48,0.08)', border: '1px solid rgba(240,192,48,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
@@ -467,8 +467,8 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             )}
             {hasTraining && (
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 12, fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.38)' }}>
-                {spyLevel !== undefined && <span>Spy: <span style={{ color: 'rgba(255,255,255,0.75)' }}>Lv {spyLevel}</span></span>}
-                {scoutLevel !== undefined && <span>Scout: <span style={{ color: 'rgba(255,255,255,0.75)' }}>Lv {scoutLevel}</span></span>}
+                {spyLevel !== undefined && <span>ריגול: <span style={{ color: 'rgba(255,255,255,0.75)' }}>רמה {spyLevel}</span></span>}
+                {scoutLevel !== undefined && <span>סיור: <span style={{ color: 'rgba(255,255,255,0.75)' }}>רמה {scoutLevel}</span></span>}
               </div>
             )}
           </div>
@@ -477,8 +477,8 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
         {/* Training only (no weapons) */}
         {!hasWeapons && hasTraining && (
           <div style={{ display: 'flex', gap: 12, fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.38)', alignItems: 'center' }}>
-            {spyLevel !== undefined && <span>Spy Lv: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{spyLevel}</span></span>}
-            {scoutLevel !== undefined && <span>Scout Lv: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{scoutLevel}</span></span>}
+            {spyLevel !== undefined && <span>ריגול רמה: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{spyLevel}</span></span>}
+            {scoutLevel !== undefined && <span>סיור רמה: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{scoutLevel}</span></span>}
           </div>
         )}
 

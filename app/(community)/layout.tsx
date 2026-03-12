@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { loadPlayerData } from '@/lib/server/loadPlayerData'
 import { GameLayout } from '@/components/layout/GameLayout'
-import { Crown, ChevronLeft, LogIn, Trophy, Sword, Gift } from 'lucide-react'
+import { Crown, ChevronLeft, LogIn, Trophy, Sword, Gift, BookOpen } from 'lucide-react'
 
 /**
  * Hybrid layout for public-facing pages (Rankings, Hall of Fame, Prizes).
@@ -57,9 +57,10 @@ export default async function PublicLayout({
         {/* Sub-nav */}
         <nav className="flex items-center gap-1 ms-3">
           {[
-            { href: '/rankings',   Icon: Sword,   label: 'Rankings'     },
-            { href: '/halloffame', Icon: Trophy,  label: 'Hall of Fame' },
-            { href: '/prizes',     Icon: Gift,    label: 'Prizes'       },
+            { href: '/rankings',   Icon: Sword,     label: 'דירוגים'      },
+            { href: '/halloffame', Icon: Trophy,    label: 'היכל התהילה'  },
+            { href: '/prizes',     Icon: Gift,      label: 'פרסים'        },
+            { href: '/guide',      Icon: BookOpen,  label: 'מדריך'        },
           ].map(({ href, Icon, label }) => (
             <Link
               key={href}
@@ -90,7 +91,7 @@ export default async function PublicLayout({
           ].join(' ')}
         >
           <LogIn className="size-3.5" />
-          Play
+          שחק
         </Link>
       </header>
 

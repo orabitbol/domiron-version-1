@@ -52,6 +52,14 @@ export function useOnboarding(): OnboardingContextValue {
   return ctx
 }
 
+/**
+ * Safe variant — returns null when called outside OnboardingProvider.
+ * Used by pages that render in both game (auth) and public (guest) layouts.
+ */
+export function useOnboardingMaybe(): OnboardingContextValue | null {
+  return useContext(OnboardingContext)
+}
+
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
 function readStoredStep(): number {

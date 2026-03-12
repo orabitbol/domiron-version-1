@@ -123,7 +123,7 @@ export function OnboardingTour() {
               onMouseEnter={e => (e.currentTarget.style.color = 'rgba(201,144,26,0.85)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'rgba(201,144,26,0.45)')}
             >
-              Skip tour
+              דלג על הסיור
             </button>
           )}
         </div>
@@ -174,7 +174,7 @@ export function OnboardingTour() {
             disabled={isFirst}
             className="text-xs"
           >
-            ← Back
+            ← חזור
           </Button>
 
           <Button
@@ -184,7 +184,7 @@ export function OnboardingTour() {
             className="text-xs"
             style={{ minWidth: 120 }}
           >
-            {isLast ? 'Start Playing →' : 'Next →'}
+            {isLast ? 'התחל לשחק →' : 'הבא →'}
           </Button>
         </div>
       </div>

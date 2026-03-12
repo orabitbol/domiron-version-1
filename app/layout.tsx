@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
+import { NextIntlClientProvider } from 'next-intl'
 import { Providers } from '@/components/Providers'
 import './globals.css'
 
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
   description: 'A real-time browser-based multiplayer strategy game',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
@@ -18,6 +19,7 @@ export default function RootLayout({
   const validLocales = ['he', 'en']
   const resolvedLocale = validLocales.includes(locale) ? locale : 'he'
   const dir = resolvedLocale === 'he' ? 'rtl' : 'ltr'
+  const messages = (await import(`../messages/${resolvedLocale}.json`)).default
 
   return (
     <html lang={resolvedLocale} dir={dir}>
@@ -26,7 +28,11 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body><Providers>{children}</Providers></body>
+      <body>
+        <NextIntlClientProvider locale={resolvedLocale} messages={messages}>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
+      </body>
     </html>
   )
 }

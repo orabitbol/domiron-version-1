@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { cn, formatNumber, formatCountdown } from "@/lib/utils";
 import { usePlayer } from "@/lib/context/PlayerContext";
 import { useTickCountdownState } from "@/lib/context/TickContext";
@@ -140,6 +141,7 @@ function ResourceChip({
 export function Sidebar() {
   const pathname = usePathname();
   const { player, resources, hero } = usePlayer();
+  const t = useTranslations();
 
   const cityName = player
     ? (BALANCE.cities.names[player.city] ?? `City ${player.city}`)
@@ -185,16 +187,16 @@ export function Sidebar() {
         </div>
 
         {/* Ranking */}
-        <SectionLabel label="Ranking" />
+        <SectionLabel label={t('sidebar.ranking')} />
         <div className="px-3 pb-2 pt-0.5 space-y-0.5">
           <div className="flex items-center justify-between text-[10px] font-body">
-            <span className="text-game-text-secondary">Global Rank</span>
+            <span className="text-game-text-secondary">{t('sidebar.global_rank')}</span>
             <span className="font-semibold text-game-gold-bright tabular-nums">
               {player?.rank_global != null ? `#${player.rank_global}` : "—"}
             </span>
           </div>
           <div className="flex items-center justify-between text-[10px] font-body">
-            <span className="text-game-text-secondary">City Rank</span>
+            <span className="text-game-text-secondary">{t('sidebar.city_rank')}</span>
             <span className="font-semibold text-game-gold-bright tabular-nums">
               {player?.rank_city != null ? `#${player.rank_city}` : "—"}
             </span>
@@ -202,7 +204,7 @@ export function Sidebar() {
         </div>
 
         {/* Resources — icon + number only */}
-        <SectionLabel label="Resources" />
+        <SectionLabel label={t('sidebar.resources')} />
         <div className="px-3 pb-2 pt-0.5 flex flex-wrap gap-x-3 gap-y-1.5">
           <ResourceChip
             emoji="🪙"
@@ -234,7 +236,7 @@ export function Sidebar() {
         </div>
 
         {/* Status — תורות + טיק הבא קרוב */}
-        <SectionLabel label="Status" />
+        <SectionLabel label={t('sidebar.status')} />
         <div className="px-3 pb-2 pt-0.5 flex items-center gap-3 text-[10px]">
           <div className="flex items-center gap-1">
             <Zap className="size-3 text-res-turns shrink-0" />
@@ -254,7 +256,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <SectionLabel label="Navigation" />
+        <SectionLabel label={t('sidebar.navigation')} />
         <nav className="flex-1 py-1 min-h-0 space-y-0.5">
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const isActive =

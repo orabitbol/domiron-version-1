@@ -35,42 +35,42 @@ import type { Weapons, Resources } from "@/types/game";
 type TabKey = "attack" | "defense" | "spy" | "scout";
 
 const TABS = [
-  { key: "attack",  label: "Arsenal", icon: "⚔️" },
-  { key: "defense", label: "Armory",  icon: "🛡️" },
-  { key: "spy",     label: "Shadows", icon: "🌑" },
-  { key: "scout",   label: "Rangers", icon: "👁️" },
+  { key: "attack",  label: "תקיפה",  icon: "⚔️" },
+  { key: "defense", label: "הגנה",   icon: "🛡️" },
+  { key: "spy",     label: "ריגול",  icon: "🌑" },
+  { key: "scout",   label: "סיור",   icon: "👁️" },
 ];
 
 const ATTACK_WEAPONS = [
-  { key: "slingshot",    label: "Slingshot"    },
-  { key: "boomerang",    label: "Boomerang"    },
-  { key: "pirate_knife", label: "Pirate Knife" },
-  { key: "axe",          label: "Axe"          },
-  { key: "master_knife", label: "Master Knife" },
-  { key: "knight_axe",   label: "Knight Axe"   },
-  { key: "iron_ball",    label: "Iron Ball"    },
+  { key: "slingshot",    label: "קלע"          },
+  { key: "boomerang",    label: "בומרנג"        },
+  { key: "pirate_knife", label: "סכין פיראטים" },
+  { key: "axe",          label: "גרזן"         },
+  { key: "master_knife", label: "סכין מאסטר"   },
+  { key: "knight_axe",   label: "גרזן אביר"    },
+  { key: "iron_ball",    label: "כדור ברזל"    },
 ] as const;
 
 const DEFENSE_WEAPONS = [
-  { key: "wood_shield",   label: "Wood Shield"   },
-  { key: "iron_shield",   label: "Iron Shield"   },
-  { key: "leather_armor", label: "Leather Armor" },
-  { key: "chain_armor",   label: "Chain Armor"   },
-  { key: "plate_armor",   label: "Plate Armor"   },
-  { key: "mithril_armor", label: "Mithril Armor" },
-  { key: "gods_armor",    label: "God's Armor"   },
+  { key: "wood_shield",   label: "מגן עץ"        },
+  { key: "iron_shield",   label: "מגן ברזל"      },
+  { key: "leather_armor", label: "שריון עור"     },
+  { key: "chain_armor",   label: "שריון שרשרת"   },
+  { key: "plate_armor",   label: "שריון פלדה"    },
+  { key: "mithril_armor", label: "שריון מיתריל"  },
+  { key: "gods_armor",    label: "שריון האלים"   },
 ] as const;
 
 const SPY_WEAPONS = [
-  { key: "shadow_cloak", label: "Shadow Cloak" },
-  { key: "dark_mask",    label: "Dark Mask"    },
-  { key: "elven_gear",   label: "Elven Gear"   },
+  { key: "shadow_cloak", label: "גלימת צל"   },
+  { key: "dark_mask",    label: "מסכת חושך"  },
+  { key: "elven_gear",   label: "ציוד אלפים" },
 ] as const;
 
 const SCOUT_WEAPONS = [
-  { key: "scout_boots", label: "Scout Boots" },
-  { key: "scout_cloak", label: "Scout Cloak" },
-  { key: "elven_boots", label: "Elven Boots" },
+  { key: "scout_boots", label: "מגפי סייר"   },
+  { key: "scout_cloak", label: "גלימת סייר"  },
+  { key: "elven_boots", label: "מגפי אלפים"  },
 ] as const;
 
 const ROMAN = ["I", "II", "III"] as const;
@@ -93,7 +93,7 @@ interface TierStyle {
 
 const TIER: Record<TierKey, TierStyle> = {
   rustic: {
-    label: "Rustic",
+    label: "גסי",
     textColor: "rgba(162,140,105,0.85)",
     iconBg: "rgba(38,30,18,0.95)",
     iconBorder: "rgba(105,88,58,0.55)",
@@ -104,7 +104,7 @@ const TIER: Record<TierKey, TierStyle> = {
     badgeBorder: "rgba(105,88,58,0.45)",
   },
   iron: {
-    label: "Iron",
+    label: "ברזלי",
     textColor: "rgba(130,170,225,0.9)",
     iconBg: "rgba(16,32,62,0.95)",
     iconBorder: "rgba(75,115,180,0.6)",
@@ -115,7 +115,7 @@ const TIER: Record<TierKey, TierStyle> = {
     badgeBorder: "rgba(75,115,180,0.45)",
   },
   forged: {
-    label: "Forged",
+    label: "מחושל",
     textColor: "rgba(72,208,162,0.9)",
     iconBg: "rgba(8,42,36,0.95)",
     iconBorder: "rgba(50,150,120,0.6)",
@@ -126,7 +126,7 @@ const TIER: Record<TierKey, TierStyle> = {
     badgeBorder: "rgba(50,150,120,0.45)",
   },
   runic: {
-    label: "Runic",
+    label: "רוני",
     textColor: "rgba(192,118,255,0.9)",
     iconBg: "rgba(32,14,62,0.95)",
     iconBorder: "rgba(148,75,220,0.6)",
@@ -137,7 +137,7 @@ const TIER: Record<TierKey, TierStyle> = {
     badgeBorder: "rgba(148,75,220,0.45)",
   },
   divine: {
-    label: "Divine",
+    label: "אלוהי",
     textColor: "rgba(240,200,52,1.0)",
     iconBg: "rgba(48,34,6,0.98)",
     iconBorder: "rgba(201,144,26,0.78)",
@@ -448,9 +448,9 @@ export function ShopClient() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ text: data.error ?? "Purchase failed", type: "error" });
+        setMessage({ text: data.error ?? "רכישה נכשלה", type: "error" });
       } else {
-        setMessage({ text: `Purchased ${amt}× ${weaponKey.replace(/_/g, " ")}`, type: "success" });
+        setMessage({ text: `נרכש ${amt}× ${weaponKey.replace(/_/g, " ")}`, type: "success" });
         setAmounts((p) => {
           if (!(weaponKey in p)) return p;
           const next = { ...p };
@@ -462,7 +462,7 @@ export function ShopClient() {
         refresh();
       }
     } catch {
-      setMessage({ text: "Network error", type: "error" });
+      setMessage({ text: "שגיאת רשת", type: "error" });
     } finally {
       setLoading(null);
     }
@@ -480,9 +480,9 @@ export function ShopClient() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ text: data.error ?? "Sale failed", type: "error" });
+        setMessage({ text: data.error ?? "מכירה נכשלה", type: "error" });
       } else {
-        setMessage({ text: `Sold ${amt}× ${weaponKey.replace(/_/g, " ")}`, type: "success" });
+        setMessage({ text: `נמכר ${amt}× ${weaponKey.replace(/_/g, " ")}`, type: "success" });
         setAmounts((p) => {
           if (!(weaponKey in p)) return p;
           const next = { ...p };
@@ -494,7 +494,7 @@ export function ShopClient() {
         refresh();
       }
     } catch {
-      setMessage({ text: "Network error", type: "error" });
+      setMessage({ text: "שגיאת רשת", type: "error" });
     } finally {
       setLoading(null);
     }
@@ -529,10 +529,10 @@ export function ShopClient() {
       <div className="rounded-game-lg border border-game-border overflow-hidden bg-gradient-to-b from-game-elevated to-game-surface">
         <div className="flex divide-x divide-game-border/50">
           {[
-            { icon: "🪙", label: "Gold",  value: resourceState.gold,  color: "text-res-gold"  },
-            { icon: "⚙️", label: "Iron",  value: resourceState.iron,  color: "text-res-iron"  },
-            { icon: "🪵", label: "Wood",  value: resourceState.wood,  color: "text-res-wood"  },
-            { icon: "🌾", label: "Food",  value: resourceState.food,  color: "text-res-food"  },
+            { icon: "🪙", label: "זהב",  value: resourceState.gold,  color: "text-res-gold"  },
+            { icon: "⚙️", label: "ברזל", value: resourceState.iron,  color: "text-res-iron"  },
+            { icon: "🪵", label: "עץ",   value: resourceState.wood,  color: "text-res-wood"  },
+            { icon: "🌾", label: "מזון", value: resourceState.food,  color: "text-res-food"  },
           ].map(({ icon, label, value, color }) => (
             <div
               key={label}

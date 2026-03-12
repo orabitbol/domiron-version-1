@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { Sword, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BALANCE } from '@/lib/game/balance'
 import { Modal } from '@/components/ui/modal'
@@ -51,6 +52,7 @@ export function AttackDialog({
   loading,
   isFrozen,
 }: AttackDialogProps) {
+  const t = useTranslations()
   const [tab, setTab] = useState<ActionTab>('attack')
   const [turns, setTurns] = useState(1)
   const [spiesSent, setSpiesSent] = useState(1)
@@ -90,7 +92,7 @@ export function AttackDialog({
   }
 
   return (
-    <Modal isOpen={!!target} onClose={onClose} title="Action" size="md">
+    <Modal isOpen={!!target} onClose={onClose} title={t('dialog.action_title')} size="md">
       {target && (
         <div className="space-y-4">
 
@@ -108,11 +110,11 @@ export function AttackDialog({
               <div className="text-right space-y-0.5">
                 {target.rank_city != null && (
                   <p className="font-body text-game-xs text-game-text-muted">
-                    Rank <span className="text-game-gold font-semibold">#{target.rank_city}</span>
+                    {t('dialog.rank_label')} <span className="text-game-gold font-semibold">#{target.rank_city}</span>
                   </p>
                 )}
                 <p className="font-body text-game-xs text-game-text-muted">
-                  Soldiers: <span className="text-game-text-white font-semibold">{formatNumber(target.soldiers)}</span>
+                  {t('dialog.soldiers_label')} <span className="text-game-text-white font-semibold">{formatNumber(target.soldiers)}</span>
                 </p>
               </div>
             </div>
@@ -129,7 +131,7 @@ export function AttackDialog({
               }`}
             >
               <Sword className="size-4" />
-              Attack
+              {t('dialog.tab_attack')}
             </button>
             <button
               onClick={() => setTab('spy')}
@@ -140,7 +142,7 @@ export function AttackDialog({
               }`}
             >
               <Eye className="size-4" />
-              Spy
+              {t('dialog.tab_spy')}
             </button>
           </div>
 
@@ -150,7 +152,7 @@ export function AttackDialog({
 
               {/* Turn stepper + range slider */}
               <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Turns</p>
+                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.turns_header')}</p>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => clampTurns(turns - 1)}
@@ -182,28 +184,28 @@ export function AttackDialog({
 
               {/* Cost preview */}
               <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Cost Preview</p>
+                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.cost_preview')}</p>
                 <div className="space-y-1.5 font-body text-game-sm">
                   <div className="flex justify-between">
-                    <span className="text-game-text-secondary">Turns</span>
+                    <span className="text-game-text-secondary">{t('dialog.turns_row')}</span>
                     <span className={notEnoughTurns ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
-                      {turns} / {playerTurns} available
+                      {turns} / {playerTurns} {t('dialog.available')}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-game-text-secondary">Soldiers</span>
+                    <span className="text-game-text-secondary">{t('dialog.soldiers_row')}</span>
                     <span className={noSoldiers ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
                       {formatNumber(armySoldiers)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-game-text-secondary">Food Cost</span>
+                    <span className="text-game-text-secondary">{t('dialog.food_cost')}</span>
                     <span className={notEnoughFood ? 'text-game-red-bright font-semibold' : undefined}>
                       <ResourceBadge type="food" amount={foodCost} />
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-game-text-secondary">Food Available</span>
+                    <span className="text-game-text-secondary">{t('dialog.food_available')}</span>
                     <ResourceBadge type="food" amount={playerFood} />
                   </div>
                 </div>
@@ -212,19 +214,19 @@ export function AttackDialog({
               {/* Outcome descriptions */}
               <div className="grid grid-cols-2 gap-2 text-game-xs font-body">
                 <div className="bg-game-green/5 border border-green-900/40 rounded-game-lg p-2.5">
-                  <p className="font-heading uppercase text-game-green-bright mb-1.5">Victory</p>
+                  <p className="font-heading uppercase text-game-green-bright mb-1.5">{t('dialog.victory_title')}</p>
                   <ul className="space-y-0.5 text-game-text-secondary">
-                    <li>› Enemy soldiers lost</li>
-                    <li>› You gain loot</li>
-                    <li>› Captives possible</li>
+                    <li>› {t('dialog.victory_1')}</li>
+                    <li>› {t('dialog.victory_2')}</li>
+                    <li>› {t('dialog.victory_3')}</li>
                   </ul>
                 </div>
                 <div className="bg-game-red/5 border border-red-900/40 rounded-game-lg p-2.5">
-                  <p className="font-heading uppercase text-game-red-bright mb-1.5">Defeat</p>
+                  <p className="font-heading uppercase text-game-red-bright mb-1.5">{t('dialog.defeat_title')}</p>
                   <ul className="space-y-0.5 text-game-text-secondary">
-                    <li>› Your soldiers lost</li>
-                    <li>› No loot gained</li>
-                    <li>› Food still spent</li>
+                    <li>› {t('dialog.defeat_1')}</li>
+                    <li>› {t('dialog.defeat_2')}</li>
+                    <li>› {t('dialog.defeat_3')}</li>
                   </ul>
                 </div>
               </div>
@@ -232,14 +234,14 @@ export function AttackDialog({
               {/* Validation errors */}
               {(noSoldiers || notEnoughFood || notEnoughTurns) && (
                 <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright space-y-0.5">
-                  {noSoldiers && <p>Not enough soldiers</p>}
-                  {!noSoldiers && notEnoughFood && <p>Not enough food</p>}
-                  {notEnoughTurns && <p>Not enough turns</p>}
+                  {noSoldiers && <p>{t('dialog.no_soldiers')}</p>}
+                  {!noSoldiers && notEnoughFood && <p>{t('dialog.no_food')}</p>}
+                  {notEnoughTurns && <p>{t('dialog.no_turns')}</p>}
                 </div>
               )}
               {target.is_vacation && (
                 <div className="rounded-game-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 font-body text-game-sm text-amber-400">
-                  This target is on vacation — cannot attack
+                  {t('dialog.vacation_attack')}
                 </div>
               )}
 
@@ -252,9 +254,9 @@ export function AttackDialog({
                   className="flex-1"
                 >
                   <Sword className="size-4" />
-                  Attack!
+                  {t('dialog.attack_btn')}
                 </Button>
-                <Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button>
+                <Button variant="ghost" disabled={loading} onClick={onClose}>{t('dialog.cancel_btn')}</Button>
               </div>
             </div>
           )}
@@ -265,7 +267,7 @@ export function AttackDialog({
 
               {/* Spies stepper */}
               <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Spies to Send</p>
+                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.spies_to_send')}</p>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => clampSpies(spiesSent - 1)}
@@ -289,16 +291,16 @@ export function AttackDialog({
 
               {/* Requirements */}
               <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">Requirements</p>
+                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.requirements')}</p>
                 <div className="space-y-1.5 font-body text-game-sm">
                   <div className="flex justify-between">
-                    <span className="text-game-text-secondary">Turn Cost</span>
+                    <span className="text-game-text-secondary">{t('dialog.turn_cost')}</span>
                     <span className={notEnoughSpyTurns ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
-                      {spyTurnCost} turn ({playerTurns} available)
+                      {spyTurnCost} {t('dialog.turn_singular')} ({playerTurns} {t('dialog.available')})
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-game-text-secondary">Spies Available</span>
+                    <span className="text-game-text-secondary">{t('dialog.spies_available')}</span>
                     <span className={notEnoughSpies ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
                       {formatNumber(armySpies)}
                     </span>
@@ -309,26 +311,26 @@ export function AttackDialog({
               {/* Outcome descriptions */}
               <div className="space-y-2 text-game-xs font-body">
                 <div className="bg-game-green/5 border border-green-900/40 rounded-game-lg p-2.5">
-                  <p className="font-heading uppercase text-game-green-bright mb-1.5">Success</p>
+                  <p className="font-heading uppercase text-game-green-bright mb-1.5">{t('dialog.spy_success')}</p>
                   <ul className="space-y-0.5 text-game-text-secondary">
-                    <li>› Reveals enemy army size</li>
-                    <li>› Reveals enemy resources</li>
-                    <li>› Reveals active shields</li>
+                    <li>› {t('dialog.spy_success_1')}</li>
+                    <li>› {t('dialog.spy_success_2')}</li>
+                    <li>› {t('dialog.spy_success_3')}</li>
                   </ul>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-game-red/5 border border-red-900/40 rounded-game-lg p-2.5">
-                    <p className="font-heading uppercase text-game-red-bright mb-1.5">Failure</p>
+                    <p className="font-heading uppercase text-game-red-bright mb-1.5">{t('dialog.spy_failure')}</p>
                     <ul className="space-y-0.5 text-game-text-secondary">
-                      <li>› Spies caught</li>
-                      <li>› No intel gained</li>
+                      <li>› {t('dialog.spy_failure_1')}</li>
+                      <li>› {t('dialog.spy_failure_2')}</li>
                     </ul>
                   </div>
                   <div className="bg-amber-950/20 border border-amber-900/40 rounded-game-lg p-2.5">
-                    <p className="font-heading uppercase text-amber-400 mb-1.5">Critical</p>
+                    <p className="font-heading uppercase text-amber-400 mb-1.5">{t('dialog.spy_critical')}</p>
                     <ul className="space-y-0.5 text-game-text-secondary">
-                      <li>› All spies lost</li>
-                      <li>› Enemy alerted</li>
+                      <li>› {t('dialog.spy_critical_1')}</li>
+                      <li>› {t('dialog.spy_critical_2')}</li>
                     </ul>
                   </div>
                 </div>
@@ -337,19 +339,19 @@ export function AttackDialog({
               {/* Validation errors */}
               {(notEnoughSpyTurns || notEnoughSpies) && (
                 <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright space-y-0.5">
-                  {notEnoughSpyTurns && <p>Not enough turns (need {spyTurnCost})</p>}
+                  {notEnoughSpyTurns && <p>{t('dialog.no_spy_turns').replace('{need}', String(spyTurnCost))}</p>}
                   {!notEnoughSpyTurns && notEnoughSpies && (
                     <p>
                       {armySpies < BALANCE.spy.minSpies
-                        ? `Need at least ${BALANCE.spy.minSpies} spy`
-                        : `Cannot send more spies than you have (${armySpies} available)`}
+                        ? t('dialog.min_spies').replace('{min}', String(BALANCE.spy.minSpies))
+                        : t('dialog.max_spies').replace('{count}', String(armySpies))}
                     </p>
                   )}
                 </div>
               )}
               {target.is_vacation && (
                 <div className="rounded-game-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 font-body text-game-sm text-amber-400">
-                  This target is on vacation — cannot spy
+                  {t('dialog.vacation_spy')}
                 </div>
               )}
 
@@ -362,9 +364,9 @@ export function AttackDialog({
                   className="flex-1"
                 >
                   <Eye className="size-4" />
-                  Send Spies
+                  {t('dialog.send_spies')}
                 </Button>
-                <Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button>
+                <Button variant="ghost" disabled={loading} onClick={onClose}>{t('dialog.cancel_btn')}</Button>
               </div>
             </div>
           )}

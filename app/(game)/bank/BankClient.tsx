@@ -50,7 +50,7 @@ export function BankClient() {
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoading(null)
     }
@@ -78,7 +78,7 @@ export function BankClient() {
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoading(null)
     }
@@ -91,15 +91,15 @@ export function BankClient() {
       const res = await fetch('/api/bank/upgrade', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ text: data.error ?? 'Upgrade failed', type: 'error' })
+        setMessage({ text: data.error ?? 'שדרוג נכשל', type: 'error' })
       } else {
-        setMessage({ text: 'Interest rate upgraded!', type: 'success' })
+        setMessage({ text: 'ריבית שודרגה!', type: 'success' })
         if (data.bank)      applyPatch({ bank: data.bank })
         if (data.resources) applyPatch({ resources: data.resources })
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoading(null)
     }
@@ -110,10 +110,10 @@ export function BankClient() {
       {/* Header */}
       <div>
         <h1 className="font-display text-game-3xl gold-gradient-text-static uppercase tracking-wide text-title-glow">
-          The Treasury
+          האוצר
         </h1>
         <p className="text-game-text-secondary font-body mt-1">
-          Protect your gold from raiders and earn interest
+          הגן על הזהב שלך מגנבים והרוויח ריבית
         </p>
       </div>
 
@@ -134,33 +134,33 @@ export function BankClient() {
       <div className="panel-ornate rounded-game-lg p-6 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">Bank Balance</p>
+            <p className="font-heading text-game-sm uppercase tracking-wider text-game-text-secondary">יתרת בנק</p>
             <p className="font-display text-game-3xl text-game-gold mt-1">{formatNumber(currentBank.balance)}</p>
             <ResourceBadge type="gold" amount={currentBank.balance} />
           </div>
           <Badge variant="green">
-            {(BALANCE.bank.theftProtection * 100).toFixed(0)}% Theft Proof
+            {(BALANCE.bank.theftProtection * 100).toFixed(0)}% מוגן מגניבה
           </Badge>
         </div>
 
         <div className="divider-gold" />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div>
-            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Interest Rate</p>
+            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">ריבית</p>
             <p className="text-game-base text-game-gold font-body font-semibold">
-              {interestRate.toFixed(2)}%/tick
+              {interestRate.toFixed(2)}%/טיק
             </p>
-            <p className="text-game-xs text-game-text-muted font-body">Level {currentBank.interest_level}</p>
+            <p className="text-game-xs text-game-text-muted font-body">רמה {currentBank.interest_level}</p>
           </div>
           <div>
-            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Deposits Today</p>
+            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">הפקדות היום</p>
             <p className="text-game-base text-game-text-white font-body font-semibold">
               {currentBank.deposits_today} / {BALANCE.bank.depositsPerDay}
             </p>
-            <p className="text-game-xs text-game-text-muted font-body">{depositsRemaining} remaining</p>
+            <p className="text-game-xs text-game-text-muted font-body">{depositsRemaining} נותרו</p>
           </div>
           <div>
-            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">Gold on Hand</p>
+            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">זהב ביד</p>
             <p className="text-game-base text-game-gold font-body font-semibold">
               {formatNumber(currentResources.gold)}
             </p>
@@ -173,26 +173,26 @@ export function BankClient() {
         {/* Deposit */}
         <div className="card-game rounded-game-lg p-4 space-y-3">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Deposit Gold</h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">הפקד זהב</h2>
           </div>
           <p className="text-game-xs text-game-text-muted font-body">
-            Max deposit: {formatNumber(maxDeposit)} ({(BALANCE.bank.maxDepositPercent * 100).toFixed(0)}% of gold on hand).
+            מקסימום הפקדה: {formatNumber(maxDeposit)} ({(BALANCE.bank.maxDepositPercent * 100).toFixed(0)}% מהזהב ביד).
             {depositsRemaining <= 0 && (
-              <span className="text-game-red-bright"> No deposits remaining today.</span>
+              <span className="text-game-red-bright"> לא נותרו הפקדות להיום.</span>
             )}
           </p>
           <Input
             type="number"
-            label="Amount"
-            placeholder="Enter amount"
+            label="כמות"
+            placeholder="הכנס כמות"
             value={depositAmt}
             min={1}
             max={maxDeposit}
             onChange={(e) => setDepositAmt(e.target.value)}
-            suffix="Gold"
+            suffix="זהב"
           />
           <div className="flex gap-2">
-            <Button variant="success" size="sm" onClick={() => setDepositAmt(String(maxDeposit))}>Max</Button>
+            <Button variant="success" size="sm" onClick={() => setDepositAmt(String(maxDeposit))}>מקס</Button>
             <Button
               variant="primary"
               disabled={
@@ -202,7 +202,7 @@ export function BankClient() {
               loading={loading === 'deposit'}
               onClick={handleDeposit}
             >
-              Deposit
+              הפקד
             </Button>
           </div>
         </div>
@@ -210,23 +210,23 @@ export function BankClient() {
         {/* Withdraw */}
         <div className="card-game rounded-game-lg p-4 space-y-3">
           <div className="panel-header">
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">Withdraw Gold</h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-text-white">משוך זהב</h2>
           </div>
           <p className="text-game-xs text-game-text-muted font-body">
-            Available to withdraw: {formatNumber(currentBank.balance)} Gold
+            זמין למשיכה: {formatNumber(currentBank.balance)} זהב
           </p>
           <Input
             type="number"
-            label="Amount"
-            placeholder="Enter amount"
+            label="כמות"
+            placeholder="הכנס כמות"
             value={withdrawAmt}
             min={1}
             max={currentBank.balance}
             onChange={(e) => setWithdrawAmt(e.target.value)}
-            suffix="Gold"
+            suffix="זהב"
           />
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setWithdrawAmt(String(currentBank.balance))}>All</Button>
+            <Button variant="ghost" size="sm" onClick={() => setWithdrawAmt(String(currentBank.balance))}>הכל</Button>
             <Button
               variant="ghost"
               disabled={
@@ -236,7 +236,7 @@ export function BankClient() {
               loading={loading === 'withdraw'}
               onClick={handleWithdraw}
             >
-              Withdraw
+              משוך
             </Button>
           </div>
         </div>
@@ -246,17 +246,17 @@ export function BankClient() {
       <div className="card-game rounded-game-lg p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Upgrade Interest Rate</h2>
+            <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">שדרג ריבית</h2>
             <p className="text-game-sm text-game-text-secondary font-body mt-1">
-              Next level rate: {((BALANCE.bank.INTEREST_RATE_BY_LEVEL[currentBank.interest_level + 1] ?? 0) * 100).toFixed(2)}%.
-              Current: Level {currentBank.interest_level} ({interestRate.toFixed(2)}%/tick)
+              ריבית הרמה הבאה: {((BALANCE.bank.INTEREST_RATE_BY_LEVEL[currentBank.interest_level + 1] ?? 0) * 100).toFixed(2)}%.
+              כעת: רמה {currentBank.interest_level} ({interestRate.toFixed(2)}%/טיק)
             </p>
             <div className="mt-2 flex items-center gap-2">
-              <span className="text-game-xs text-game-text-muted font-body">Cost:</span>
+              <span className="text-game-xs text-game-text-muted font-body">עלות:</span>
               <ResourceBadge type="gold" amount={upgradeCost} />
             </div>
             <p className="text-game-xs text-game-text-muted font-body mt-1">
-              You have: {formatNumber(currentResources.gold)} Gold
+              ברשותך: {formatNumber(currentResources.gold)} זהב
             </p>
           </div>
           <Button
@@ -265,7 +265,7 @@ export function BankClient() {
             loading={loading === 'upgrade'}
             onClick={handleUpgrade}
           >
-            Upgrade
+            שדרג
           </Button>
         </div>
       </div>

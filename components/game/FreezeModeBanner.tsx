@@ -17,7 +17,7 @@ export function FreezeModeBanner() {
       style={{ background: 'rgba(69,10,10,0.92)', borderBottom: '1px solid rgba(185,28,28,0.5)' }}
     >
       <p className="font-heading text-[11px] uppercase tracking-widest text-red-300">
-        ❄ Season Ended — Freeze Mode · Browse freely, all actions are locked
+        ❄ העונה הסתיימה — מצב הקפאה · ניתן לגלוש, כל הפעולות נעולות
       </p>
     </div>
   )

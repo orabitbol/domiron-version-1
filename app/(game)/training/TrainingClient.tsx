@@ -14,18 +14,18 @@ type BasicUnit = 'soldier' | 'slave' | 'spy' | 'scout' | 'cavalry'
 type AdvancedType  = 'attack' | 'defense' | 'spy' | 'scout'
 
 const UNIT_LABELS: Record<BasicUnit, string> = {
-  soldier: 'Soldier',
-  slave:   'Slave',
-  spy:     'Spy',
-  scout:   'Scout',
-  cavalry: 'Cavalry',
+  soldier: 'חייל',
+  slave:   'עבד',
+  spy:     'מרגל',
+  scout:   'סייר',
+  cavalry: 'פרש',
 }
 
 const ADVANCED_LABELS: Record<AdvancedType, string> = {
-  attack:  'Attack',
-  defense: 'Defense',
-  spy:     'Spy',
-  scout:   'Scout',
+  attack:  'תקיפה',
+  defense: 'הגנה',
+  spy:     'ריגול',
+  scout:   'סיור',
 }
 
 export function TrainingClient() {
@@ -54,16 +54,16 @@ export function TrainingClient() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ text: data.error ?? 'Training failed', type: 'error' })
+        setMessage({ text: data.error ?? 'אימון נכשל', type: 'error' })
       } else {
-        setMessage({ text: `Trained ${formatNumber(amt)} ${UNIT_LABELS[unit]}(s)`, type: 'success' })
+        setMessage({ text: `אומן ${formatNumber(amt)} ${UNIT_LABELS[unit]}`, type: 'success' })
         setTrainAmts((prev) => ({ ...prev, [unit]: '' }))
         if (data.data?.army)      applyPatch({ army: data.data.army })
         if (data.data?.resources) applyPatch({ resources: data.data.resources })
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoadingUnit(null)
     }
@@ -82,14 +82,14 @@ export function TrainingClient() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ text: data.error ?? 'Upgrade failed', type: 'error' })
+        setMessage({ text: data.error ?? 'שדרוג נכשל', type: 'error' })
       } else {
-        setMessage({ text: `${ADVANCED_LABELS[type]} upgraded to Lv ${(training?.[`${type}_level` as keyof Training] as number ?? 0) + 1}`, type: 'success' })
+        setMessage({ text: `${ADVANCED_LABELS[type]} שודרג לרמה ${(training?.[`${type}_level` as keyof Training] as number ?? 0) + 1}`, type: 'success' })
         if (data.data?.resources) applyPatch({ resources: data.data.resources })
         refresh()
       }
     } catch {
-      setMessage({ text: 'Network error', type: 'error' })
+      setMessage({ text: 'שגיאת רשת', type: 'error' })
     } finally {
       setLoadingAdv(null)
     }
@@ -157,10 +157,10 @@ export function TrainingClient() {
       <div className="rounded-game-lg border border-game-gold/30 bg-gradient-to-r from-game-gold/8 via-game-surface/80 to-game-surface/80 shadow-emboss overflow-hidden">
         <div className="flex divide-x divide-game-gold/15">
           {[
-            { icon: '🪙', label: 'Gold', value: resources?.gold ?? 0, color: 'text-res-gold' },
-            { icon: '⚙️', label: 'Iron', value: resources?.iron ?? 0, color: 'text-res-iron' },
-            { icon: '🪵', label: 'Wood', value: resources?.wood ?? 0, color: 'text-res-wood' },
-            { icon: '🌾', label: 'Food', value: resources?.food ?? 0, color: 'text-res-food' },
+            { icon: '🪙', label: 'זהב',  value: resources?.gold ?? 0, color: 'text-res-gold' },
+            { icon: '⚙️', label: 'ברזל', value: resources?.iron ?? 0, color: 'text-res-iron' },
+            { icon: '🪵', label: 'עץ',   value: resources?.wood ?? 0, color: 'text-res-wood' },
+            { icon: '🌾', label: 'מזון', value: resources?.food ?? 0, color: 'text-res-food' },
           ].map(({ icon, label, value, color }) => (
             <div key={label} className="flex-1 flex flex-col items-center py-3 px-2 gap-1 min-w-0">
               <span className="text-base leading-none">{icon}</span>
@@ -179,18 +179,18 @@ export function TrainingClient() {
       <div className="rounded-game-lg border border-game-border bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave overflow-hidden">
         <div className="px-4 py-2 bg-game-bg/50 border-b border-game-border/60 flex items-center gap-2">
           <span className="text-sm leading-none">⚔️</span>
-          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-secondary">Current Army</span>
+          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-secondary">צבא נוכחי</span>
         </div>
         <div className="flex flex-wrap gap-2 p-3">
           {[
-            { icon: '🗡️', label: 'Soldiers', value: army?.soldiers        ?? 0 },
+            { icon: '🗡️', label: 'חיילים', value: army?.soldiers        ?? 0 },
             ...(BALANCE.training.enableCavalry
-              ? [{ icon: '🐴', label: 'Cavalry', value: army?.cavalry ?? 0 }]
+              ? [{ icon: '🐴', label: 'פרשים', value: army?.cavalry ?? 0 }]
               : []),
-            { icon: '👁️', label: 'Spies',    value: army?.spies           ?? 0 },
-            { icon: '🧭', label: 'Scouts',   value: army?.scouts          ?? 0 },
-            { icon: '⛏️', label: 'Slaves',   value: army?.slaves          ?? 0 },
-            { icon: '👥', label: 'Free Pop', value: army?.free_population ?? 0 },
+            { icon: '👁️', label: 'מרגלים', value: army?.spies           ?? 0 },
+            { icon: '🧭', label: 'סיירים', value: army?.scouts          ?? 0 },
+            { icon: '⛏️', label: 'עבדים',  value: army?.slaves          ?? 0 },
+            { icon: '👥', label: 'אוכ׳ חופשית', value: army?.free_population ?? 0 },
           ].map(({ icon, label, value }) => (
             <div
               key={label}
@@ -207,15 +207,15 @@ export function TrainingClient() {
       {/* ── Basic Training ──────────────────────────────────────────────── */}
       <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
         <div className="px-4 py-3 border-b border-game-border">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Basic Training</h2>
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">אימון בסיסי</h2>
         </div>
 
         {/* Column headers */}
         <div className="hidden sm:grid grid-cols-[1fr_80px_140px_180px_auto] gap-3 px-4 py-2 border-b border-game-border/50 bg-game-bg/40">
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Unit</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Owned</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Cost / Unit</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Amount</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">יחידה</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">ברשותך</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">עלות / יחידה</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">כמות</span>
           <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted"></span>
         </div>
 
@@ -263,22 +263,22 @@ export function TrainingClient() {
                 {/* Cost per unit */}
                 <div className="text-game-xs font-body text-game-text-secondary space-y-0.5">
                   {unit === 'slave' ? (
-                    <span className="text-game-gold-bright font-semibold">Free</span>
+                    <span className="text-game-gold-bright font-semibold">חינם</span>
                   ) : (
-                    <span className="text-res-gold font-semibold">{formatNumber(cfg.gold)} Gold</span>
+                    <span className="text-res-gold font-semibold">{formatNumber(cfg.gold)} זהב</span>
                   )}
                   <span className="block text-game-text-muted">
-                    {popPerUnit === 1 ? '1 Pop' : `${popPerUnit} Pop`}
+                    {popPerUnit === 1 ? '1 אוכ׳' : `${popPerUnit} אוכ׳`}
                   </span>
                   {/* Total preview when amount entered */}
                   {amt > 0 && (
                     <span className="block pt-0.5">
                       <span className={goldOk ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                        {formatNumber(goldTotal)}G
+                        {formatNumber(goldTotal)}ז
                       </span>
                       {' · '}
                       <span className={popOk ? 'text-game-green-bright' : 'text-game-red-bright'}>
-                        {formatNumber(popTotal)} Pop
+                        {formatNumber(popTotal)} אוכ׳
                       </span>
                     </span>
                   )}
@@ -288,7 +288,7 @@ export function TrainingClient() {
                 <div>
                   <Input
                     type="number"
-                    placeholder="Amount"
+                    placeholder="כמות"
                     value={trainAmts[unit]}
                     min={1}
                     onChange={(e) => setTrainAmts((prev) => ({ ...prev, [unit]: e.target.value }))}
@@ -306,7 +306,7 @@ export function TrainingClient() {
                     onClick={() => trainUnit(unit)}
                     className="w-full sm:w-auto whitespace-nowrap"
                   >
-                    Train
+                    אמן
                   </Button>
                 </div>
               </div>
@@ -318,18 +318,18 @@ export function TrainingClient() {
       {/* ── Advanced Training ────────────────────────────────────────────── */}
       <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
         <div className="px-4 py-3 border-b border-game-border">
-          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">Advanced Training</h2>
+          <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">אימון מתקדם</h2>
           <p className="text-game-xs text-game-text-muted font-body mt-0.5">
-            Each level costs {formatNumber(advCost.gold)} Gold + {formatNumber(advCost.food)} Food × (level + 1).
+            כל רמה עולה {formatNumber(advCost.gold)} זהב + {formatNumber(advCost.food)} מזון × (רמה + 1).
           </p>
         </div>
 
         {/* Column headers */}
         <div className="hidden sm:grid grid-cols-[1fr_100px_160px_200px_auto] gap-3 px-4 py-2 border-b border-game-border/50 bg-game-bg/40">
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Skill</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">Level</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Next Gain</span>
-          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">Next Cost</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">כישור</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted text-center">רמה</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">רווח הבא</span>
+          <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted">עלות הבאה</span>
           <span className="text-game-xs font-heading uppercase tracking-widest text-game-text-muted"></span>
         </div>
 
@@ -354,7 +354,7 @@ export function TrainingClient() {
                   </span>
                   {/* Mobile: level inline */}
                   <span className="sm:hidden ml-2 text-game-xs text-game-text-muted font-body">
-                    Lv {level}
+                    רמה {level}
                   </span>
                 </div>
 
@@ -370,7 +370,7 @@ export function TrainingClient() {
                   <span className="text-game-text-secondary">
                     ×{currentMult} → <span className="text-game-green-bright font-semibold">×{nextMult}</span>
                   </span>
-                  <span className="block text-game-text-muted">+{gainPct}% power</span>
+                  <span className="block text-game-text-muted">+{gainPct}% כוח</span>
                 </div>
 
                 {/* Next cost */}
@@ -389,7 +389,7 @@ export function TrainingClient() {
                     onClick={() => upgradeAdvanced(type)}
                     className="w-full sm:w-auto whitespace-nowrap"
                   >
-                    Upgrade
+                    שדרג
                   </Button>
                 </div>
               </div>
