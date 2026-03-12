@@ -5,7 +5,7 @@
  * Protected by x-cron-secret header — never triggered client-side.
  *
  * Collection rules:
- *   - Runs hourly (see vercel.json: "0 * * * *")
+ *   - Runs hourly via pg_cron (see supabase/migrations/0024_pg_cron_jobs.sql: "0 * * * *")
  *   - Collects taxes only when current Israel local time >= taxCollectionHour (default 20:00)
  *   - Per-tribe idempotency: tribes.last_tax_collected_date = Israel date prevents double-collection
  *   - Per-member idempotency: tribe_tax_log UNIQUE (tribe_id, player_id, collected_date)

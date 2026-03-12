@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/tick",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/tribe/tax-collect",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
+{}

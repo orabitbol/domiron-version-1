@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
  * the next :00/:30 UTC cron boundary is synthesized so the client always has a valid target.
  */
 
-// Returns the next :00 or :30 UTC boundary (Vercel Cron "every 30 min" schedule).
+// Returns the next :00 or :30 UTC boundary (pg_cron "every 30 min" schedule).
 function computeNextCronBoundary(now: Date): Date {
   const result = new Date(now)
   if (result.getUTCMinutes() < 30) {

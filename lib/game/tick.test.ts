@@ -6,7 +6,13 @@
  *   - calcTribePowerTotal: empty array, sum correctness
  */
 import { describe, it, expect } from 'vitest'
-import { calcBankInterest, calcTribePowerTotal, calcSlaveProduction } from '@/lib/game/tick'
+import {
+  calcBankInterest,
+  calcTribePowerTotal,
+  calcSlaveProduction,
+  isTickDuplicateRun,
+  DUPLICATE_GUARD_THRESHOLD_MINUTES,
+} from '@/lib/game/tick'
 import { BALANCE } from '@/lib/game/balance'
 
 // ─────────────────────────────────────────
@@ -184,5 +190,94 @@ describe('calcSlaveProduction — city multiplier applied', () => {
     const result = calcSlaveProduction(slaves, devLevel, 99, vip)
     expect(Number.isFinite(result.avg)).toBe(true)
     expect(result.avg).toBeGreaterThanOrEqual(0)
+  })
+})
+
+// ─────────────────────────────────────────
+// isTickDuplicateRun — duplicate-run guard
+// ─────────────────────────────────────────
+//
+// The guard protects against pg_cron double-firing.
+// world_state.next_tick_at is set to now+30min after each tick.
+// Skip if (next_tick_at - now) > DUPLICATE_GUARD_THRESHOLD_MINUTES (5).
+
+describe('isTickDuplicateRun', () => {
+  const INTERVAL_MS  = 30 * 60_000   // 30 min in ms
+  const THRESHOLD    = DUPLICATE_GUARD_THRESHOLD_MINUTES  // 5
+
+  // Helper: build an ISO timestamp relative to a base time
+  const iso = (ms: number) => new Date(ms).toISOString()
+
+  it('DUPLICATE_GUARD_THRESHOLD_MINUTES is 5', () => {
+    expect(THRESHOLD).toBe(5)
+  })
+
+  it('returns false when nextTickAtIso is null (no world_state row yet)', () => {
+    expect(isTickDuplicateRun(null, Date.now())).toBe(false)
+  })
+
+  it('returns false when nextTickAtIso is undefined', () => {
+    expect(isTickDuplicateRun(undefined, Date.now())).toBe(false)
+  })
+
+  it('returns false when next_tick_at is in the past (overdue tick)', () => {
+    const now = Date.now()
+    const pastTs = iso(now - 60_000)  // 1 minute ago
+    expect(isTickDuplicateRun(pastTs, now)).toBe(false)
+  })
+
+  it('returns false when next_tick_at is exactly now', () => {
+    const now = Date.now()
+    expect(isTickDuplicateRun(iso(now), now)).toBe(false)
+  })
+
+  it('returns false when next_tick_at is just under the threshold (4 min 59 s ahead)', () => {
+    const now  = Date.now()
+    const ts   = iso(now + (THRESHOLD * 60_000) - 1_000)  // threshold - 1s
+    expect(isTickDuplicateRun(ts, now)).toBe(false)
+  })
+
+  it('returns false when next_tick_at is exactly at the threshold boundary (5 min ahead)', () => {
+    const now = Date.now()
+    const ts  = iso(now + THRESHOLD * 60_000)  // exactly 5 min
+    // minutesUntilNext === 5, guard condition is > 5, so NOT a duplicate
+    expect(isTickDuplicateRun(ts, now)).toBe(false)
+  })
+
+  it('returns true when next_tick_at is just over the threshold (5 min 1 s ahead)', () => {
+    const now = Date.now()
+    const ts  = iso(now + THRESHOLD * 60_000 + 1_000)  // threshold + 1s
+    expect(isTickDuplicateRun(ts, now)).toBe(true)
+  })
+
+  it('returns true for a normal duplicate fire — tick just ran (next_tick_at ≈ 30 min away)', () => {
+    // Scenario: tick completed, set next_tick_at = now + 30 min.
+    // pg_cron fires again 2 seconds later (duplicate). Guard must skip.
+    const tickCompletedAt = Date.now()
+    const nextTickAt      = iso(tickCompletedAt + INTERVAL_MS)
+    const duplicateFireAt = tickCompletedAt + 2_000  // 2 seconds later
+    expect(isTickDuplicateRun(nextTickAt, duplicateFireAt)).toBe(true)
+  })
+
+  it('returns false for a normal on-schedule fire (next_tick_at is past or near-past)', () => {
+    // Scenario: tick completed 30 min ago, set next_tick_at = then + 30 min = now.
+    // pg_cron fires on schedule. Guard must allow.
+    const tickCompletedAt = Date.now() - INTERVAL_MS
+    const nextTickAt      = iso(tickCompletedAt + INTERVAL_MS)  // ≈ now
+    expect(isTickDuplicateRun(nextTickAt, Date.now())).toBe(false)
+  })
+
+  it('returns false when tick is 2 minutes late (next_tick_at is 2 min in the past)', () => {
+    const now        = Date.now()
+    const nextTickAt = iso(now - 2 * 60_000)  // 2 min overdue
+    expect(isTickDuplicateRun(nextTickAt, now)).toBe(false)
+  })
+
+  it('guard absorbs scheduling jitter up to THRESHOLD minutes without false positives', () => {
+    // Simulate pg_cron firing up to 4 min 59 s early — should still be allowed.
+    const now          = Date.now()
+    const jitterMs     = (THRESHOLD * 60_000) - 1_000  // just under threshold
+    const nextTickAt   = iso(now + jitterMs)
+    expect(isTickDuplicateRun(nextTickAt, now)).toBe(false)
   })
 })

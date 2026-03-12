@@ -66,7 +66,7 @@ supabase/migrations/0011_attack_rpc_captives.sql   Current RPC (15-param)
 - `getActiveHeroEffects` throws `HeroEffectsUnavailableError` on DB failure — attack route aborts (503) rather than silently stripping shields.
 
 ### ✔ Tick System
-- Triggered by Vercel Cron every 30 min; in dev by `instrumentation.ts` auto-scheduler.
+- Triggered by pg_cron (Supabase) every 30 min via pg_net HTTP; in dev by `instrumentation.ts` setInterval.
 - Per player: turns regen, population growth, slave production (per-resource assignment), hero mana, bank interest (daily).
 - Global: tribe mana, power recalculation, rankings, tribe power aggregation, world_state upsert.
 - Production is random within [min, max] range per tick (design intent).

@@ -46,7 +46,7 @@ Import via `@/lib/game/balance` (barrel re-export).
 ```typescript
 BALANCE = {
   tick: {
-    intervalMinutes:  30,    // [FIXED] Vercel Cron frequency
+    intervalMinutes:  30,    // [FIXED] pg_cron schedule frequency
     turnsPerTick:     3,     // [FIXED] turns added per tick
     maxTurns:         200,   // [FIXED] hard cap
     turnsPerDay:      144,   // [FIXED] informational only (3 × 48 ticks)

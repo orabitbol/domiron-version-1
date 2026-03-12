@@ -7,6 +7,8 @@ import {
   calcTribeManaGain,
   calcHeroManaGain,
   calcBankInterest,
+  isTickDuplicateRun,
+  DUPLICATE_GUARD_THRESHOLD_MINUTES,
 } from '@/lib/game/tick'
 import { calcActiveHeroEffects } from '@/lib/game/hero-effects'
 import type { PlayerHeroEffect } from '@/lib/game/hero-effects'
@@ -18,16 +20,43 @@ const TICK_DEBUG = process.env.TICK_DEBUG === '1'
 
 // Minutes until the next tick after this one completes.
 // Single source of truth: BALANCE.tick.intervalMinutes (30).
-// Must always match the Vercel Cron schedule in vercel.json ("*/30 * * * *").
-// There is no env-var override — change BALANCE.tick.intervalMinutes + vercel.json together.
+// Must always match the pg_cron schedule in supabase/migrations/0024_pg_cron_jobs.sql ("*/30 * * * *").
+// There is no env-var override — change BALANCE.tick.intervalMinutes + the pg_cron schedule together.
 const TICK_INTERVAL_MINUTES = BALANCE.tick.intervalMinutes
 
-// GET /api/tick — called by Vercel Cron (see vercel.json for schedule)
-// Protected by CRON_SECRET header
+// GET /api/tick — called by pg_cron via pg_net (see supabase/migrations/0024_pg_cron_jobs.sql)
+// In local dev, called by instrumentation.ts setInterval instead.
+// Protected by CRON_SECRET header (x-cron-secret)
 export async function GET(request: NextRequest) {
   const cronSecret = request.headers.get('x-cron-secret')
   if (cronSecret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Duplicate-run guard — see isTickDuplicateRun() in lib/game/tick.ts ──────
+  // pg_cron does not deduplicate concurrent/overlapping fires the way Vercel
+  // Cron did. world_state.next_tick_at is set to now+30min after each tick.
+  // If it is still > DUPLICATE_GUARD_THRESHOLD_MINUTES (5) in the future, the
+  // last tick ran too recently — skip this invocation.
+  {
+    const supabaseGuard = createAdminClient()
+    const { data: wsGuard } = await supabaseGuard
+      .from('world_state')
+      .select('next_tick_at')
+      .eq('id', 1)
+      .maybeSingle()
+    if (isTickDuplicateRun(wsGuard?.next_tick_at, Date.now())) {
+      const minutesUntilNext =
+        (new Date(wsGuard!.next_tick_at).getTime() - Date.now()) / 60_000
+      console.warn(
+        `[TICK] Duplicate-run guard: skipping — ` +
+        `${(TICK_INTERVAL_MINUTES - minutesUntilNext).toFixed(1)}min since last tick, ` +
+        `next scheduled at ${wsGuard!.next_tick_at}`
+      )
+      return NextResponse.json({
+        data: { skipped: true, reason: 'duplicate_guard', next_tick_at: wsGuard!.next_tick_at },
+      })
+    }
   }
 
   // Always visible — confirms the tick route is actually being called

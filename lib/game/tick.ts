@@ -1,6 +1,7 @@
 /**
  * Domiron v5 — Tick Processing Logic
- * Called every 30 minutes by Vercel Cron → GET /api/tick
+ * Called every 30 minutes by pg_cron (Supabase) via pg_net → GET /api/tick
+ * In local dev, called by instrumentation.ts setInterval.
  * All numbers from BALANCE — never hardcoded.
  */
 import { BALANCE } from '@/lib/game/balance'
@@ -97,4 +98,38 @@ export function calcBankInterest(
 // Sum of all member power_totals — stored to tribes.power_total once per tick.
 export function calcTribePowerTotal(memberPowerTotals: number[]): number {
   return memberPowerTotals.reduce((sum, p) => sum + p, 0)
+}
+
+/**
+ * Tick duplicate-run guard.
+ *
+ * Returns true when the tick should be skipped because the previous tick
+ * completed too recently (i.e. world_state.next_tick_at is still substantially
+ * in the future).
+ *
+ * Rationale: Vercel Cron had implicit per-deployment deduplication. pg_cron
+ * does not. This guard provides an equivalent safety net using the
+ * server-authoritative world_state.next_tick_at timestamp.
+ *
+ * Logic:
+ *   minutesUntilNext = (nextTickAtMs - nowMs) / 60_000
+ *   skip if minutesUntilNext > DUPLICATE_GUARD_THRESHOLD_MINUTES (5)
+ *
+ * Normal cadence: tick completes, sets next_tick_at = now + 30 min.
+ * pg_cron fires 30 min later → minutesUntilNext ≈ 0 → allow.
+ * Duplicate fire 2 min later → minutesUntilNext ≈ 28 → skip.
+ *
+ * @param nextTickAtIso  world_state.next_tick_at value (or null/undefined if row absent)
+ * @param nowMs          Date.now() at call time
+ * @returns true = skip this run (duplicate), false = proceed
+ */
+export const DUPLICATE_GUARD_THRESHOLD_MINUTES = 5
+
+export function isTickDuplicateRun(
+  nextTickAtIso: string | null | undefined,
+  nowMs: number,
+): boolean {
+  if (!nextTickAtIso) return false
+  const minutesUntilNext = (new Date(nextTickAtIso).getTime() - nowMs) / 60_000
+  return minutesUntilNext > DUPLICATE_GUARD_THRESHOLD_MINUTES
 }

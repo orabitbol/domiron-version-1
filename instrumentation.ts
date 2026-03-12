@@ -1,10 +1,13 @@
 /**
  * Next.js Instrumentation — Dev-only auto-tick.
  *
- * In production, Vercel Cron calls GET /api/tick on its schedule (vercel.json).
- * In local dev (`npm run dev`), Vercel Cron never fires.  This file starts
- * a Node.js setInterval that calls the same endpoint with the CRON_SECRET
+ * In production, pg_cron (Supabase) calls GET /api/tick every 30 minutes via
+ * pg_net HTTP — see supabase/migrations/0024_pg_cron_jobs.sql.
+ * In local dev (`npm run dev`), pg_cron never fires.  This file starts a
+ * Node.js setInterval that calls the same endpoint with the CRON_SECRET
  * header so the dev server processes ticks automatically.
+ * Tax collection (daily) is covered by the tick's embedded logic (step 6),
+ * so no separate dev interval is needed for /api/tribe/tax-collect.
  *
  * Next.js 14.1+ runs register() once at server startup.
  * register() may be called multiple times (Edge + Node runtimes).
@@ -14,7 +17,8 @@
  *   - Skip when NEXT_RUNTIME === 'edge' (Edge runtime — no setInterval)
  *   - Allow when NEXT_RUNTIME is undefined OR 'nodejs' (both are Node.js in dev)
  *
- * Interval: always 30 minutes — matches BALANCE.tick.intervalMinutes and vercel.json.
+ * Interval: always 30 minutes — matches BALANCE.tick.intervalMinutes and the
+ * pg_cron schedule in 0024_pg_cron_jobs.sql.
  * To trigger a tick on demand in dev: curl http://localhost:3000/api/tick -H "x-cron-secret: <CRON_SECRET>"
  */
 
@@ -45,7 +49,8 @@ export async function register() {
   devCronStarted = true
 
   // 30 === BALANCE.tick.intervalMinutes. Hardcoded here (not imported) to keep
-  // this file dependency-free. Change only if vercel.json and BALANCE are also updated.
+  // this file dependency-free. Change only if the pg_cron schedule in
+  // 0024_pg_cron_jobs.sql and BALANCE are also updated.
   const intervalMinutes = 30
   const intervalMs = intervalMinutes * 60_000
 

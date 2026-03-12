@@ -72,7 +72,7 @@
 
 ## 1. Tick System
 
-**Trigger:** Vercel Cron — `POST /api/tick` every 30 minutes (`*/30 * * * *`), authenticated via `x-cron-secret` header.
+**Trigger:** pg_cron (Supabase) — `GET /api/tick` every 30 minutes (`*/30 * * * *`), via pg_net HTTP. Authenticated via `x-cron-secret` header. Scheduled in `supabase/migrations/0024_pg_cron_jobs.sql`.
 **Files:** `lib/game/tick.ts` → `calcTurnsToAdd()`, `app/api/tick/route.ts`
 
 ### Turn Regen
@@ -134,7 +134,7 @@ Then globally:
 
 ### Server-Authoritative Countdown (Local Dev + Production)
 
-**Summary:** Every client reads `world_state.next_tick_at` (single DB row, `id=1`) to drive the Sidebar countdown. The tick route advances this value after each tick completes. In production, Vercel Cron triggers the tick. In local dev, `instrumentation.ts` runs a Node.js `setInterval` that calls the same endpoint.
+**Summary:** Every client reads `world_state.next_tick_at` (single DB row, `id=1`) to drive the Sidebar countdown. The tick route advances this value after each tick completes. In production, pg_cron (Supabase) triggers the tick via pg_net HTTP. In local dev, `instrumentation.ts` runs a Node.js `setInterval` that calls the same endpoint.
 
 **DB table:** `supabase/migrations/0008_world_state.sql` — single row (`id=1`), `next_tick_at TIMESTAMPTZ`. Public read via RLS policy. Written by `/api/tick` after each tick via `upsert()` (not `update()` — Supabase `.update()` silently no-ops when 0 rows match). Cache bypass: `createAdminClient()` passes `cache: 'no-store'` on all fetches; `/api/tick-status` also calls `noStore()` (Next.js 14 caches Supabase fetch calls by default).
 
@@ -143,7 +143,7 @@ Then globally:
 #### `instrumentation.ts` — Dev Auto-Tick Scheduler
 
 **File:** `instrumentation.ts` (project root)
-**Purpose:** In local dev, Vercel Cron never fires. This file registers a Node.js `setInterval` at server startup that calls `GET /api/tick` with the `x-cron-secret` header, exactly as Vercel Cron does in production.
+**Purpose:** In local dev, pg_cron never fires (it lives in Supabase cloud). This file registers a Node.js `setInterval` at server startup that calls `GET /api/tick` with the `x-cron-secret` header, exactly as pg_cron does in production.
 
 **Guard logic (in order):**
 ```ts
@@ -215,7 +215,7 @@ The following describes exactly how the tick interval flows from config to DB to
 | Layer | Location | Value | Notes |
 |---|---|---|---|
 | Canonical interval | `BALANCE.tick.intervalMinutes` | `30` | **The SSOT.** All other layers read from this. Never hardcode 30 elsewhere. |
-| Vercel Cron schedule | `vercel.json` → `"*/30 * * * *"` | 30 min | Fires GET /api/tick in production. Must always match `BALANCE.tick.intervalMinutes`. |
+| pg_cron schedule | `supabase/migrations/0024_pg_cron_jobs.sql` → `"*/30 * * * *"` | 30 min | Fires GET /api/tick in production via pg_net HTTP. Must always match `BALANCE.tick.intervalMinutes`. `vercel.json` cron entries have been removed. |
 | Dev auto-tick | `instrumentation.ts` → `setInterval(intervalMs)` | 30 min | Only runs in `NODE_ENV=development`. **Hardcoded to 30 min** — no env-var override. |
 | Tick route interval | `app/api/tick/route.ts` → `BALANCE.tick.intervalMinutes` | 30 min | **Hardcoded** — no env-var read. Sets `world_state.next_tick_at = tickDoneAt + 30 min`. |
 | DB timestamp | `world_state.next_tick_at` | ISO timestamp | Written by tick route after each tick. Always `tickDoneAt + 30 min`. |
@@ -280,6 +280,34 @@ curl http://localhost:3000/api/tick-status
 [TickCountdown] parsed toString()  Thu Mar 05 2026 …
 [TickCountdown] isNaN?  false
 [TickCountdown] diff ms  57234  FUTURE ✓
+```
+
+---
+
+#### Scheduling Architecture (Production vs. Dev)
+
+| Environment | Main Tick | Tribe Tax | Season Freeze |
+|---|---|---|---|
+| **Production** | pg_cron `domiron-game-tick` (`*/30 * * * *`) calls `GET /api/tick` via pg_net | pg_cron `domiron-tax-collect` (`0 * * * *`) calls `POST /api/tribe/tax-collect` via pg_net | Passive — `ends_at <= now()` makes `getActiveSeason()` return null → 423 on write routes. No cron needed. |
+| **Local dev** | `instrumentation.ts` `setInterval(30 min)` calls `GET /api/tick` | Covered by tick's embedded tax logic (step 6 of `/api/tick`) | Same passive behavior |
+
+**Auth:** All scheduled HTTP calls use `x-cron-secret` header. Secret stored in Supabase Vault (`cron_secret`), read at call time — never embedded in the job SQL.
+
+**Duplicate-run protection (tick):** At the start of `GET /api/tick`, after auth, the route reads `world_state.next_tick_at`. If it is more than 5 minutes in the future, the tick ran too recently and this call is skipped with `{ skipped: true, reason: "duplicate_guard" }`. This replaces the implicit deduplication that Vercel Cron previously provided.
+
+**Season:** No pg_cron job for season. Starting a new season is a manual admin action (`POST /api/admin/season/reset`). There is no automatic season rollover or progression.
+
+**Setup (one-time, Supabase SQL Editor):**
+```sql
+-- Store secrets in Vault
+SELECT vault.create_secret('https://YOUR-APP.vercel.app', 'app_next_url', 'Next.js app base URL');
+SELECT vault.create_secret('YOUR-CRON-SECRET', 'cron_secret', 'Matches CRON_SECRET on Vercel');
+
+-- Apply migration (or paste migration file contents)
+-- supabase/migrations/0024_pg_cron_jobs.sql
+
+-- Verify
+SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname LIKE 'domiron-%';
 ```
 
 ---
@@ -1213,7 +1241,7 @@ No Supabase Realtime publication — chat is not live/streaming.
 
 ### Daily Tribute / Tax Schedule — Verified
 
-`vercel.json` cron: `/api/tribe/tax-collect` at `0 * * * *` (every hour at :00).
+pg_cron job `domiron-tax-collect`: calls `POST /api/tribe/tax-collect` at `0 * * * *` (every hour at :00) via pg_net HTTP. Scheduled in `supabase/migrations/0024_pg_cron_jobs.sql`.
 
 Route behavior:
 1. Computes Israel local hour via `Intl.DateTimeFormat('Asia/Jerusalem')`.
@@ -1224,7 +1252,7 @@ Route behavior:
 
 Result: taxes run at most once per tribe per calendar day, at or after 20:00 Israel time. `GET /api/tribe/tax-status` computes the exact UTC timestamp of the next collection and returns it for the client countdown.
 
-Tax-collect cron (`0 * * * *`) is correct and unchanged. Tick cron was corrected to `*/30 * * * *`.
+Both pg_cron jobs — `domiron-tax-collect` (`0 * * * *`) and `domiron-game-tick` (`*/30 * * * *`) — are correct. Vercel Cron has been removed; scheduling is now Supabase-native.
 
 **Data shape (page.tsx):**
 - `players` select includes `power_total`.
@@ -1375,7 +1403,7 @@ State management: `localTribeLevel` and `localTribeMana` are updated immediately
 Manual tax payment is removed (`POST /api/tribe/pay-tax` returns 410).
 
 **Collection schedule:**
-- Dedicated cron: `POST /api/tribe/tax-collect` runs **hourly** (Vercel: `"0 * * * *"`)
+- Dedicated cron: `POST /api/tribe/tax-collect` runs **hourly** (pg_cron: `"0 * * * *"`, see `supabase/migrations/0024_pg_cron_jobs.sql`)
 - Collects only when Israel local time ≥ `BALANCE.tribe.taxCollectionHour` (default: 20)
 - Per-tribe idempotency: `tribes.last_tax_collected_date` prevents double-collection
 - Per-member idempotency: `tribe_tax_log` UNIQUE `(tribe_id, player_id, collected_date)`
@@ -1872,8 +1900,19 @@ Players must leave clan/tribe before promoting. After leaving, they may promote 
 ## 15. Season System & Freeze Mode
 
 **File:** `lib/game/season.ts`
-**Duration:** 90 days
+**Duration:** 90 days (`BALANCE.season.durationDays = 90`)
 **Balance:** `BALANCE.season`
+
+### Freeze is passive — no cron required
+
+Season freeze happens automatically when `ends_at <= now()`. There is no cron job,
+no scheduled status flip, and no automatic season progression. When the clock
+passes `ends_at`, `getActiveSeason()` returns `null` and every guarded route
+returns 423. The `seasons.status` column may still read `'active'` — the
+`ends_at > now()` predicate is the definitive gate, not the status column alone.
+
+The tick continues to run (turns regen, production, etc.) during the frozen
+period. Only gameplay write actions are blocked.
 
 ### Active Season Check
 
@@ -1881,6 +1920,7 @@ Players must leave clan/tribe before promoting. After leaving, they may promote 
 getActiveSeason(supabase): Season | null
 // Queries: status='active' AND ends_at > now()
 // Returns null if season ended, expired, or missing
+// Note: expired seasons are frozen even if status was never flipped to 'ended'
 ```
 
 ### Freeze Response
@@ -1902,6 +1942,7 @@ All gameplay write routes call `getActiveSeason()` immediately after auth check.
 ### Season Reset (Admin)
 
 `POST /api/admin/season/reset` — hard reset: deletes all data in FK-safe order, creates Season 1 with `created_by = null`.
+This is the only mechanism to start a new season. There is no automatic rollover.
 
 Delete order:
 ```
@@ -2098,7 +2139,7 @@ Indexes: `idx_players_rank_global ON players(rank_global)`, `idx_players_rank_ci
 4. City rank: filter per city (1..5) from the same sorted list, assign 1-based index → `rank_city`
 5. Batch-write both fields: `Promise.all` of one `UPDATE players SET rank_global=?, rank_city=? WHERE id=?` per player
 
-**Update timing:** Computed and persisted ONLY on tick (every 30 minutes via Vercel Cron, `*/30 * * * *`). No other route touches these fields.
+**Update timing:** Computed and persisted ONLY on tick (every 30 minutes via pg_cron, `*/30 * * * *`). No other route touches these fields.
 
 **API:** `GET /api/player` and the server-side `app/(game)/layout.tsx` both SELECT `rank_city,rank_global` explicitly. The `Player` TypeScript type (`types/game.ts:102-103`) defines both as `number | null`.
 
@@ -2965,7 +3006,7 @@ All `TICK_INTERVAL_MINUTES` references removed. Tick interval is now hardcoded t
 
 - **Production:** `tick/route.ts` always uses `BALANCE.tick.intervalMinutes` (30). No code path reads any env var.
 - **Dev auto-tick:** `instrumentation.ts` always uses `30`. Hardcoded.
-- **Vercel Cron:** `*/30 * * * *` — unchanged.
+- **pg_cron schedule:** `*/30 * * * *` — matches `BALANCE.tick.intervalMinutes`. Defined in `supabase/migrations/0024_pg_cron_jobs.sql`.
 - **All tick-driven systems** (resources, turns, hero mana, tribe mana, rankings, tribe power) run exactly when `/api/tick` is called — every 30 minutes in production, every 30 minutes in dev (or on demand via curl).
 
 - `tsc --noEmit` → **0 errors**. `vitest run` → **20/20 tests pass**.
