@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { GameTable } from '@/components/ui/game-table'
 import { EmptyState } from '@/components/ui/game-table'
 import { ResourceBadge } from '@/components/ui/resource-badge'
+import { Tooltip } from '@/components/ui/tooltip'
 import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
@@ -282,128 +283,241 @@ export function SpyClient({ targets }: Props) {
 // ─── Revealed intel panel ──────────────────────────────────────────────────
 
 const ATK_WEAPON_LABELS: Record<string, string> = {
-  slingshot: 'Slingshot', boomerang: 'Boomerang', pirate_knife: 'P.Knife',
-  axe: 'Axe', master_knife: 'M.Knife', knight_axe: 'K.Axe', iron_ball: 'Iron Ball',
+  slingshot:    'קלע',
+  boomerang:    'בומרנג',
+  pirate_knife: 'סכין שוד',
+  axe:          'גרזן',
+  master_knife: 'סכין מאסטר',
+  knight_axe:   'גרזן פרש',
+  iron_ball:    'כדור ברזל',
 }
 const DEF_WEAPON_LABELS: Record<string, string> = {
-  wood_shield: 'W.Shield', iron_shield: 'I.Shield', leather_armor: 'L.Armor',
-  chain_armor: 'C.Armor', plate_armor: 'Plate', mithril_armor: 'Mithril', gods_armor: "God's",
+  wood_shield:   'מגן עץ',
+  iron_shield:   'מגן ברזל',
+  leather_armor: 'שריון עור',
+  chain_armor:   'שריון שרשרות',
+  plate_armor:   'שריון לוחות',
+  mithril_armor: 'שריון מיתריל',
+  gods_armor:    'שריון האלים',
+}
+const SPY_WEAPON_LABELS: Record<string, string> = {
+  shadow_cloak: 'גלימת צל',
+  dark_mask:    'מסכת חושך',
+  elven_gear:   'ציוד אלפי',
+}
+const SCOUT_WEAPON_LABELS: Record<string, string> = {
+  scout_boots:  'מגפי סיור',
+  scout_cloak:  'גלימת סייר',
+  elven_boots:  'מגפיים אלפיים',
+}
+
+function IntelSection({ title, tooltip, children }: { title: string; tooltip?: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        {tooltip ? (
+          <Tooltip content={tooltip}>
+            <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold cursor-help underline decoration-dotted decoration-game-gold/40 underline-offset-2">
+              {title}
+            </p>
+          </Tooltip>
+        ) : (
+          <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold">{title}</p>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function ShieldDot({ active, color, label, tooltip }: { active: boolean; color: string; label: string; tooltip: string }) {
+  return (
+    <Tooltip content={tooltip}>
+      <div className="flex items-center gap-1.5 cursor-help">
+        <span className={`inline-block w-2.5 h-2.5 rounded-full border transition-all ${active ? `border-[${color}]` : 'bg-transparent border-game-border'}`}
+          style={{ background: active ? color : 'transparent', boxShadow: active ? `0 0 6px ${color}` : 'none' }}
+        />
+        <span className="text-game-xs font-body" style={{ color: active ? color : 'rgba(255,255,255,0.3)' }}>
+          {label} {active ? '— פעיל' : '— לא פעיל'}
+        </span>
+      </div>
+    </Tooltip>
+  )
 }
 
 function RevealedIntel({ data }: { data: SpyRevealedData }) {
-  const t = useTranslations()
-  const atkWeapons = data.attack_weapons ?? {}
-  const defWeapons = data.defense_weapons ?? {}
-  const hasAtkWeapons = Object.values(atkWeapons).some((v) => v > 0)
-  const hasDefWeapons = Object.values(defWeapons).some((v) => v > 0)
-  const hasWeapons = hasAtkWeapons || hasDefWeapons
-  const hasTraining = data.spy_level !== undefined || data.scout_level !== undefined
+  const atkWeapons  = data.attack_weapons  ?? {}
+  const defWeapons  = data.defense_weapons ?? {}
+  const spyWeapons  = data.spy_weapons     ?? {}
+  const scoutWeapons = data.scout_weapons  ?? {}
+  const hasAtkWeapons   = Object.values(atkWeapons).some((v) => v > 0)
+  const hasDefWeapons   = Object.values(defWeapons).some((v) => v > 0)
+  const hasSpyWeapons   = Object.values(spyWeapons).some((v) => v > 0)
+  const hasScoutWeapons = Object.values(scoutWeapons).some((v) => v > 0)
+  const hasAnyWeapons   = hasAtkWeapons || hasDefWeapons || hasSpyWeapons || hasScoutWeapons
+  const hasTraining = data.attack_level !== undefined || data.defense_level !== undefined ||
+                      data.spy_level !== undefined || data.scout_level !== undefined
+  const hasTribe = data.tribe_name != null
 
   return (
     <div className="pt-3 space-y-3">
       <div className="divider-ornate mb-3" />
       <p className="text-game-xs text-game-gold font-heading uppercase tracking-wide">
-        Intelligence Report — {data.army_name}
+        🔍 דוח מודיעין — {data.army_name}
       </p>
 
-      {/* Army */}
-      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
-        <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">{t('rankings.army')}</p>
-        <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-game-xs font-body">
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('army.soldiers')}</span><span className="text-game-text-white">{formatNumber(data.soldiers)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('army.cavalry')}</span><span className="text-game-text-white">{formatNumber(data.cavalry)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('army.spies')}</span><span className="text-game-text-white">{formatNumber(data.spies)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('army.scouts')}</span><span className="text-game-text-white">{formatNumber(data.scouts)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('army.slaves')}</span><span className="text-game-text-white">{formatNumber(data.slaves)}</span></div>
+      {/* City / Tribe identity */}
+      {(data.city !== undefined || hasTribe) && (
+        <div className="flex flex-wrap gap-2 text-game-xs font-body">
+          {data.city !== undefined && (
+            <Tooltip content="רמת העיר של המטרה — משפיעה על כוח הייצור והצבא">
+              <span className="chip bg-game-elevated border border-game-border text-game-text-secondary cursor-help">
+                עיר רמה {data.city}
+              </span>
+            </Tooltip>
+          )}
+          {hasTribe && (
+            <Tooltip content="שבטים פעילים עשויים להפעיל לחשים — כולל מגן ריגול (spy_veil) שמחזק את ההגנה מסיור">
+              <span className="chip bg-game-purple/10 border border-game-purple/30 text-game-purple-bright cursor-help">
+                🤝 {data.tribe_name}{data.tribe_level != null ? ` · רמה ${data.tribe_level}` : ''}
+              </span>
+            </Tooltip>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Army */}
+      <IntelSection title="כוחות צבאיים" tooltip="הרכב הצבא של המטרה — חיילים ופרשים הם כוח קרב, מרגלים הם כוח ריגול, סיירים מגנים מפני ריגול, עבדים מייצרים משאבים">
+        <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-game-xs font-body">
+          {[
+            { label: 'חיילים',  value: data.soldiers },
+            { label: 'פרשים',  value: data.cavalry },
+            { label: 'מרגלים', value: data.spies },
+            { label: 'סיירים', value: data.scouts },
+            { label: 'עבדים',  value: data.slaves },
+            ...(data.free_population !== undefined
+              ? [{ label: 'אוכ׳ חופשייה', value: data.free_population }]
+              : []),
+          ].map(({ label, value }) => (
+            <div key={label} className="flex justify-between">
+              <span className="text-game-text-secondary">{label}</span>
+              <span className="text-game-text-white">{formatNumber(value)}</span>
+            </div>
+          ))}
+        </div>
+      </IntelSection>
 
       {/* Resources */}
-      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
-        <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">{t('spy_intel.resources')}</p>
+      <IntelSection title="משאבים" tooltip="משאבים שאינם בבנק חשופים לבזיזה בתקיפה מוצלחת. זהב בבנק מוגן לחלוטין">
         <div className="flex flex-wrap gap-3">
           <ResourceBadge type="gold" amount={data.gold} showLabel />
           <ResourceBadge type="iron" amount={data.iron} showLabel />
           <ResourceBadge type="wood" amount={data.wood} showLabel />
           <ResourceBadge type="food" amount={data.food} showLabel />
-          {data.bank_gold !== undefined && (
-            <span className="text-game-xs font-body text-game-text-muted">
-              {t('spy_intel.bank')} <span className="text-game-gold">{formatNumber(data.bank_gold)}</span> {t('spy_intel.gold')}
-            </span>
-          )}
         </div>
-      </div>
+        {data.bank_gold !== undefined && (
+          <div className="mt-2 pt-2 border-t border-game-border/50 flex items-center gap-2">
+            <Tooltip content="זהב בבנק מוגן לחלוטין מבזיזה — לא ניתן לגנוב אותו בתקיפה. ריבית עולה עם רמת הבנק">
+              <span className="text-game-xs font-heading uppercase tracking-wide text-game-gold/60 cursor-help underline decoration-dotted decoration-game-gold/30 underline-offset-2">
+                בנק
+              </span>
+            </Tooltip>
+            <span className="text-game-xs font-body text-game-gold">{formatNumber(data.bank_gold)} זהב</span>
+            {data.bank_interest_level !== undefined && data.bank_interest_level > 0 && (
+              <span className="text-game-xs font-body text-game-text-muted">· ריבית רמה {data.bank_interest_level}</span>
+            )}
+          </div>
+        )}
+      </IntelSection>
 
       {/* Power */}
-      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
-        <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">{t('spy_intel.power')}</p>
+      <IntelSection title="כוח קרב" tooltip="כוח כולל קובע את הדירוג. כוח התקפה מול הגנה קובעים את תוצאת הקרב — השתמש בסיירים לפני תקיפה לדיוק גבוה יותר">
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-game-xs font-body">
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('spy_intel.attack')}</span><span className="text-game-text-white">{formatNumber(data.power_attack)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('spy_intel.defense')}</span><span className="text-game-text-white">{formatNumber(data.power_defense)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('spy_intel.spy')}</span><span className="text-game-text-white">{formatNumber(data.power_spy)}</span></div>
-          <div className="flex justify-between"><span className="text-game-text-secondary">{t('spy_intel.scout')}</span><span className="text-game-text-white">{formatNumber(data.power_scout)}</span></div>
-          <div className="flex justify-between col-span-2 divider-gold pt-1 mt-1">
-            <span className="text-game-text-secondary font-semibold">{t('spy_intel.total_power')}</span>
+          <div className="flex justify-between"><span className="text-game-text-secondary">תקיפה</span><span className="text-game-text-white">{formatNumber(data.power_attack)}</span></div>
+          <div className="flex justify-between"><span className="text-game-text-secondary">הגנה</span><span className="text-game-text-white">{formatNumber(data.power_defense)}</span></div>
+          <div className="flex justify-between"><span className="text-game-text-secondary">ריגול</span><span className="text-game-text-white">{formatNumber(data.power_spy)}</span></div>
+          <div className="flex justify-between"><span className="text-game-text-secondary">סיור</span><span className="text-game-text-white">{formatNumber(data.power_scout)}</span></div>
+          <div className="flex justify-between col-span-2 border-t border-game-border/50 pt-1 mt-0.5">
+            <span className="text-game-text-secondary font-semibold">כולל</span>
             <span className="text-game-gold-bright font-semibold">{formatNumber(data.power_total)}</span>
           </div>
         </div>
-      </div>
+      </IntelSection>
 
       {/* Shields */}
-      <div className="flex gap-4 text-game-xs font-body">
-        <div className="flex items-center gap-1.5">
-          <span className={`inline-block w-2.5 h-2.5 rounded-full border ${data.soldier_shield ? 'bg-blue-400 border-blue-400' : 'bg-transparent border-game-border'}`} />
-          <span className={data.soldier_shield ? 'text-blue-400' : 'text-game-text-muted'}>
-            {t('spy_intel.soldier_shield')} {data.soldier_shield ? t('spy_intel.active') : t('spy_intel.inactive')}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`inline-block w-2.5 h-2.5 rounded-full border ${data.resource_shield ? 'bg-game-gold-bright border-game-gold-bright' : 'bg-transparent border-game-border'}`} />
-          <span className={data.resource_shield ? 'text-game-gold-bright' : 'text-game-text-muted'}>
-            {t('spy_intel.resource_shield')} {data.resource_shield ? t('spy_intel.active') : t('spy_intel.inactive')}
-          </span>
-        </div>
+      <div className="flex gap-4">
+        <ShieldDot
+          active={data.soldier_shield}
+          color="#60B0FF"
+          label="מגן חיילים"
+          tooltip="כשפעיל — המגן מאפשר לחיילי המגן לשרוד ללא אבדות בקרב, גם בהפסד. מגן זמני מהגיבור"
+        />
+        <ShieldDot
+          active={data.resource_shield}
+          color="#F0C030"
+          label="מגן משאבים"
+          tooltip="כשפעיל — אפילו ניצחון לא יניב לך בזיזה. כל המשאבים הלא-מובנקים מוגנים לחלוטין. דלג על תקיפה אם מגן זה פעיל"
+        />
       </div>
 
-      {/* Weapons (new — only present on missions after 2026-03-06) */}
-      {hasWeapons && (
-        <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3">
-          <p className="text-game-xs font-heading uppercase tracking-wide text-game-gold mb-2">{t('spy_intel.weapons')}</p>
-          <div className="space-y-1.5 text-game-xs font-body">
+      {/* Training */}
+      {hasTraining && (
+        <IntelSection title="רמות אימון" tooltip="רמות אימון מגבירות את עוצמת היחידות ב-8% לרמה. רמה 5+ מעניקה יתרון קרב משמעותי">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-game-xs font-body">
+            {data.attack_level  !== undefined && <div className="flex justify-between"><span className="text-game-text-secondary">תקיפה</span><span className="text-game-text-white">רמה {data.attack_level}</span></div>}
+            {data.defense_level !== undefined && <div className="flex justify-between"><span className="text-game-text-secondary">הגנה</span><span className="text-game-text-white">רמה {data.defense_level}</span></div>}
+            {data.spy_level     !== undefined && <div className="flex justify-between"><span className="text-game-text-secondary">ריגול</span><span className="text-game-text-white">רמה {data.spy_level}</span></div>}
+            {data.scout_level   !== undefined && <div className="flex justify-between"><span className="text-game-text-secondary">סיור</span><span className="text-game-text-white">רמה {data.scout_level}</span></div>}
+          </div>
+        </IntelSection>
+      )}
+
+      {/* Weapons */}
+      {hasAnyWeapons && (
+        <IntelSection title="ציוד" tooltip="ציוד מעצים יחידות מעל ומעבר לאימון. נשק התקפה גורם נזק גדול יותר; שריון מגדיל הגנה; ציוד ריגול/סיור משפיע על הצלחת משימות ריגול">
+          <div className="space-y-2 text-game-xs font-body">
             {hasAtkWeapons && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-game-text-muted w-14 shrink-0">{t('spy_intel.attack')}:</span>
+                <span className="text-game-text-muted shrink-0 w-16">⚔️ תקיפה:</span>
                 {Object.entries(atkWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                   <span key={key} className="bg-game-red/10 border border-game-red/30 rounded px-1.5 py-0.5 text-game-red-bright">
-                    {ATK_WEAPON_LABELS[key] ?? key} &times;{qty}
+                    {ATK_WEAPON_LABELS[key] ?? key} ×{qty}
                   </span>
                 ))}
               </div>
             )}
             {hasDefWeapons && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-game-text-muted w-14 shrink-0">{t('spy_intel.defense')}:</span>
+                <span className="text-game-text-muted shrink-0 w-16">🛡️ הגנה:</span>
                 {Object.entries(defWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                   <span key={key} className="bg-game-gold/10 border border-game-gold/30 rounded px-1.5 py-0.5 text-game-gold">
-                    {DEF_WEAPON_LABELS[key] ?? key} &times;{qty}
+                    {DEF_WEAPON_LABELS[key] ?? key} ×{qty}
+                  </span>
+                ))}
+              </div>
+            )}
+            {hasSpyWeapons && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-game-text-muted shrink-0 w-16">🌑 ריגול:</span>
+                {Object.entries(spyWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
+                  <span key={key} className="bg-game-purple/10 border border-game-purple/30 rounded px-1.5 py-0.5 text-game-purple-bright">
+                    {SPY_WEAPON_LABELS[key] ?? key} ×{qty}
+                  </span>
+                ))}
+              </div>
+            )}
+            {hasScoutWeapons && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-game-text-muted shrink-0 w-16">👁️ סיור:</span>
+                {Object.entries(scoutWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
+                  <span key={key} className="bg-game-orange/10 border border-game-orange/30 rounded px-1.5 py-0.5 text-game-orange-bright">
+                    {SCOUT_WEAPON_LABELS[key] ?? key} ×{qty}
                   </span>
                 ))}
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Training levels (new — only present on missions after 2026-03-06) */}
-      {hasTraining && (
-        <div className="flex gap-4 text-game-xs font-body text-game-text-muted">
-          {data.spy_level !== undefined && (
-            <span>{t('spy_intel.spy')} Training: <span className="text-game-text-white">Lv {data.spy_level}</span></span>
-          )}
-          {data.scout_level !== undefined && (
-            <span>{t('spy_intel.scout')} Training: <span className="text-game-text-white">Lv {data.scout_level}</span></span>
-          )}
-        </div>
+        </IntelSection>
       )}
     </div>
   )

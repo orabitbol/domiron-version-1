@@ -510,17 +510,35 @@ export interface SpyRevealedData {
   power_total:     number
   soldier_shield:  boolean
   resource_shield: boolean
-  // ── Extended intel (added 2026-03-06) — absent in legacy spy history records ──
-  /** Gold currently deposited in the target's bank */
-  bank_gold?:        number
+  // ── Extended intel (added 2026-03-06, expanded 2026-03-13) ──────────────
+  /** Target's city level (1-5) */
+  city?:               number
+  /** Untraining-ready population — potential army growth */
+  free_population?:    number
+  /** Gold currently deposited in the target's bank (safe from looting) */
+  bank_gold?:          number
+  /** Target's bank interest upgrade level */
+  bank_interest_level?: number
   /** Attack weapons owned (key = weapon slug, value = quantity) */
-  attack_weapons?:   Record<string, number>
+  attack_weapons?:     Record<string, number>
   /** Defense weapons owned (key = weapon slug, value = quantity) */
-  defense_weapons?:  Record<string, number>
+  defense_weapons?:    Record<string, number>
+  /** Spy gear owned (key = weapon slug, value = quantity) */
+  spy_weapons?:        Record<string, number>
+  /** Scout gear owned (key = weapon slug, value = quantity) */
+  scout_weapons?:      Record<string, number>
+  /** Target's attack training level */
+  attack_level?:       number
+  /** Target's defense training level */
+  defense_level?:      number
   /** Target's spy training level */
-  spy_level?:        number
+  spy_level?:          number
   /** Target's scout training level */
-  scout_level?:      number
+  scout_level?:        number
+  /** Tribe name the target belongs to (null if none) */
+  tribe_name?:         string | null
+  /** Tribe level (1-5) of the target's tribe */
+  tribe_level?:        number | null
 }
 
 // Ranked player (rankings page)

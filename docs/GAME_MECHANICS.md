@@ -178,18 +178,18 @@ growth  = floor(base × vipMult)
 
 | Level | Base Pop/Tick | With VIP (×1.10) |
 |-------|--------------|------------------|
-| 1     | 1            | 1                |
-| 2     | 2            | 2                |
-| 3     | 3            | 3                |
-| 4     | 4            | 4                |
-| 5     | 5            | 5                |
-| 6     | 8            | 8                |
-| 7     | 10           | 11               |
-| 8     | 14           | 15               |
-| 9     | 18           | 19               |
-| 10    | 23           | 25               |
+| 1     | 3            | 3                |
+| 2     | 6            | 6                |
+| 3     | 9            | 9                |
+| 4     | 12           | 13               |
+| 5     | 15           | 16               |
+| 6     | 18           | 19               |
+| 7     | 21           | 23               |
+| 8     | 24           | 26               |
+| 9     | 27           | 29               |
+| 10    | 30           | 33               |
 
-**Scaling:** Strongly non-linear. Level 10 produces 23× more than level 1. The jump from level 5→6 is disproportionate (+3 vs +1 per previous step). This is a deliberate mid-season acceleration point.
+**Scaling:** Linear (+3 per level). Level 10 produces 10× level 1. Growth is predictable and steady from the first upgrade.
 
 ### 3.3 Population Consumption
 
@@ -534,7 +534,7 @@ This prevents creating more slaves than there are remaining soldiers.
 BaseLoot[r]   = unbanked[r] × BASE_LOOT_RATE
 FinalLoot[r]  = floor(BaseLoot[r] × outcomeMult × decayFactor)
 
-BASE_LOOT_RATE = 0.20 (20% of each unbanked resource)
+BASE_LOOT_RATE = 0.10 (10% of each unbanked resource)
 
 outcomeMult:
   win  → 1.0

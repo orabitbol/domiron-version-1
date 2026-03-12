@@ -73,19 +73,19 @@ popAdded = floor(base × vipMult)
 **Lookup table:**
 | Level | pop/tick |
 |-------|---------|
-| 1 | 1 |
-| 2 | 2 |
-| 3 | 3 |
-| 4 | 4 |
-| 5 | 5 |
-| 6 | 8 |
-| 7 | 10 |
-| 8 | 14 |
-| 9 | 18 |
-| 10 | 23 |
+| 1 | 3 |
+| 2 | 6 |
+| 3 | 9 |
+| 4 | 12 |
+| 5 | 15 |
+| 6 | 18 |
+| 7 | 21 |
+| 8 | 24 |
+| 9 | 27 |
+| 10 | 30 |
 
 Applied to: `army.free_population += popAdded` each tick.
-**Scaling:** Step function (exponential-ish above level 5).
+**Scaling:** Linear (+3 per level). Level 10 produces 10× level 1.
 
 ---
 
@@ -391,7 +391,7 @@ if defenderIsProtected OR outcome = 'loss':  loot = {0,0,0,0}
 
 outcomeMult = { win: 1.0, loss: 0.0 }
 decayFactor = LOOT_DECAY_STEPS[min(attackCount-1, 4)]  →  [1.0, 0.70, 0.40, 0.20, 0.10]
-totalMult   = BASE_LOOT_RATE (0.20) × outcomeMult × decayFactor
+totalMult   = BASE_LOOT_RATE (0.10) × outcomeMult × decayFactor
 
 loot[r] = floor(unbanked[r] × totalMult)   for r in {gold, iron, wood, food}
 ```

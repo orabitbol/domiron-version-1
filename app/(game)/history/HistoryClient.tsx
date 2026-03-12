@@ -87,12 +87,18 @@ const RESOURCE_META = {
 } as const
 
 const ATK_WEAPON_LABELS: Record<string, string> = {
-  slingshot: 'Slingshot', boomerang: 'Boomerang', pirate_knife: 'P.Knife',
-  axe: 'Axe', master_knife: 'M.Knife', knight_axe: 'K.Axe', iron_ball: 'Iron Ball',
+  slingshot: 'קלע', boomerang: 'בומרנג', pirate_knife: 'סכין שוד',
+  axe: 'גרזן', master_knife: 'סכין מאסטר', knight_axe: 'גרזן פרש', iron_ball: 'כדור ברזל',
 }
 const DEF_WEAPON_LABELS: Record<string, string> = {
-  wood_shield: 'W.Shield', iron_shield: 'I.Shield', leather_armor: 'L.Armor',
-  chain_armor: 'C.Armor', plate_armor: 'Plate', mithril_armor: 'Mithril', gods_armor: "God's",
+  wood_shield: 'מגן עץ', iron_shield: 'מגן ברזל', leather_armor: 'שריון עור',
+  chain_armor: 'שריון שרשרות', plate_armor: 'שריון לוחות', mithril_armor: 'שריון מיתריל', gods_armor: 'שריון האלים',
+}
+const SPY_WEAPON_LABELS: Record<string, string> = {
+  shadow_cloak: 'גלימת צל', dark_mask: 'מסכת חושך', elven_gear: 'ציוד אלפי',
+}
+const SCOUT_WEAPON_LABELS: Record<string, string> = {
+  scout_boots: 'מגפי סיור', scout_cloak: 'גלימת סייר', elven_boots: 'מגפיים אלפיים',
 }
 
 function buildPageRange(current: number, total: number): (number | null)[] {
@@ -329,31 +335,43 @@ function SpyMissionRow({ row, expanded, onToggle, isLast }: SpyMissionRowProps) 
 }
 
 function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast: boolean }) {
-  const armyName     = String(data.army_name ?? 'Unknown')
-  const soldiers     = safeNum(data, 'soldiers')
-  const cavalry      = safeNum(data, 'cavalry')
-  const spies        = safeNum(data, 'spies')
-  const scouts       = safeNum(data, 'scouts')
-  const slaves       = safeNum(data, 'slaves')
-  const gold         = safeNum(data, 'gold')
-  const iron         = safeNum(data, 'iron')
-  const wood         = safeNum(data, 'wood')
-  const food         = safeNum(data, 'food')
-  const bankGold     = data.bank_gold !== undefined ? safeNum(data, 'bank_gold') : undefined
-  const pwrAtk       = safeNum(data, 'power_attack')
-  const pwrDef       = safeNum(data, 'power_defense')
-  const pwrTotal     = safeNum(data, 'power_total')
+  const armyName       = String(data.army_name ?? '—')
+  const soldiers       = safeNum(data, 'soldiers')
+  const cavalry        = safeNum(data, 'cavalry')
+  const spies          = safeNum(data, 'spies')
+  const scouts         = safeNum(data, 'scouts')
+  const slaves         = safeNum(data, 'slaves')
+  const freePop        = data.free_population !== undefined ? safeNum(data, 'free_population') : undefined
+  const cityLevel      = data.city !== undefined ? safeNum(data, 'city') : undefined
+  const gold           = safeNum(data, 'gold')
+  const iron           = safeNum(data, 'iron')
+  const wood           = safeNum(data, 'wood')
+  const food           = safeNum(data, 'food')
+  const bankGold       = data.bank_gold !== undefined ? safeNum(data, 'bank_gold') : undefined
+  const bankIntLevel   = data.bank_interest_level !== undefined ? safeNum(data, 'bank_interest_level') : undefined
+  const pwrAtk         = safeNum(data, 'power_attack')
+  const pwrDef         = safeNum(data, 'power_defense')
+  const pwrTotal       = safeNum(data, 'power_total')
   const soldierShield  = safeBool(data, 'soldier_shield')
   const resourceShield = safeBool(data, 'resource_shield')
-  const atkWeapons   = safeRecord(data, 'attack_weapons')
-  const defWeapons   = safeRecord(data, 'defense_weapons')
-  const spyLevel     = data.spy_level !== undefined ? safeNum(data, 'spy_level') : undefined
-  const scoutLevel   = data.scout_level !== undefined ? safeNum(data, 'scout_level') : undefined
+  const atkWeapons     = safeRecord(data, 'attack_weapons')
+  const defWeapons     = safeRecord(data, 'defense_weapons')
+  const spyWeapons     = safeRecord(data, 'spy_weapons')
+  const scoutWeapons   = safeRecord(data, 'scout_weapons')
+  const atkLevel       = data.attack_level  !== undefined ? safeNum(data, 'attack_level')  : undefined
+  const defLevel       = data.defense_level !== undefined ? safeNum(data, 'defense_level') : undefined
+  const spyLevel       = data.spy_level     !== undefined ? safeNum(data, 'spy_level')     : undefined
+  const scoutLevel     = data.scout_level   !== undefined ? safeNum(data, 'scout_level')   : undefined
+  const tribeName      = data.tribe_name  != null ? String(data.tribe_name)           : undefined
+  const tribeLevel     = data.tribe_level != null ? safeNum(data, 'tribe_level')      : undefined
 
-  const hasAtkWeapons = Object.values(atkWeapons).some((v) => v > 0)
-  const hasDefWeapons = Object.values(defWeapons).some((v) => v > 0)
-  const hasWeapons    = hasAtkWeapons || hasDefWeapons
-  const hasTraining   = spyLevel !== undefined || scoutLevel !== undefined
+  const hasAtkWeapons   = Object.values(atkWeapons).some((v) => v > 0)
+  const hasDefWeapons   = Object.values(defWeapons).some((v) => v > 0)
+  const hasSpyWeapons   = Object.values(spyWeapons).some((v) => v > 0)
+  const hasScoutWeapons = Object.values(scoutWeapons).some((v) => v > 0)
+  const hasWeapons      = hasAtkWeapons || hasDefWeapons || hasSpyWeapons || hasScoutWeapons
+  const hasTraining     = atkLevel !== undefined || defLevel !== undefined ||
+                          spyLevel !== undefined || scoutLevel !== undefined
 
   const fieldStyle: React.CSSProperties = {
     display: 'flex', justifyContent: 'space-between', gap: 8,
@@ -371,19 +389,39 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
     }}>
       {/* Header */}
       <div style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(192,112,255,0.7)', marginBottom: 12 }}>
-        {'\uD83D\uDD0D'} Intelligence Report &mdash; {armyName}
+        {'\uD83D\uDD0D'} דוח מודיעין &mdash; {armyName}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
 
+        {/* City / Tribe */}
+        {(cityLevel !== undefined || tribeName !== undefined) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+            {cityLevel !== undefined && (
+              <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '2px 8px', color: 'rgba(255,255,255,0.55)', fontFamily: 'var(--font-body, sans-serif)' }}>
+                עיר רמה {cityLevel}
+              </span>
+            )}
+            {tribeName !== undefined && (
+              <span style={{ fontSize: 10, background: 'rgba(192,112,255,0.08)', border: '1px solid rgba(192,112,255,0.25)', borderRadius: 5, padding: '2px 8px', color: 'rgba(192,112,255,0.85)', fontFamily: 'var(--font-body, sans-serif)' }}>
+                🤝 {tribeName}{tribeLevel != null ? ` · רמה ${tribeLevel}` : ''}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Army */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>צבא</div>
+          <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>כוחות צבאיים</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-            {[['חיילים', soldiers], ['פרשים', cavalry], ['מרגלים', spies], ['סיירים', scouts], ['עבדים', slaves]].map(([label, val]) => (
-              <div key={label as string} style={fieldStyle}>
+            {([
+              ['חיילים', soldiers], ['פרשים', cavalry], ['מרגלים', spies],
+              ['סיירים', scouts],   ['עבדים', slaves],
+              ...(freePop !== undefined ? [['אוכ׳ חופשייה', freePop]] : []),
+            ] as [string, number][]).map(([label, val]) => (
+              <div key={label} style={fieldStyle}>
                 <span style={labelStyle}>{label}</span>
-                <span style={valStyle}>{formatNumber(val as number)}</span>
+                <span style={valStyle}>{formatNumber(val)}</span>
               </div>
             ))}
           </div>
@@ -393,20 +431,22 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>משאבים</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-            {[
+            {([
               ['זהב', gold, '#F0C030'],
               ['ברזל', iron, '#9898C0'],
               ['עץ', wood, '#64B450'],
               ['מזון', food, '#F08C3C'],
-            ].map(([label, val, color]) => (
-              <div key={label as string} style={fieldStyle}>
+            ] as [string, number, string][]).map(([label, val, color]) => (
+              <div key={label} style={fieldStyle}>
                 <span style={labelStyle}>{label}</span>
-                <span style={{ ...valStyle, color: color as string }}>{formatNumber(val as number)}</span>
+                <span style={{ ...valStyle, color }}>{formatNumber(val)}</span>
               </div>
             ))}
             {bankGold !== undefined && (
-              <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-                <span style={labelStyle}>בנק</span>
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1', marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={labelStyle}>
+                  בנק{bankIntLevel !== undefined && bankIntLevel > 0 ? ` (ריבית רמה ${bankIntLevel})` : ''}
+                </span>
                 <span style={{ ...valStyle, color: '#F0C030' }}>{formatNumber(bankGold)} זהב</span>
               </div>
             )}
@@ -437,48 +477,71 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
           </div>
         </div>
 
-        {/* Weapons (new intel — only on missions after 2026-03-06) */}
+        {/* Training */}
+        {hasTraining && (
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>רמות אימון</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 10, fontFamily: 'var(--font-body, sans-serif)' }}>
+              {atkLevel   !== undefined && <div style={fieldStyle}><span style={labelStyle}>תקיפה</span><span style={valStyle}>רמה {atkLevel}</span></div>}
+              {defLevel   !== undefined && <div style={fieldStyle}><span style={labelStyle}>הגנה</span><span style={valStyle}>רמה {defLevel}</span></div>}
+              {spyLevel   !== undefined && <div style={fieldStyle}><span style={labelStyle}>ריגול</span><span style={valStyle}>רמה {spyLevel}</span></div>}
+              {scoutLevel !== undefined && <div style={fieldStyle}><span style={labelStyle}>סיור</span><span style={valStyle}>רמה {scoutLevel}</span></div>}
+            </div>
+          </div>
+        )}
+
+        {/* Weapons */}
         {hasWeapons && (
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 12px' }}>
-            <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>נשקים</div>
+            <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>ציוד</div>
             {hasAtkWeapons && (
               <div style={{ marginBottom: 6 }}>
-                <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>תקיפה</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>⚔️ תקיפה</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(atkWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#FF8080', background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
-                      {ATK_WEAPON_LABELS[key] ?? key} &times;{qty}
+                      {ATK_WEAPON_LABELS[key] ?? key} ×{qty}
                     </span>
                   ))}
                 </div>
               </div>
             )}
             {hasDefWeapons && (
-              <div>
-                <div style={{ fontSize: 9, color: 'rgba(240,192,48,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>הגנה</div>
+              <div style={{ marginBottom: hasSpyWeapons || hasScoutWeapons ? 6 : 0 }}>
+                <div style={{ fontSize: 9, color: 'rgba(240,192,48,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>🛡️ הגנה</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(defWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#F0C030', background: 'rgba(240,192,48,0.08)', border: '1px solid rgba(240,192,48,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
-                      {DEF_WEAPON_LABELS[key] ?? key} &times;{qty}
+                      {DEF_WEAPON_LABELS[key] ?? key} ×{qty}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-            {hasTraining && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 12, fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.38)' }}>
-                {spyLevel !== undefined && <span>ריגול: <span style={{ color: 'rgba(255,255,255,0.75)' }}>רמה {spyLevel}</span></span>}
-                {scoutLevel !== undefined && <span>סיור: <span style={{ color: 'rgba(255,255,255,0.75)' }}>רמה {scoutLevel}</span></span>}
+            {hasSpyWeapons && (
+              <div style={{ marginBottom: hasScoutWeapons ? 6 : 0 }}>
+                <div style={{ fontSize: 9, color: 'rgba(192,112,255,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>🌑 ריגול</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {Object.entries(spyWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
+                    <span key={key} style={{ fontSize: 10, color: '#C070FF', background: 'rgba(192,112,255,0.08)', border: '1px solid rgba(192,112,255,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
+                      {SPY_WEAPON_LABELS[key] ?? key} ×{qty}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Training only (no weapons) */}
-        {!hasWeapons && hasTraining && (
-          <div style={{ display: 'flex', gap: 12, fontSize: 10, fontFamily: 'var(--font-body, sans-serif)', color: 'rgba(255,255,255,0.38)', alignItems: 'center' }}>
-            {spyLevel !== undefined && <span>ריגול רמה: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{spyLevel}</span></span>}
-            {scoutLevel !== undefined && <span>סיור רמה: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{scoutLevel}</span></span>}
+            {hasScoutWeapons && (
+              <div>
+                <div style={{ fontSize: 9, color: 'rgba(255,165,80,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>👁️ סיור</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {Object.entries(scoutWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
+                    <span key={key} style={{ fontSize: 10, color: '#FFA550', background: 'rgba(255,165,80,0.08)', border: '1px solid rgba(255,165,80,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
+                      {SCOUT_WEAPON_LABELS[key] ?? key} ×{qty}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

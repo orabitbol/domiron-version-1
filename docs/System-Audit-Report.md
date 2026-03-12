@@ -38,7 +38,7 @@ supabase/migrations/0011_attack_rpc_captives.sql   Current RPC (15-param)
 - **Binary outcome**: R ≥ 1.0 → win; R < 1.0 → loss. DB constraint enforced by migration 0010.
 - **Soldier losses**: Both sides clamped to [ATTACKER_FLOOR, MAX_LOSS_RATE] and [DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE]. Defender always bleeds even from a very weak attacker.
 - **Captives**: `floor(defenderLosses × CAPTURE_RATE)` added to attacker army.slaves. Zero whenever defenderLosses = 0. Written atomically via RPC.
-- **Loot**: 20% of each unbanked resource. Decays across repeat attacks (1.0 → 0.7 → 0.4 → 0.2 → 0.1). Zero on loss.
+- **Loot**: 10% of each unbanked resource (`BASE_LOOT_RATE=0.10`). Decays across repeat attacks (1.0 → 0.7 → 0.4 → 0.2 → 0.1). Zero on loss.
 - **Multi-turn scaling**: Combat resolves once; loot and losses scale linearly by turnsUsed, capped to available soldiers/resources.
 
 ### ✔ Protection & Cooldown Flags

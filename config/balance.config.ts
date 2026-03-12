@@ -278,7 +278,7 @@ export const BALANCE = {
     ATTACKER_FLOOR: 0.03, // [TUNE] Attacker always loses at least this fraction
 
     // Loot
-    BASE_LOOT_RATE: 0.2, // [FIXED] 20% of each unbanked resource
+    BASE_LOOT_RATE: 0.10, // [TUNE] 10% of each unbanked resource (softened from 0.20)
 
     LOOT_OUTCOME_MULTIPLIER: {
       win: 1.0,
@@ -372,16 +372,16 @@ export const BALANCE = {
     enableCavalry: true, // [TOGGLE]
 
     populationPerTick: {
-      1: 1,
-      2: 2,
-      3: 3,
-      4: 4,
-      5: 5,
-      6: 8,
-      7: 10,
-      8: 14,
-      9: 18,
-      10: 23,
+      1: 3,
+      2: 6,
+      3: 9,
+      4: 12,
+      5: 15,
+      6: 18,
+      7: 21,
+      8: 24,
+      9: 27,
+      10: 30,
     } as Record<number, number>,
 
     advancedMultiplierPerLevel: 0.08, // [TUNE]

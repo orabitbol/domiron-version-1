@@ -105,7 +105,7 @@ BALANCE = {
     DEFENDER_BLEED_FLOOR: number,  // [TUNE]
     ATTACKER_FLOOR:       number,  // [TUNE]
     CAPTURE_RATE:         0.35,    // [TUNE]
-    BASE_LOOT_RATE:       0.20,    // [FIXED]
+    BASE_LOOT_RATE:       0.10,    // [TUNE]
     FOOD_PER_SOLDIER:     number,  // [TUNE]
     KILL_COOLDOWN_HOURS:  6,       // [FIXED]
     PROTECTION_HOURS:     24,      // [FIXED]
@@ -629,7 +629,7 @@ no special case needed in the slave formula.
 ### Formula
 
 ```
-BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE           (0.20 — 20% of each resource)
+BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE           (0.10 — 10% of each resource)
 
 OutcomeMult  = { win: 1.0,  partial: 0.5,  loss: 0.0 }
 

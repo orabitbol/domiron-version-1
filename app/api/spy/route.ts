@@ -53,7 +53,7 @@ function calcScoutDefense(
   if ((weapons.scout_cloak  ?? 0) > 0) weapMult *= SCOUT_WEAPON_MULT.scout_cloak
   if ((weapons.elven_boots  ?? 0) > 0) weapMult *= SCOUT_WEAPON_MULT.elven_boots
   const raceMult = race === 'elf' ? 1 + BALANCE.raceBonuses.elf.scoutBonus : 1.0
-  return Math.floor(scouts * trainMult * weapMult * raceMult)
+  return Math.floor(scouts * BALANCE.pp.SCOUT_UNIT_VALUE * trainMult * weapMult * raceMult)
 }
 
 // ── GET ────────────────────────────────────────────────────────────────────
@@ -188,10 +188,10 @@ export async function POST(request: NextRequest) {
       supabase.from('players').select('city, race, army_name, power_attack, power_defense, power_spy, power_scout, power_total').eq('id', target_id).single(),
       supabase.from('army').select('*').eq('player_id', target_id).single(),
       supabase.from('weapons').select('*').eq('player_id', target_id).single(),
-      supabase.from('training').select('scout_level, spy_level').eq('player_id', target_id).single(),
+      supabase.from('training').select('scout_level, spy_level, attack_level, defense_level').eq('player_id', target_id).single(),
       supabase.from('resources').select('gold, iron, wood, food').eq('player_id', target_id).single(),
       getActiveHeroEffects(supabase, target_id),
-      supabase.from('bank').select('gold_balance').eq('player_id', target_id).maybeSingle(),
+      supabase.from('bank').select('balance, interest_level').eq('player_id', target_id).maybeSingle(),
       supabase.from('tribe_members').select('tribe_id').eq('player_id', target_id).maybeSingle(),
     ])
 
@@ -219,19 +219,29 @@ export async function POST(request: NextRequest) {
     )
 
     // Apply spy_veil tribe spell multiplier (boosts defender's scout defense)
+    // Also fetch tribe name/level for strategic intel reveal.
+    let tribeIntel: { name: string; level: number } | null = null
     if (defTribeMember?.tribe_id) {
-      const { data: spyVeilSpell } = await supabase
-        .from('tribe_spells')
-        .select('id')
-        .eq('tribe_id', defTribeMember.tribe_id)
-        .eq('spell_key', 'spy_veil')
-        .gt('expires_at', now.toISOString())
-        .maybeSingle()
+      const [{ data: spyVeilSpell }, { data: tribeData }] = await Promise.all([
+        supabase
+          .from('tribe_spells')
+          .select('id')
+          .eq('tribe_id', defTribeMember.tribe_id)
+          .eq('spell_key', 'spy_veil')
+          .gt('expires_at', now.toISOString())
+          .maybeSingle(),
+        supabase
+          .from('tribes')
+          .select('name, level')
+          .eq('id', defTribeMember.tribe_id)
+          .single(),
+      ])
       if (spyVeilSpell) {
         scoutDefense = Math.floor(
           scoutDefense * BALANCE.tribe.spellEffects.spy_veil.scoutDefenseMultiplier
         )
       }
+      tribeIntel = tribeData ? { name: tribeData.name, level: tribeData.level } : null
     }
 
     const success = spyPower > scoutDefense
@@ -251,11 +261,13 @@ export async function POST(request: NextRequest) {
     const t = defTraining as Record<string, number>
     const revealed = success ? {
       army_name:       defPlayer.army_name,
+      city:            defPlayer.city,
       soldiers:        defArmy.soldiers,
+      cavalry:         defArmy.cavalry,
       spies:           defArmy.spies,
       scouts:          defArmy.scouts,
-      cavalry:         defArmy.cavalry,
       slaves:          defArmy.slaves,
+      free_population: defArmy.free_population,
       gold:            defResources.gold,
       iron:            defResources.iron,
       wood:            defResources.wood,
@@ -268,7 +280,8 @@ export async function POST(request: NextRequest) {
       soldier_shield:  defHero.soldierShieldActive,
       resource_shield: defHero.resourceShieldActive,
       // ── Extended intel ──────────────────────────────────────────────────
-      bank_gold:       defBank?.gold_balance ?? 0,
+      bank_gold:          defBank?.balance ?? 0,
+      bank_interest_level: defBank?.interest_level ?? 0,
       attack_weapons: {
         slingshot:    w.slingshot    ?? 0,
         boomerang:    w.boomerang    ?? 0,
@@ -287,8 +300,22 @@ export async function POST(request: NextRequest) {
         mithril_armor: w.mithril_armor ?? 0,
         gods_armor:    w.gods_armor    ?? 0,
       },
-      spy_level:   t.spy_level   ?? 0,
-      scout_level: t.scout_level ?? 0,
+      spy_weapons: {
+        shadow_cloak: w.shadow_cloak ?? 0,
+        dark_mask:    w.dark_mask    ?? 0,
+        elven_gear:   w.elven_gear   ?? 0,
+      },
+      scout_weapons: {
+        scout_boots:  w.scout_boots  ?? 0,
+        scout_cloak:  w.scout_cloak  ?? 0,
+        elven_boots:  w.elven_boots  ?? 0,
+      },
+      attack_level:  t.attack_level  ?? 0,
+      defense_level: t.defense_level ?? 0,
+      spy_level:     t.spy_level     ?? 0,
+      scout_level:   t.scout_level   ?? 0,
+      tribe_name:    tribeIntel?.name  ?? null,
+      tribe_level:   tribeIntel?.level ?? null,
     } : null
 
     // ── Atomic DB write via RPC ───────────────────────────────────────────────

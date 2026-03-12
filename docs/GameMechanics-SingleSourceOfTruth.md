@@ -1,6 +1,7 @@
 # Domiron v5 — Game Mechanics: Single Source of Truth
 
 **Generated:** 2026-03-04
+**Last updated (pass 6):** 2026-03-13 — Balance + Spy Intel expansion. (1) **Loot softened**: `BASE_LOOT_RATE` changed from `0.20` → `0.10` in `config/balance.config.ts`; annotation updated from `[FIXED]` to `[TUNE]`. Loot formula unchanged; only the rate coefficient reduced. (2) **SCOUT_UNIT_VALUE activated**: constant `BALANCE.pp.SCOUT_UNIT_VALUE = 5` was defined but never applied. Now applied in `lib/game/power.ts` (`powerScout` formula) and `app/api/spy/route.ts` (`calcScoutDefense` formula). Scouts now correctly count as 5× in both power rankings and spy defense. Balance config comment at line 662 always showed the intended formula — this was a dead constant, now live. (3) **Spy intel expanded**: `app/api/spy/route.ts` now reveals 11 additional fields on success — `city`, `free_population`, `bank_gold` (fixed column name: was querying `gold_balance`, correct column is `balance`), `bank_interest_level`, `spy_weapons`, `scout_weapons`, `attack_level`, `defense_level`, `tribe_name`, `tribe_level`. Bank query also returns `interest_level`. Tribe block parallelised: spy_veil check + tribe name/level fetch run in `Promise.all()`. (4) **TypeScript types**: `SpyRevealedData` interface in `types/game.ts` extended with all new optional fields. (5) **Spy UI rewritten**: `SpyClient.tsx` `RevealedIntel` component fully replaced — now shows City/Tribe identity chips, Army (incl. free_population), Resources (with Bank sub-section), Power, Shields, Training (all 4 levels), Weapons (4 categories). Hebrew tooltips on section headers, city/tribe chips, shield dots, bank label. History page `SpyIntelPanel` (`HistoryClient.tsx`) updated to match. All Hebrew. (6) **§4 Loot table** and **§6 Spy intel table** updated in this document.
 **Last updated:** 2026-03-07 (pass 5) — Shop RPC correctness + design documentation. (1) Critical bug fixed: both RPCs now have explicit `IF NOT FOUND THEN RETURN player_state_not_found` guards after every `SELECT ... FOR UPDATE`. Without these, PL/pgSQL leaves variables as NULL when no row is found; all `IF NULL < N` guards evaluate as false (not true), UPDATEs affect 0 rows, and the function silently returns `ok:true` (false success). (2) Both route error maps updated: `player_state_not_found → 404` added to `BUY_RPC_ERROR_MAP` and `SELL_RPC_ERROR_MAP`. (3) Cooldown semantics documented explicitly: `last_shop_at` is an intentional **global shop throttle** (not per-request idempotency), consistent with `last_attack_at`/`last_spy_at`. (4) Power recalculation outside RPC documented as acceptable: power columns are denormalized caches; same pattern as all other mutation routes; moving formula to SQL would violate SSOT. (5) Tests updated: structural tests for `player_state_not_found` in both routes; logic simulation tests for NOT FOUND null-comparison behavior; design decision documentation tests for throttle and power decisions. (6) §12 SSOT fully updated.
 **Last updated (pass 4):** 2026-03-07 — Shop atomicity. (1) `shop_buy_apply` and `shop_sell_apply` Postgres RPCs added (`0023_shop_rpc.sql`): acquire `FOR UPDATE` locks on resources+players (JOIN) then weapons, re-validate all conditions post-lock (TOCTTOU-safe), commit all mutations in one transaction. (2) `players.last_shop_at TIMESTAMPTZ` column added — stamped atomically in RPC, pre-checked in route for fast 429 within 500 ms window. (3) Both routes rewritten as thin wrappers: resolve cost from BALANCE → compute totals → pre-check cooldown → call RPC → map error codes → recalculatePower → return snapshot. (4) `types/game.ts` Player interface: `last_shop_at: string | null` added. (5) `lib/game/shop.test.ts` updated: structural tests now assert RPC delegation, cooldown guard, error map; logic simulation tests extended with cooldown + error-code tests. (6) §12 SSOT fully updated with atomicity flow, lock order, RPC error table.
 **Last updated (pass 3):** 2026-03-07 — Shop system overhauled. (1) All weapon purchases now cost ALL 4 resources equally: `cost = { gold, iron, wood, food }` in `BALANCE.weapons`. Legacy `costIron`/`costGold` fields fully removed. (2) `maxPerPlayer` cap removed from attack weapons — attack gear is now stackable without limit. (3) Buy + sell routes simplified to a single unified code path: `resolveCost(category, weapon)` → check all 4 resources → apply. (4) Sell route now refunds all 4 resources proportionally. (5) Scroll-jump-to-top bug fixed: sub-components in ShopClient moved outside the component function body. (6) Hardcoded `SPY_PRICES`/`SCOUT_PRICES` constants removed from ShopClient; prices now read exclusively from BALANCE. (7) `ResourceQuad` component added (`components/ui/resource-quad.tsx`): compact all-4-resource cost display. (8) `balance-validate.ts` Zod schema updated for new cost shape. (9) 43 shop tests added in `lib/game/shop.test.ts`.
@@ -391,16 +392,16 @@ Population Growth Table:
 
 | Level | Base pop/tick |
 |---|---|
-| 1 | 1 |
-| 2 | 2 |
-| 3 | 3 |
-| 4 | 4 |
-| 5 | 5 |
-| 6 | 8 |
-| 7 | 10 |
-| 8 | 14 |
-| 9 | 18 |
-| 10 | 23 |
+| 1 | 3 |
+| 2 | 6 |
+| 3 | 9 |
+| 4 | 12 |
+| 5 | 15 |
+| 6 | 18 |
+| 7 | 21 |
+| 8 | 24 |
+| 9 | 27 |
+| 10 | 30 |
 
 Source: `config/balance.config.ts` `training.populationPerTick`
 
@@ -753,7 +754,7 @@ loot[r]     = floor(unbanked[r] × totalMult)
 
 | Constant | Value | Annotation |
 |---|---|---|
-| `combat.BASE_LOOT_RATE` | 0.20 | [FIXED] |
+| `combat.BASE_LOOT_RATE` | 0.10 | [TUNE] softened from 0.20 (2026-03-13) |
 | `antiFarm.DECAY_WINDOW_HOURS` | 12 | [FIXED] |
 | `antiFarm.LOOT_DECAY_STEPS` | [1.0, 0.70, 0.40, 0.20, 0.10] | Attack 1–5+ |
 
@@ -999,17 +1000,39 @@ if failure:
 
 ### Data Revealed on Success
 
+All fields in `SpyRevealedData` (`types/game.ts`) — expanded 2026-03-13:
+
 ```json
 {
-  "army_name", "soldiers", "spies", "scouts", "cavalry", "slaves",
+  // Identity
+  "army_name", "city",
+  // Army composition
+  "soldiers", "cavalry", "spies", "scouts", "slaves", "free_population",
+  // Unbanked resources
   "gold", "iron", "wood", "food",
+  // Bank
+  "bank_gold", "bank_interest_level",
+  // Power scores (denormalized from players table)
   "power_attack", "power_defense", "power_spy", "power_scout", "power_total",
-  "soldier_shield_active": bool,
-  "resource_shield_active": bool
+  // Hero shields (active state only — expiration time is NOT revealed)
+  "soldier_shield": bool,
+  "resource_shield": bool,
+  // Training levels
+  "attack_level", "defense_level", "spy_level", "scout_level",
+  // Weapons owned (key=slug, value=quantity; 0-valued keys = not owned)
+  "attack_weapons": { slingshot, boomerang, pirate_knife, axe, master_knife, knight_axe, iron_ball },
+  "defense_weapons": { wood_shield, iron_shield, leather_armor, chain_armor, plate_armor, mithril_armor, gods_armor },
+  "spy_weapons": { shadow_cloak, dark_mask, elven_gear },
+  "scout_weapons": { scout_boots, scout_cloak, elven_boots },
+  // Tribe (null if not in a tribe)
+  "tribe_name": string | null,
+  "tribe_level": number | null
 }
 ```
 
 Shield active state is revealed — expiration time is NOT.
+
+**Bank field bug fixed 2026-03-13:** spy route was querying `gold_balance` (wrong). Fixed to `balance` — matching the actual DB column and `Bank` TypeScript interface.
 
 ### DB Writes (spy route) — Atomic via RPC
 

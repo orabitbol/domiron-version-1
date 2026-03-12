@@ -539,7 +539,7 @@ export function getLootDecayMultiplier(attackCountInWindow: number): number {
 // ─────────────────────────────────────────
 
 /**
- * BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE      (0.20)
+ * BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE      (0.10)
  * FinalLoot[r] = BaseLoot[r] × OutcomeMultiplier × DecayFactor
  *
  * OutcomeMultiplier: win=1.0, loss=0.0

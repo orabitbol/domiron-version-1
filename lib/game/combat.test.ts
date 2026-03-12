@@ -501,9 +501,9 @@ describe('calculateLoot', () => {
     expect(loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 
-  it('win loot = 20% of unbanked on first attack', () => {
+  it('win loot = BASE_LOOT_RATE of unbanked on first attack', () => {
     const loot = calculateLoot(UNBANKED_1000, 'win', 1, false)
-    const expected = Math.floor(1000 * 0.20 * 1.0 * 1.0)
+    const expected = Math.floor(1000 * BALANCE.combat.BASE_LOOT_RATE * 1.0 * 1.0)
     expect(loot.gold).toBe(expected)
     expect(loot.iron).toBe(expected)
     expect(loot.wood).toBe(expected)
@@ -536,8 +536,8 @@ describe('calculateLoot', () => {
       { gold: 100_000_000, iron: 100_000_000, wood: 100_000_000, food: 100_000_000 },
       'win', 1, false,
     )
-    // 20% of 100M = 20M. No cap should reduce this.
-    expect(hugeLoot.gold).toBe(Math.floor(100_000_000 * 0.20))
+    // BASE_LOOT_RATE of 100M = no cap should reduce this.
+    expect(hugeLoot.gold).toBe(Math.floor(100_000_000 * BALANCE.combat.BASE_LOOT_RATE))
   })
 
   it('all loot values are non-negative integers', () => {

@@ -587,8 +587,8 @@ describe('Multi-turn attack scaling', () => {
   })
 
   it('5-turn attack: loot is exactly 5× per-turn loot (before cap)', () => {
-    // With DEF_RES.gold=10000 and BASE_LOOT_RATE=0.20 win loot=2000 per turn.
-    // 5 turns → scaledLoot.gold = 10000, which equals defResources.gold → capped.
+    // With DEF_RES.gold=10000 and BASE_LOOT_RATE=0.10 win loot=1000 per turn.
+    // 5 turns → scaledLoot.gold = 5000. Verify scaling is monotone and capped to available.
     const s5 = applyMultiTurnScaling(base, 5, ATT_SOLDIERS, DEF_SOLDIERS, DEF_RES)
     const s1 = applyMultiTurnScaling(base, 1, ATT_SOLDIERS, DEF_SOLDIERS, DEF_RES)
     // scaledLoot before cap

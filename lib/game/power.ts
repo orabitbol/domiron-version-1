@@ -92,7 +92,7 @@ export async function recalculatePower(
   if (weapons.scout_cloak  > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.scout_cloak
   if (weapons.elven_boots  > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.elven_boots
   const powerScout = Math.floor(
-    army.scouts * scoutTrainMult * scoutWeaponMult
+    army.scouts * BALANCE.pp.SCOUT_UNIT_VALUE * scoutTrainMult * scoutWeaponMult
   )
 
   // ── Total Power ─────────────────────────────────────────────────────────────

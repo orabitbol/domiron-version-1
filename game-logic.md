@@ -293,7 +293,7 @@ Zero when defender_losses = 0 (cooldown, protection, or Soldier Shield).
 BaseLoot[r]  = unbanked[r] × BASE_LOOT_RATE
 FinalLoot[r] = BaseLoot[r] × OutcomeMult × DecayFactor
 
-BASE_LOOT_RATE = 0.20 [FIXED] — 20% of each unbanked resource
+BASE_LOOT_RATE = 0.10 [TUNE] — 10% of each unbanked resource (softened from 0.20)
 
 Outcome multipliers:
   win:  ×1.0
@@ -551,8 +551,8 @@ vipMult  = 1.10 if VIP active, else 1.0
 ```
 growth = populationPerTick[level] × vipMult
 
-Level 1: +1  | Level 2: +2  | Level 3: +3  | Level 4: +4  | Level 5: +5
-Level 6: +8  | Level 7: +10 | Level 8: +14 | Level 9: +18 | Level 10: +23
+Level 1: +3  | Level 2: +6  | Level 3: +9  | Level 4: +12 | Level 5: +15
+Level 6: +18 | Level 7: +21 | Level 8: +24 | Level 9: +27 | Level 10: +30
 ```
 
 ---
