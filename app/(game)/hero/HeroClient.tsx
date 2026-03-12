@@ -248,7 +248,7 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
         {/* Accent band */}
         <div style={{ height: 3, background: 'linear-gradient(90deg, transparent 0%, rgba(192,112,255,0.9) 30%, rgba(240,192,48,0.7) 70%, transparent 100%)' }} />
 
-        <div style={{ display: 'flex', gap: 28, padding: '24px 28px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 20, padding: '20px 16px', alignItems: 'center', flexWrap: 'wrap' }} className="sm:gap-7 sm:px-7">
 
           {/* Emblem */}
           <div style={{ flexShrink: 0, position: 'relative' }}>
@@ -284,7 +284,7 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
           </div>
 
           {/* Stats */}
-          <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }} className="w-full sm:min-w-[240px]">
 
             {/* Title row */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -389,7 +389,7 @@ export function HeroClient({ heroSpells, activeEffects }: Props) {
         </div>
 
         {/* Shield cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2">
           <ShieldAbility
             icon={'\uD83D\uDDE1\uFE0F'}
             label="Soldier Shield"
@@ -629,9 +629,9 @@ function MasteryPanel({ catKey, meta, paths, purchasedSpells, hasSpellPoints, lo
       <div style={{
         background: meta.headerBg,
         borderBottom: `1px solid rgba(${meta.glowRgb},0.12)`,
-        padding: '11px 18px',
+        padding: '10px 12px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
+      }} className="sm:px-[18px]">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 17 }}>{meta.icon}</span>
           <div>
@@ -674,13 +674,14 @@ function MasteryPanel({ catKey, meta, paths, purchasedSpells, hasSpellPoints, lo
             <div
               key={col}
               style={{
-                display: 'flex', alignItems: 'center', gap: 14,
-                padding: '10px 18px',
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px',
                 borderBottom: colIdx < 2 ? `1px solid rgba(${meta.glowRgb},0.07)` : 'none',
               }}
+              className="sm:gap-[14px] sm:px-[18px]"
             >
               {/* Path name */}
-              <div style={{ width: 148, flexShrink: 0 }}>
+              <div className="w-24 sm:w-36 shrink-0">
                 <div style={{
                   fontSize: 12, fontFamily: 'var(--font-heading, sans-serif)',
                   color: isFullyMastered ? meta.color : 'rgba(255,255,255,0.6)',
@@ -730,7 +731,7 @@ function MasteryPanel({ catKey, meta, paths, purchasedSpells, hasSpellPoints, lo
               </div>
 
               {/* Action */}
-              <div style={{ flexShrink: 0, width: 172 }}>
+              <div className="shrink-0 w-24 sm:w-[172px]">
                 {isFullyMastered ? (
                   <span style={{
                     fontSize: 11, color: meta.color, opacity: 0.8,
@@ -758,7 +759,7 @@ function MasteryPanel({ catKey, meta, paths, purchasedSpells, hasSpellPoints, lo
                       opacity: loading === nextAvailable.key ? 0.55 : 1,
                       transition: 'all 0.15s ease',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      maxWidth: 172,
+                      maxWidth: '100%',
                     }}
                   >
                     {loading === nextAvailable.key ? (

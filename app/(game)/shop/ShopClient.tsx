@@ -606,114 +606,91 @@ export function ShopClient() {
 
             return (
               <RowWrap key={key} t={t}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "48px minmax(0, 1fr) 88px",
-                    columnGap: "10px",
-                    rowGap: "8px",
-                    alignItems: "center",
-                    padding: "10px 12px 10px",
-                  }}
-                >
-                  {/* Icon */}
-                  <div style={{ gridColumn: 1, gridRow: 1 }}>
+                <div style={{ padding: "10px 12px" }}>
+                  {/* Top row: icon + identity + stat plate */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
                     <IconBox icon={meta.icon} t={t} />
-                  </div>
 
-                  {/* Identity + cost */}
-                  <div style={{ gridColumn: 2, gridRow: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        flexWrap: "wrap",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
-                        {label}
-                      </span>
-                      <TierBadge t={t} />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <ResourceQuad cost={cost} amount={amt} />
-                      <span
+                    {/* Identity + cost */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
                         style={{
-                          fontSize: "0.62rem",
-                          color: "rgba(100,80,48,0.75)",
-                          fontFamily: "Source Sans 3, sans-serif",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "5px",
+                          flexWrap: "wrap",
+                          marginBottom: "4px",
                         }}
                       >
-                        ↩ {formatNumber(refundEach)} ea.
-                      </span>
+                        <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
+                          {label}
+                        </span>
+                        <TierBadge t={t} />
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <ResourceQuad cost={cost} amount={amt} />
+                        <span
+                          style={{
+                            fontSize: "0.62rem",
+                            color: "rgba(100,80,48,0.75)",
+                            fontFamily: "Source Sans 3, sans-serif",
+                          }}
+                        >
+                          ↩ {formatNumber(refundEach)} ea.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Attack power stat plate */}
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        textAlign: "center",
+                        width: 72,
+                        padding: "6px 8px",
+                        borderRadius: "6px",
+                        background: "rgba(10,6,3,0.9)",
+                        border: "1px solid rgba(200,75,35,0.28)",
+                        boxShadow: "inset 0 0 14px rgba(200,60,20,0.07)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "1.1rem",
+                          fontWeight: 700,
+                          fontFamily: "Cinzel, serif",
+                          color: "#FF7040",
+                          lineHeight: 1,
+                          letterSpacing: "-0.01em",
+                        }}
+                      >
+                        +{cfg.power}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.42rem",
+                          letterSpacing: "0.14em",
+                          color: "rgba(220,105,60,0.72)",
+                          textTransform: "uppercase",
+                          marginTop: "2px",
+                          fontFamily: "Cinzel, serif",
+                        }}
+                      >
+                        Atk Pwr
+                      </div>
                     </div>
                   </div>
 
-                  {/* Attack power stat plate */}
-                  <div
-                    style={{
-                      gridColumn: 3,
-                      gridRow: 1,
-                      textAlign: "center",
-                      width: 88,
-                      justifySelf: "end",
-                      padding: "6px 8px",
-                      borderRadius: "6px",
-                      background: "rgba(10,6,3,0.9)",
-                      border: "1px solid rgba(200,75,35,0.28)",
-                      boxShadow: "inset 0 0 14px rgba(200,60,20,0.07)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "1.2rem",
-                        fontWeight: 700,
-                        fontFamily: "Cinzel, serif",
-                        color: "#FF7040",
-                        lineHeight: 1,
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      +{cfg.power}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.42rem",
-                        letterSpacing: "0.14em",
-                        color: "rgba(220,105,60,0.72)",
-                        textTransform: "uppercase",
-                        marginTop: "2px",
-                        fontFamily: "Cinzel, serif",
-                      }}
-                    >
-                      Atk Pwr
-                    </div>
-                  </div>
-
-                  {/* Owned count */}
-                  <div
-                    style={{
-                      gridColumn: "1 / 3",
-                      gridRow: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
+                  {/* Bottom row: owned + actions */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                     <OwnedPill count={owned} />
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ gridColumn: 3, gridRow: 2, justifySelf: "end" }}>
                     <div
                       style={{
                         display: "flex",
@@ -895,12 +872,7 @@ export function ShopClient() {
                 </div>
 
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "0 12px 10px 70px",
-                  }}
+                  className="flex items-center gap-2 px-3 pb-3"
                 >
                   <Button
                     variant="primary"
@@ -1057,14 +1029,7 @@ export function ShopClient() {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "0 12px 10px 70px",
-                  }}
-                >
+                <div className="flex items-center gap-2 px-3 pb-3">
                   <Button
                     variant="magic"
                     size="sm"
@@ -1220,14 +1185,7 @@ export function ShopClient() {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "0 12px 10px 70px",
-                  }}
-                >
+                <div className="flex items-center gap-2 px-3 pb-3">
                   <Button
                     variant="magic"
                     size="sm"

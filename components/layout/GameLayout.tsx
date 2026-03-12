@@ -28,12 +28,13 @@ function GameContent({ children }: { children: React.ReactNode }) {
         className={cn(
           'pt-header',
           'md:ps-[272px]',
-          'pb-20 md:pb-0',
-          'min-h-screen'
+          'pb-24 md:pb-0',
+          'min-h-screen',
+          'overflow-x-hidden'
         )}
       >
-        <div className="max-w-content mx-auto px-4 md:px-8 py-6">
-          <div className="glass-panel p-5 md:p-8 min-h-[calc(100vh-7rem)]">
+        <div className="max-w-content mx-auto px-3 sm:px-4 md:px-8 py-4 sm:py-6">
+          <div className="glass-panel p-4 sm:p-5 md:p-8 min-h-[calc(100vh-7rem)]">
             <PageTransition>
               {children}
             </PageTransition>

@@ -54,13 +54,17 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, className
           aria-describedby={undefined}
           className={cn(
             'fixed left-1/2 top-1/2 z-[101] -translate-x-1/2 -translate-y-1/2',
-            'w-full p-6',
-            // Modal content: solid, visible panel above overlay (lighter than overlay so it pops)
+            // Mobile: full-width minus safe margins; desktop: constrained by sizeClasses
+            'w-[calc(100vw-1.5rem)] sm:w-full',
+            'p-4 sm:p-6',
+            // Height-safe: never exceed viewport, scroll inside if content overflows
+            'max-h-[85dvh] overflow-y-auto',
+            // Modal content: solid, visible panel above overlay
+            'rounded-game-lg',
             'bg-[#1A1510] border border-[rgba(201,144,26,0.5)]',
             'shadow-[0_0_0_1px_rgba(201,144,26,0.2),0_25px_50px_-12px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(240,192,48,0.12)]',
             // open → fade-in; closed → fade-out
             'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
-            'sm:rounded-game-lg',
             sizeClasses[size],
             className
           )}
@@ -82,7 +86,7 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, className
             // Visually hidden title so Radix/screen readers have a label even when no title prop
             <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>
           )}
-          {title && <div className="divider-gold -mx-6 mb-4" />}
+          {title && <div className="divider-gold -mx-4 sm:-mx-6 mb-4" />}
           {children}
         </DialogPrimitive.Content>
       </DialogPortal>

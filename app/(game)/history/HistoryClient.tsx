@@ -385,14 +385,15 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
       borderInlineStart: '3px solid rgba(192,112,255,0.5)',
       borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)',
       background: 'linear-gradient(160deg, rgba(18,8,35,0.98), rgba(10,4,20,1))',
-      padding: '14px 20px 14px 18px',
+      padding: '12px 14px',
+      overflowX: 'hidden',
     }}>
       {/* Header */}
       <div style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(192,112,255,0.7)', marginBottom: 12 }}>
         {'\uD83D\uDD0D'} דוח מודיעין &mdash; {armyName}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12 }}>
 
         {/* City / Tribe */}
         {(cityLevel !== undefined || tribeName !== undefined) && (
@@ -556,7 +557,7 @@ function PageBtn({ label, onClick, disabled, active }: { label: string; onClick:
       onClick={onClick}
       disabled={disabled || active}
       style={{
-        minWidth: 32, height: 32,
+        minWidth: 40, height: 40,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         borderRadius: 6,
         border: active

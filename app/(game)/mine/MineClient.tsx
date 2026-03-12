@@ -243,7 +243,7 @@ export function MineClient() {
               <div className="flex items-center gap-1 justify-center">
                 <button
                   type="button"
-                  className="w-6 h-6 rounded border border-game-border bg-game-bg text-game-text-white font-bold text-xs hover:border-game-gold/50 hover:text-game-gold transition-colors disabled:opacity-30 flex items-center justify-center"
+                  className="w-9 h-9 sm:w-7 sm:h-7 rounded border border-game-border bg-game-bg text-game-text-white font-bold text-sm sm:text-xs hover:border-game-gold/50 hover:text-game-gold transition-colors disabled:opacity-30 flex items-center justify-center shrink-0"
                   onClick={() => stepAdjust(job.key, -1)}
                   disabled={adjAmt <= 0}
                   aria-label="Decrease"
@@ -255,11 +255,11 @@ export function MineClient() {
                   min={0}
                   value={adjAmt}
                   onChange={(e) => setAdjustInput(job.key, e.target.value)}
-                  className="w-12 text-center bg-game-surface border border-game-border/70 rounded text-game-sm text-game-text-white font-body py-0.5 focus:outline-none focus:border-game-gold/60"
+                  className="w-14 sm:w-12 text-center bg-game-surface border border-game-border/70 rounded text-game-sm text-game-text-white font-body py-1.5 sm:py-0.5 focus:outline-none focus:border-game-gold/60"
                 />
                 <button
                   type="button"
-                  className="w-6 h-6 rounded border border-game-border bg-game-bg text-game-text-white font-bold text-xs hover:border-game-gold/50 hover:text-game-gold transition-colors disabled:opacity-30 flex items-center justify-center"
+                  className="w-9 h-9 sm:w-7 sm:h-7 rounded border border-game-border bg-game-bg text-game-text-white font-bold text-sm sm:text-xs hover:border-game-gold/50 hover:text-game-gold transition-colors disabled:opacity-30 flex items-center justify-center shrink-0"
                   onClick={() => stepAdjust(job.key, 1)}
                   disabled={false}
                   aria-label="Increase"
@@ -316,21 +316,21 @@ export function MineClient() {
                       type="button"
                       onClick={() => handleSend(job.key)}
                       disabled={!canSend || isFrozen}
-                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                      className="px-2.5 py-1.5 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30 disabled:cursor-not-allowed
                         border-game-gold/35 bg-game-gold/8 text-game-gold
                         hover:bg-game-gold/18 hover:border-game-gold/55 enabled:cursor-pointer"
                     >
-                      + Send
+                      + שלח
                     </button>
                     <button
                       type="button"
                       onClick={() => handleReturn(job.key)}
                       disabled={!canReturn || isFrozen}
-                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                      className="px-2.5 py-1.5 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30 disabled:cursor-not-allowed
                         border-game-border bg-game-elevated text-game-text-muted
                         hover:border-game-border-hover hover:text-game-text-secondary enabled:cursor-pointer"
                     >
-                      − Ret
+                      − החזר
                     </button>
                   </div>
                 </div>
@@ -368,21 +368,21 @@ export function MineClient() {
                       type="button"
                       onClick={() => handleSend(job.key)}
                       disabled={!canSend || isFrozen}
-                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30
+                      className="px-3 py-2 min-h-[40px] text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30
                         border-game-gold/35 bg-game-gold/8 text-game-gold
                         hover:bg-game-gold/18 hover:border-game-gold/55"
                     >
-                      + Send
+                      + שלח
                     </button>
                     <button
                       type="button"
                       onClick={() => handleReturn(job.key)}
                       disabled={!canReturn || isFrozen}
-                      className="px-2.5 py-1 text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30
+                      className="px-3 py-2 min-h-[40px] text-game-xs font-heading uppercase tracking-wide rounded border transition-colors disabled:opacity-30
                         border-game-border bg-game-elevated text-game-text-muted
                         hover:border-game-border-hover hover:text-game-text-secondary"
                     >
-                      − Ret
+                      − החזר
                     </button>
                     <span className="text-game-xs text-game-text-muted font-body ms-1">
                       {currentRate}/worker

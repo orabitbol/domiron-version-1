@@ -13,7 +13,7 @@ const buttonVariants = cva(
     'cursor-pointer disabled:cursor-not-allowed disabled:opacity-40',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-game-border-active focus-visible:ring-offset-1 focus-visible:ring-offset-game-bg',
     'active:scale-[0.97]',
-    'min-h-[40px]',
+    'min-h-[44px]',
   ],
   {
     variants: {

@@ -300,10 +300,12 @@ export function Sidebar() {
       <nav
         className={cn(
           "md:hidden fixed bottom-0 start-0 end-0 z-30",
-          "bg-game-surface/95 backdrop-blur-game",
+          "bg-game-surface/97 backdrop-blur-game",
           "border-t border-game-border-gold/30",
           "shadow-[0_-4px_20px_rgba(0,0,0,0.5)]",
-          "flex items-center justify-around px-1 py-1.5",
+          // Use safe-area-inset-bottom so nav doesn't hide behind iPhone home indicator
+          "pb-[env(safe-area-inset-bottom)]",
+          "flex items-center justify-around px-1 pt-1",
         )}
       >
         {NAV_ITEMS.filter((i) => MOBILE_NAV.includes(i.href)).map(
@@ -314,8 +316,9 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-game min-w-[52px]",
-                  "transition-all duration-200",
+                  // flex-1 ensures equal distribution regardless of screen width
+                  "flex flex-col items-center gap-0.5 flex-1 py-2 rounded-game",
+                  "transition-all duration-200 min-h-[48px] justify-center",
                   isActive
                     ? "text-game-gold-bright bg-game-gold/10"
                     : "text-game-text-muted hover:text-game-text-secondary",

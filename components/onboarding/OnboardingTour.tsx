@@ -69,8 +69,9 @@ export function OnboardingTour() {
 
   const panel = (
     <div
+      // On mobile: sits above the bottom nav bar (≈56px) + safe area; on sm+ it's 24px from bottom.
       // Outer: positions the card, lets pointer events through underneath
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] w-full max-w-md px-4 pointer-events-none"
+      className="fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] sm:bottom-6 left-1/2 -translate-x-1/2 z-[200] w-full max-w-md px-3 sm:px-4 pointer-events-none"
       // Prevent the tour panel from picking up RTL from the page root
       dir="ltr"
     >
@@ -113,7 +114,7 @@ export function OnboardingTour() {
           {!isLast && (
             <button
               onClick={skip}
-              className="transition-colors"
+              className="transition-colors px-2 py-2 min-h-[44px] flex items-center"
               style={{
                 fontSize:      11,
                 letterSpacing: '0.08em',
@@ -166,23 +167,22 @@ export function OnboardingTour() {
         />
 
         {/* ── Navigation ────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between px-4 py-3 gap-3">
           <Button
             variant="ghost"
-            size="sm"
+            size="md"
             onClick={goBack}
             disabled={isFirst}
-            className="text-xs"
+            className="text-sm flex-shrink-0"
           >
             ← חזור
           </Button>
 
           <Button
             variant="primary"
-            size="sm"
+            size="md"
             onClick={goNext}
-            className="text-xs"
-            style={{ minWidth: 120 }}
+            className="text-sm flex-1"
           >
             {isLast ? 'התחל לשחק →' : 'הבא →'}
           </Button>

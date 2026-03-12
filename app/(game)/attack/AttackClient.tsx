@@ -56,17 +56,18 @@ function AtkPageBtn({ label, onClick, disabled, active }: { label: string; onCli
       onClick={onClick}
       disabled={disabled || active}
       style={{
-        minWidth: 32, height: 32,
+        minWidth: 40, minHeight: 44,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         borderRadius: 6,
         border: active ? '1px solid rgba(240,192,48,0.5)' : '1px solid rgba(255,255,255,0.08)',
         background: active ? 'rgba(240,192,48,0.12)' : disabled ? 'transparent' : 'rgba(255,255,255,0.03)',
         color: active ? '#F0C030' : disabled ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)',
-        fontSize: 12,
+        fontSize: 13,
         fontFamily: 'var(--font-body, sans-serif)',
         fontWeight: active ? 700 : 400,
         cursor: (disabled || active) ? 'default' : 'pointer',
         transition: 'all 0.12s ease',
+        padding: '0 8px',
       }}
     >
       {label}
@@ -121,7 +122,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         <p className="text-game-text-muted font-body text-game-xs">
           {t('attack.power_ratio')}: <span className="font-semibold text-game-text-white">{report.ratio.toFixed(2)}×</span>
         </p>
-        <div className="grid grid-cols-2 gap-3 mt-2">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 mt-2">
           {/* Your Attack breakdown */}
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-1">{t('attack.your_attack')}</p>
@@ -167,7 +168,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
 
       <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('attack.you_spent')}</p>
-        <div className="flex gap-4 font-body text-game-sm">
+        <div className="flex flex-wrap gap-4 font-body text-game-sm">
           <span className="flex items-center gap-1.5">
             <span className="text-game-text-muted">{t('attack.turns_spent')}:</span>
             <span className="text-game-text-white font-semibold">{report.attacker.turns_spent}</span>
@@ -200,7 +201,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
 
       <div className={`border rounded-game-lg p-3 shadow-engrave ${allGainsZero && report.gained.captives === 0 ? 'bg-gradient-to-b from-game-elevated to-game-surface border-game-border' : 'bg-game-green/5 border-green-900'}`}>
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('attack.you_gained')}</p>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
           {(['gold', 'iron', 'wood', 'food'] as const).map((res) => (
             <div key={res} className="flex justify-between">
               <span className="text-game-text-secondary">{RES_LABELS[res]}</span>
@@ -281,7 +282,7 @@ function SpyResultModal({ result, onClose }: { result: SpyResult; onClose: () =>
       {result.success && result.revealed && (
         <div className="bg-game-green/5 border border-green-900 rounded-game-lg p-3 shadow-engrave">
           <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.intel_revealed')}</p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
             <div className="flex justify-between">
               <span className="text-game-text-secondary">{t('army.soldiers')}</span>
               <span className="text-game-text-white font-semibold">{formatNumber(result.revealed.soldiers)}</span>
@@ -527,43 +528,100 @@ export function AttackClient({ targets }: Props) {
         </span>
       </div>
 
-      {/* Targets table */}
+      {/* Targets — card layout on mobile, table on sm+ */}
       <div className="panel-ornate rounded-game-lg shadow-engrave overflow-hidden">
         {filtered.length === 0 ? (
           <EmptyState title={t('attack.no_targets_title')} description={t('attack.no_targets_desc')} />
         ) : (
-          <GameTable
-            headers={[t('attack.table_rank'), t('attack.table_army'), t('attack.table_tribe'), t('attack.table_soldiers'), t('attack.table_gold'), t('attack.table_status'), t('attack.table_action')]}
-            striped
-            hoverable
-            rows={paginated.map((target) => {
-              const isSelf = target.id === player?.id
+          <>
+            {/* ── Mobile: card list ─────────────────────────────── */}
+            <div className="sm:hidden divide-y divide-game-border/40">
+              {paginated.map((target) => {
+                const isSelf = target.id === player?.id
+                return (
+                  <div key={target.id} className="px-4 py-3 space-y-2">
+                    {/* Row 1: rank + name + badges + status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {target.rank_city && (
+                            <span className="text-game-xs text-game-text-muted font-body tabular-nums shrink-0">
+                              #{target.rank_city}
+                            </span>
+                          )}
+                          <span className="font-heading text-game-sm uppercase text-game-text-white truncate">
+                            {target.army_name}
+                          </span>
+                          {target.is_vacation && <Badge variant="blue">{t('attack.vacation_badge')}</Badge>}
+                          {isSelf && <Badge variant="green">{t('attack.you_badge')}</Badge>}
+                        </div>
+                        {target.tribe_name && (
+                          <p className="text-game-xs text-game-text-muted font-body mt-0.5">{target.tribe_name}</p>
+                        )}
+                      </div>
+                      <StatusIndicators
+                        resource={target.resource_shield_active}
+                        soldier={target.soldier_shield_active}
+                        protected={target.is_protected}
+                        cooldown={target.kill_cooldown_active}
+                      />
+                    </div>
+                    {/* Row 2: stats + action */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-4">
+                        <span className="text-game-xs text-game-text-muted font-body">
+                          ⚔️ <span className="text-game-text-white font-semibold tabular-nums">{formatNumber(target.soldiers)}</span>
+                        </span>
+                        <span className="text-game-xs text-game-text-muted font-body">
+                          🪙 <span className="text-res-gold font-semibold tabular-nums">{isSelf ? '—' : formatNumber(target.gold)}</span>
+                        </span>
+                      </div>
+                      {!isSelf && (
+                        <Button variant="danger" size="sm" disabled={isFrozen} onClick={() => setDialogTarget(target)}>
+                          {t('common.attack')}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
 
-              return [
-                <span key="rank" className="text-game-sm font-body tabular-nums">
-                  {target.rank_city ? `#${target.rank_city}` : '—'}
-                </span>,
-                <div key="army">
-                  <span className="font-heading text-game-sm uppercase text-game-text-white">{target.army_name}</span>
-                  {target.is_vacation && <Badge variant="blue" className="ml-2">{t('attack.vacation_badge')}</Badge>}
-                  {isSelf && <Badge variant="green" className="ml-2">{t('attack.you_badge')}</Badge>}
-                </div>,
-                <span key="tribe" className="text-game-sm font-body text-game-text-muted">{target.tribe_name ?? '—'}</span>,
-                <span key="soldiers" className="text-game-sm font-body tabular-nums">{formatNumber(target.soldiers)}</span>,
-                <span key="gold" className="text-game-sm font-body tabular-nums text-res-gold">
-                  {isSelf ? '—' : formatNumber(target.gold)}
-                </span>,
-                <StatusIndicators key="status" resource={target.resource_shield_active} soldier={target.soldier_shield_active} protected={target.is_protected} cooldown={target.kill_cooldown_active} />,
-                isSelf ? (
-                  <span key="action" className="text-game-xs text-game-text-muted font-body">—</span>
-                ) : (
-                  <Button key="action" variant="danger" size="sm" disabled={isFrozen} onClick={() => setDialogTarget(target)}>
-                    {t('common.attack')}
-                  </Button>
-                ),
-              ]
-            })}
-          />
+            {/* ── Desktop: table ────────────────────────────────── */}
+            <div className="hidden sm:block">
+              <GameTable
+                headers={[t('attack.table_rank'), t('attack.table_army'), t('attack.table_tribe'), t('attack.table_soldiers'), t('attack.table_gold'), t('attack.table_status'), t('attack.table_action')]}
+                striped
+                hoverable
+                rows={paginated.map((target) => {
+                  const isSelf = target.id === player?.id
+                  return [
+                    <span key="rank" className="text-game-sm font-body tabular-nums">
+                      {target.rank_city ? `#${target.rank_city}` : '—'}
+                    </span>,
+                    <div key="army">
+                      <span className="font-heading text-game-sm uppercase text-game-text-white">{target.army_name}</span>
+                      {target.is_vacation && <Badge variant="blue" className="ml-2">{t('attack.vacation_badge')}</Badge>}
+                      {isSelf && <Badge variant="green" className="ml-2">{t('attack.you_badge')}</Badge>}
+                    </div>,
+                    <span key="tribe" className="text-game-sm font-body text-game-text-muted">{target.tribe_name ?? '—'}</span>,
+                    <span key="soldiers" className="text-game-sm font-body tabular-nums">{formatNumber(target.soldiers)}</span>,
+                    <span key="gold" className="text-game-sm font-body tabular-nums text-res-gold">
+                      {isSelf ? '—' : formatNumber(target.gold)}
+                    </span>,
+                    <StatusIndicators key="status" resource={target.resource_shield_active} soldier={target.soldier_shield_active} protected={target.is_protected} cooldown={target.kill_cooldown_active} />,
+                    isSelf ? (
+                      <span key="action" className="text-game-xs text-game-text-muted font-body">—</span>
+                    ) : (
+                      <Button key="action" variant="danger" size="sm" disabled={isFrozen} onClick={() => setDialogTarget(target)}>
+                        {t('common.attack')}
+                      </Button>
+                    ),
+                  ]
+                })}
+              />
+            </div>
+          </>
         )}
       </div>
 

@@ -244,7 +244,7 @@ export function BankClient() {
 
       {/* Upgrade Interest */}
       <div className="card-game rounded-game-lg p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="font-heading text-game-base uppercase tracking-wide text-game-gold">שדרג ריבית</h2>
             <p className="text-game-sm text-game-text-secondary font-body mt-1">
@@ -264,6 +264,7 @@ export function BankClient() {
             disabled={isFrozen || !canUpgrade || !!loading}
             loading={loading === 'upgrade'}
             onClick={handleUpgrade}
+            className="w-full sm:w-auto"
           >
             שדרג
           </Button>

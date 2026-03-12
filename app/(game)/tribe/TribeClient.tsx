@@ -669,7 +669,7 @@ export function TribeClient({
                 </div>
 
                 {/* Stats strip */}
-                <div className="grid grid-cols-4 gap-2 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
                   {[
                     { label: 'רמה',    value: String(tribe.level)                          },
                     { label: 'מוניטין', value: formatNumber(tribe.reputation)                },
@@ -936,13 +936,13 @@ export function TribeClient({
                     return (
                       <div
                         key={member.player_id}
-                        className="relative flex items-center gap-5 ps-9 pe-6 py-5 border-b border-game-border/25 last:border-0 hover:bg-game-gold/[0.03] transition-colors"
+                        className="relative flex flex-wrap items-center gap-3 ps-5 pe-4 py-3 sm:gap-5 sm:ps-9 sm:pe-6 sm:py-5 border-b border-game-border/25 last:border-0 hover:bg-game-gold/[0.03] transition-colors"
                       >
                         {/* Left role accent bar */}
                         <div className={`absolute inset-y-0 start-0 w-[3px] ${accentBar}`} />
 
                         {/* Avatar */}
-                        <div className={`shrink-0 size-11 rounded-full border-2 ${avatarRing} bg-gradient-to-br from-game-bg/80 to-game-elevated flex items-center justify-center`}>
+                        <div className={`shrink-0 size-9 sm:size-11 rounded-full border-2 ${avatarRing} bg-gradient-to-br from-game-bg/80 to-game-elevated flex items-center justify-center`}>
                           <span className={`font-heading text-game-xs font-bold ${avatarText}`}>{initials}</span>
                         </div>
 
@@ -967,14 +967,14 @@ export function TribeClient({
                         </div>
 
                         {/* Role badge */}
-                        <div className="shrink-0 min-w-[72px] flex justify-center">
+                        <div className="shrink-0 flex justify-center">
                           {member.role === 'leader' && <Badge variant="gold">מנהיג</Badge>}
                           {member.role === 'deputy' && <Badge variant="purple">סגן</Badge>}
                           {member.role === 'member' && <Badge variant="default">חבר</Badge>}
                         </div>
 
                         {/* Tax status pill */}
-                        <div className="shrink-0 min-w-[80px] flex justify-end">
+                        <div className="shrink-0 flex justify-end">
                           {isExempt ? (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-game-xs font-body font-medium bg-blue-900/30 border border-blue-700/30 text-blue-300">
                               פטור

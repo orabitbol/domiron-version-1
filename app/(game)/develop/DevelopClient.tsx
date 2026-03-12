@@ -469,7 +469,7 @@ function ReqRow({
         gap: "8px",
         alignItems: "center",
         borderBottom: last ? "none" : "1px solid rgba(20,15,6,0.6)",
-        borderLeft: `3px solid ${meets ? "rgba(60,160,60,0.55)" : "rgba(180,50,50,0.45)"}`,
+        borderInlineStart: `3px solid ${meets ? "rgba(60,160,60,0.55)" : "rgba(180,50,50,0.45)"}`,
         background: meets ? "rgba(20,50,20,0.1)" : "rgba(50,15,15,0.08)",
       }}
     >
@@ -1195,7 +1195,7 @@ export function DevelopClient() {
                     <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
                       {row.title}
                     </span>
-                    <span className="sm:hidden ml-2 text-game-xs text-game-text-muted font-body">
+                    <span className="sm:hidden ms-2 text-game-xs text-game-text-muted font-body">
                       Lv {currentLevel}/{row.maxLevel}
                     </span>
                     <p className="text-game-xs text-game-text-muted font-body">

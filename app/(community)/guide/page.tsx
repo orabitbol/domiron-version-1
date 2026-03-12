@@ -70,11 +70,11 @@ function Tip({ children }: { children: React.ReactNode }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-1.5 border-b border-game-border/50 last:border-0">
-      <dt className="shrink-0 w-28 font-heading text-game-xs text-game-gold/70 uppercase tracking-wide pt-0.5">
+    <div className="flex flex-col xs:flex-row xs:items-start gap-0.5 xs:gap-3 py-2 border-b border-game-border/50 last:border-0">
+      <dt className="shrink-0 xs:w-28 font-heading text-game-xs text-game-gold/70 uppercase tracking-wide xs:pt-0.5">
         {label}
       </dt>
-      <dd className="text-game-sm text-game-text-secondary font-body leading-relaxed flex-1">
+      <dd className="text-game-sm text-game-text-secondary font-body leading-relaxed flex-1 ps-0">
         {children}
       </dd>
     </div>
@@ -149,9 +149,10 @@ export default function GuidePage() {
                 key={item.id}
                 href={`#${item.id}`}
                 className={cn(
-                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-game transition-all duration-150',
+                  'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-game transition-all duration-150',
                   'font-body text-game-xs border border-game-border',
                   'text-game-text-secondary hover:text-game-text hover:border-game-border-gold hover:bg-game-gold/8',
+                  'min-h-[36px]',
                 )}
               >
                 <span className="text-game-gold/40 font-heading text-[10px]">{i + 1}.</span>
@@ -166,7 +167,7 @@ export default function GuidePage() {
       <div className="space-y-5">
 
         {/* 1 — מהו דומירון? */}
-        <section id="overview" className="panel-ornate p-5 scroll-mt-6">
+        <section id="overview" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="⚔️" title="מהו דומירון?" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             דומירון הוא משחק אסטרטגיה מבוסס דפדפן המתנהל בזמן אמת נגד מאות שחקנים אחרים.
@@ -178,7 +179,7 @@ export default function GuidePage() {
         </section>
 
         {/* 2 — מטרת המשחק */}
-        <section id="goal" className="panel-ornate p-5 scroll-mt-6">
+        <section id="goal" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="👑" title="מטרת המשחק" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             המטרה היא להגיע ל<Gold>דירוג הגבוה ביותר</Gold> כשתסתיים העונה.
@@ -192,7 +193,7 @@ export default function GuidePage() {
         </section>
 
         {/* 3 — לולאת המשחק */}
-        <section id="loop" className="panel-ornate p-5 scroll-mt-6">
+        <section id="loop" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🔄" title="לולאת המשחק" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             המשחק מתקדם ב<Gold>טיקים</Gold> — כל 30 דקות מתבצעת עדכון אוטומטי של כל שחקני העונה.
@@ -206,7 +207,7 @@ export default function GuidePage() {
         </section>
 
         {/* 4 — משאבים */}
-        <section id="resources" className="panel-ornate p-5 scroll-mt-6">
+        <section id="resources" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="💰" title="משאבים" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-4">
             ארבעה משאבים מניעים את כל פעולות המשחק. כולם מיוצרים על ידי עבדים במכרות בכל טיק.
@@ -229,7 +230,7 @@ export default function GuidePage() {
         </section>
 
         {/* 5 — אוכלוסייה ועבדים */}
-        <section id="population" className="panel-ornate p-5 scroll-mt-6">
+        <section id="population" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="👥" title="אוכלוסייה ועבדים" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             <Gold>אוכלוסייה חופשית</Gold> היא מאגר השחקן לגיוס — ממנה מאמנים את כל סוגי היחידות.
@@ -244,7 +245,7 @@ export default function GuidePage() {
         </section>
 
         {/* 6 — מכרות וייצור */}
-        <section id="mines" className="panel-ornate p-5 scroll-mt-6">
+        <section id="mines" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="⛏️" title="מכרות וייצור" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             בעמוד <Gold>המכרות</Gold> מקצים עבדים לייצור כל סוג משאב.
@@ -258,7 +259,7 @@ export default function GuidePage() {
         </section>
 
         {/* 7 — אימון כוחות */}
-        <section id="training" className="panel-ornate p-5 scroll-mt-6">
+        <section id="training" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🛡️" title="אימון כוחות" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-4">
             ממירים אוכלוסייה חופשית ליחידות לחימה. כל יחידה תורמת לעוצמת הדירוג שלך.
@@ -281,7 +282,7 @@ export default function GuidePage() {
         </section>
 
         {/* 8 — מערכת הקרב */}
-        <section id="combat" className="panel-ornate p-5 scroll-mt-6">
+        <section id="combat" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="⚔️" title="מערכת הקרב" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             תוקפים שחקנים <Gold>באותה עיר</Gold> בלבד. הקרב מוכרע מיידית על בסיס עוצמת הלחימה.
@@ -299,7 +300,7 @@ export default function GuidePage() {
         </section>
 
         {/* 9 — ריגול */}
-        <section id="spy" className="panel-ornate p-5 scroll-mt-6">
+        <section id="spy" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🕵️" title="ריגול" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             שלח <Gold>מרגלים</Gold> לאסוף מידע על יריבים לפני תקיפה.
@@ -313,7 +314,7 @@ export default function GuidePage() {
         </section>
 
         {/* 10 — הבנק */}
-        <section id="bank" className="panel-ornate p-5 scroll-mt-6">
+        <section id="bank" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🏦" title="הבנק" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             <Gold>הגנה על הזהב</Gold> שלך היא אחד הדברים החשובים במשחק.
@@ -329,7 +330,7 @@ export default function GuidePage() {
         </section>
 
         {/* 11 — פיתוח עיר */}
-        <section id="develop" className="panel-ornate p-5 scroll-mt-6">
+        <section id="develop" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🏗️" title="פיתוח עיר" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             שישה מבנים שניתן לשדרג, כל אחד מגביר היבט אחר של האימפריה שלך.
@@ -356,7 +357,7 @@ export default function GuidePage() {
         </section>
 
         {/* 12 — הגיבור */}
-        <section id="hero" className="panel-ornate p-5 scroll-mt-6">
+        <section id="hero" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🌟" title="הגיבור שלך" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             לכל שחקן גיבור אישי שצובר ניסיון ומשתדרג לאורך העונה.
@@ -372,7 +373,7 @@ export default function GuidePage() {
         </section>
 
         {/* 13 — שבטים */}
-        <section id="tribe" className="panel-ornate p-5 scroll-mt-6">
+        <section id="tribe" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🤝" title="מערכת השבטים" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             שבטים הם ציר שיתוף הפעולה המרכזי במשחק.
@@ -390,7 +391,7 @@ export default function GuidePage() {
         </section>
 
         {/* 14 — דירוגים */}
-        <section id="rankings" className="panel-ornate p-5 scroll-mt-6">
+        <section id="rankings" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="🏆" title="דירוגים ותהילה" />
           <p className="text-game-sm text-game-text font-body leading-relaxed mb-3">
             הדירוג מתעדכן בכל טיק ומשקף את <Gold>עוצמת הלחימה הכוללת</Gold> שלך.
@@ -404,7 +405,7 @@ export default function GuidePage() {
         </section>
 
         {/* 15 — טיפים למתחילים */}
-        <section id="tips" className="panel-ornate p-5 scroll-mt-6">
+        <section id="tips" className="panel-ornate p-4 sm:p-5 scroll-mt-6">
           <SectionHeader icon="💡" title="טיפים למתחילים" />
           <div className="space-y-2.5">
             {[
