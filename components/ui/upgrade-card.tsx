@@ -53,7 +53,7 @@ export function UpgradeCard({
               {title}
             </h3>
             <span className="shrink-0 text-game-xs font-heading text-game-gold uppercase">
-              Lvl {currentLevel}{maxLevel && ` / ${maxLevel}`}
+              רמה {currentLevel}{maxLevel && ` / ${maxLevel}`}
             </span>
           </div>
 
@@ -74,10 +74,10 @@ export function UpgradeCard({
 
           {!isMaxed && (
             <div className="flex flex-wrap gap-2 mt-2">
-              {cost.gold  !== undefined && cost.gold  > 0 && <CostPill label="Gold"  amount={cost.gold}  color="text-res-gold"  affordable={canAfford} />}
-              {cost.iron  !== undefined && cost.iron  > 0 && <CostPill label="Iron"  amount={cost.iron}  color="text-res-iron"  affordable={canAfford} />}
-              {cost.wood  !== undefined && cost.wood  > 0 && <CostPill label="Wood"  amount={cost.wood}  color="text-res-wood"  affordable={canAfford} />}
-              {cost.food  !== undefined && cost.food  > 0 && <CostPill label="Food"  amount={cost.food}  color="text-res-food"  affordable={canAfford} />}
+              {cost.gold  !== undefined && cost.gold  > 0 && <CostPill label="זהב"   amount={cost.gold}  color="text-res-gold"  affordable={canAfford} />}
+              {cost.iron  !== undefined && cost.iron  > 0 && <CostPill label="ברזל"  amount={cost.iron}  color="text-res-iron"  affordable={canAfford} />}
+              {cost.wood  !== undefined && cost.wood  > 0 && <CostPill label="עץ"    amount={cost.wood}  color="text-res-wood"  affordable={canAfford} />}
+              {cost.food  !== undefined && cost.food  > 0 && <CostPill label="מזון"  amount={cost.food}  color="text-res-food"  affordable={canAfford} />}
             </div>
           )}
         </div>
@@ -89,7 +89,7 @@ export function UpgradeCard({
           onClick={onUpgrade}
           className="shrink-0"
         >
-          {isMaxed ? 'Max' : 'Upgrade'}
+          {isMaxed ? 'מקס' : 'שדרג'}
         </Button>
       </div>
     </div>

@@ -90,10 +90,10 @@ export function SpyClient({ targets }: Props) {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-game-3xl gold-gradient-text-static text-title-glow uppercase tracking-wide">
-            Espionage
+            ריגול
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
-            City {player?.city ?? '—'} — {filtered.length} targets available
+            עיר {player?.city ?? '—'} — {filtered.length} מטרות זמינות
           </p>
         </div>
         <div className="flex flex-wrap gap-3">

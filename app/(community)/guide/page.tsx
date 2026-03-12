@@ -252,7 +252,7 @@ export default function GuidePage() {
           </p>
           <dl className="space-y-0">
             <Row label="הקצאה">גרור את מספר העבדים לכל מכרה. השמירה נשלחת לשרת</Row>
-            <Row label="קצב ייצור">עולה עם שדרוג פיתוח העיר (Gold/Iron/Wood/Food Level)</Row>
+            <Row label="קצב ייצור">עולה עם שדרוג פיתוח העיר (רמת מכרה זהב/ברזל/עץ/מזון)</Row>
             <Row label="איזון">השקע יותר עבדים במשאב שנגמר לך הכי מהר</Row>
           </dl>
         </section>

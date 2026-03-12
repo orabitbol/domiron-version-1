@@ -1245,7 +1245,7 @@ export function DevelopClient() {
                     onClick={() => handleUpgrade(row.field)}
                     className="w-full sm:w-auto whitespace-nowrap"
                   >
-                    {isMaxed ? "Max" : "Upgrade"}
+                    {isMaxed ? "מקס" : "שדרג"}
                   </Button>
                 </div>
               </div>

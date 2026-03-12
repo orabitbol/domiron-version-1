@@ -476,7 +476,7 @@ export function AttackClient({ targets }: Props) {
             {t('attack.title')}
           </h1>
           <p className="text-game-text-secondary font-body mt-1">
-            City {player?.city ?? '—'} — {filtered.length} targets available
+            עיר {player?.city ?? '—'} — {filtered.length} מטרות זמינות
           </p>
         </div>
         <div className="flex flex-wrap gap-3">

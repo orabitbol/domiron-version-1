@@ -662,7 +662,7 @@ export function TribeClient({
                       </p>
                     )}
                     <p className="text-game-xs text-game-text-muted font-body mt-1">
-                      City {tribe.city}&nbsp;·&nbsp;Lv {tribe.level}&nbsp;·&nbsp;Led by{' '}
+                      עיר {tribe.city}&nbsp;·&nbsp;רמה {tribe.level}&nbsp;·&nbsp;הובלה בידי{' '}
                       <span className="text-game-text-secondary">{leaderUsername}</span>
                     </p>
                   </div>

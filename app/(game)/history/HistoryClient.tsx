@@ -108,9 +108,9 @@ function buildPageRange(current: number, total: number): (number | null)[] {
 }
 
 const TABS = [
-  { key: 'outgoing', label: 'My Attacks' },
-  { key: 'incoming', label: 'Incoming Attacks' },
-  { key: 'spy',      label: 'Spy Missions' },
+  { key: 'outgoing', label: 'תקיפות שלי' },
+  { key: 'incoming', label: 'תקיפות נכנסות' },
+  { key: 'spy',      label: 'משימות ריגול' },
 ]
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -603,14 +603,14 @@ export function HistoryClient({
           <div style={{ padding: '11px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 14 }}>{'\u2694\uFE0F'}</span>
             <span style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,85,85,0.8)', fontWeight: 700 }}>
-              My Attacks
+              תקיפות שלי
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '2px 8px' }}>
-              {outgoingCount} total
+              {outgoingCount} סה"כ
             </span>
           </div>
           {outgoingAttacks.length === 0 ? (
-            <SectionEmpty icon={'\u2694\uFE0F'} title="No Attacks Yet" sub="You haven't attacked anyone this season." />
+            <SectionEmpty icon={'\u2694\uFE0F'} title="אין תקיפות עדיין" sub="לא תקפת אף שחקן בעונה זו." />
           ) : (
             outgoingAttacks.map((row, i) => (
               <AttackRow
@@ -630,14 +630,14 @@ export function HistoryClient({
           <div style={{ padding: '11px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 14 }}>{'\uD83D\uDEE1\uFE0F'}</span>
             <span style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.8)', fontWeight: 700 }}>
-              Incoming Attacks
+              תקיפות נכנסות
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '2px 8px' }}>
-              {incomingCount} total
+              {incomingCount} סה"כ
             </span>
           </div>
           {incomingAttacks.length === 0 ? (
-            <SectionEmpty icon={'\uD83D\uDEE1\uFE0F'} title="No Incoming Attacks" sub="No one has attacked you this season." />
+            <SectionEmpty icon={'\uD83D\uDEE1\uFE0F'} title="אין תקיפות נכנסות" sub="אף שחקן לא תקף אותך בעונה זו." />
           ) : (
             incomingAttacks.map((row, i) => (
               <AttackRow
@@ -657,14 +657,14 @@ export function HistoryClient({
           <div style={{ padding: '11px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 14 }}>{'\uD83C\uDF11'}</span>
             <span style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(192,112,255,0.8)', fontWeight: 700 }}>
-              Spy Missions
+              משימות ריגול
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '2px 8px' }}>
-              {spyCount} total
+              {spyCount} סה"כ
             </span>
           </div>
           {spyHistory.length === 0 ? (
-            <SectionEmpty icon={'\uD83C\uDF11'} title="No Spy Missions" sub="You haven't sent any spies this season." />
+            <SectionEmpty icon={'\uD83C\uDF11'} title="אין משימות ריגול" sub="לא שלחת מרגלים בעונה זו." />
           ) : (
             spyHistory.map((row, i) => (
               <SpyMissionRow
@@ -683,7 +683,7 @@ export function HistoryClient({
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingTop: 8 }}>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-body, sans-serif)' }}>
-            Page {currentPage} of {totalPages} &middot; {formatNumber(getCount())} total
+            עמוד {currentPage} מתוך {totalPages} &middot; {formatNumber(getCount())} סה"כ
           </span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <PageBtn label="&#8249;" onClick={() => handlePage(currentPage - 1)} disabled={currentPage <= 1} />

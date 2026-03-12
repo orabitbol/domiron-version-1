@@ -584,9 +584,9 @@ export function ShopClient() {
       {activeTab === "attack" && (
         <ArmoryPanel
           icon="⚔️"
-          title="Iron Arsenal"
-          subtitle="Forged weapons that channel raw offensive power. Stackable — no limit."
-          resource="🪙⚙️🪵🌾 All Resources"
+          title="ארסנל הברזל"
+          subtitle="נשק מזויין שמעצים כוח התקפה גולמי. ניתן לערום — ללא הגבלה."
+          resource="🪙⚙️🪵🌾 כל המשאבים"
         >
           {ATTACK_WEAPONS.map(({ key, label }) => {
             const cfg     = BALANCE.weapons.attack[key];
@@ -771,9 +771,9 @@ export function ShopClient() {
       {activeTab === "defense" && (
         <ArmoryPanel
           icon="🛡️"
-          title="Armory Vault"
-          subtitle="Armor that multiplies your defensive resilience. One piece per warrior — choose wisely."
-          resource="🪙⚙️🪵🌾 All Resources"
+          title="כספת הנשק"
+          subtitle="שריון שמכפיל את עמידותך ההגנתית. פריט אחד לכל לוחם — בחר בחוכמה."
+          resource="🪙⚙️🪵🌾 כל המשאבים"
         >
           {DEFENSE_WEAPONS.map(({ key, label }) => {
             const cfg      = BALANCE.weapons.defense[key];
@@ -933,9 +933,9 @@ export function ShopClient() {
       {activeTab === "spy" && (
         <ArmoryPanel
           icon="🌑"
-          title="Shadow Market"
-          subtitle="Covert equipment that enhances your agents. One piece per operative."
-          resource="🪙⚙️🪵🌾 All Resources"
+          title="שוק הצל"
+          subtitle="ציוד סמוי שמשפר את סוכניך. פריט אחד לכל מבצע."
+          resource="🪙⚙️🪵🌾 כל המשאבים"
         >
           {SPY_WEAPONS.map(({ key, label }, idx) => {
             const cfg    = BALANCE.weapons.spy[key];
@@ -1096,9 +1096,9 @@ export function ShopClient() {
       {activeTab === "scout" && (
         <ArmoryPanel
           icon="👁️"
-          title="Ranger's Cache"
-          subtitle="Equipment that sharpens your scouts' vision and reach. One piece per scout."
-          resource="🪙⚙️🪵🌾 All Resources"
+          title="מטמון הסייר"
+          subtitle="ציוד שמחדד את ראיית סיירייך והישגם. פריט אחד לכל סייר."
+          resource="🪙⚙️🪵🌾 כל המשאבים"
         >
           {SCOUT_WEAPONS.map(({ key, label }, idx) => {
             const cfg    = BALANCE.weapons.scout[key];

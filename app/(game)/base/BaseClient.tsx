@@ -188,7 +188,7 @@ export function BaseClient() {
       {/* ── Military 2×2 grid ───────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatPanel
-          title="Attack" titleHe="תקיפה" icon={Sword}
+          title="תקיפה" titleHe="תקיפה" icon={Sword}
           color="bg-game-red" colorClass="text-game-red-bright"
           bgClass="bg-game-red/5" borderClass="border-game-red/30"
           power={player.power_attack} units={(army?.soldiers ?? 0) + (army?.cavalry ?? 0)}
@@ -196,7 +196,7 @@ export function BaseClient() {
           link="/attack" linkLabel="לתקיפה"
         />
         <StatPanel
-          title="Defense" titleHe="הגנה" icon={Shield}
+          title="הגנה" titleHe="הגנה" icon={Shield}
           color="bg-game-blue-bright" colorClass="text-game-blue-bright"
           bgClass="bg-game-blue/5" borderClass="border-game-blue/30"
           power={player.power_defense} units={army?.soldiers ?? 0}
@@ -204,7 +204,7 @@ export function BaseClient() {
           link="/training" linkLabel="לאימון"
         />
         <StatPanel
-          title="Spy" titleHe="ריגול" icon={Eye}
+          title="ריגול" titleHe="ריגול" icon={Eye}
           color="bg-game-purple" colorClass="text-game-purple-bright"
           bgClass="bg-game-purple/5" borderClass="border-game-purple/30"
           power={player.power_spy} units={army?.spies ?? 0}
@@ -212,7 +212,7 @@ export function BaseClient() {
           link="/training" linkLabel="לאימון"
         />
         <StatPanel
-          title="Scout" titleHe="סיור" icon={Compass}
+          title="סיור" titleHe="סיור" icon={Compass}
           color="bg-game-orange" colorClass="text-game-orange-bright"
           bgClass="bg-game-orange/5" borderClass="border-game-orange/30"
           power={player.power_scout} units={army?.scouts ?? 0}
