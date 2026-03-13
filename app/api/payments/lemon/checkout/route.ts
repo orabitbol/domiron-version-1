@@ -67,9 +67,11 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 5. Build return URLs ───────────────────────────────────────────────────
-  // NEXTAUTH_URL is the canonical app origin (e.g. https://domiron.com)
-  const baseUrl =
-    process.env.NEXTAUTH_URL?.replace(/\/$/, '') ?? 'https://domiron.com'
+  const baseUrl = (
+    process.env.NEXTAUTH_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    'https://www.domiron.co.il'
+  ).replace(/\/$/, '')
   const successUrl = `${baseUrl}/hero?payment=success`
   const cancelUrl  = `${baseUrl}/hero?payment=cancel`
 

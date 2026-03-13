@@ -23,7 +23,6 @@ export interface PackDefinition {
   mana: number
   turns: number
   variantId: string
-  productId: string
 }
 
 function requireEnv(name: string): string {
@@ -34,30 +33,10 @@ function requireEnv(name: string): string {
 
 export function getPackDefinitions(): Record<PackKey, PackDefinition> {
   return {
-    '1900': {
-      mana: 1900,
-      turns: 190,
-      variantId: requireEnv('LEMON_VARIANT_1900'),
-      productId: requireEnv('LEMON_PRODUCT_1900'),
-    },
-    '4100': {
-      mana: 4100,
-      turns: 410,
-      variantId: requireEnv('LEMON_VARIANT_4100'),
-      productId: requireEnv('LEMON_PRODUCT_4100'),
-    },
-    '8250': {
-      mana: 8250,
-      turns: 825,
-      variantId: requireEnv('LEMON_VARIANT_8250'),
-      productId: requireEnv('LEMON_PRODUCT_8250'),
-    },
-    '20000': {
-      mana: 20000,
-      turns: 2000,
-      variantId: requireEnv('LEMON_VARIANT_20000'),
-      productId: requireEnv('LEMON_PRODUCT_20000'),
-    },
+    '1900':  { mana: 1900,  turns: 190,  variantId: requireEnv('LEMON_VARIANT_1900')  },
+    '4100':  { mana: 4100,  turns: 410,  variantId: requireEnv('LEMON_VARIANT_4100')  },
+    '8250':  { mana: 8250,  turns: 825,  variantId: requireEnv('LEMON_VARIANT_8250')  },
+    '20000': { mana: 20000, turns: 2000, variantId: requireEnv('LEMON_VARIANT_20000') },
   }
 }
 
