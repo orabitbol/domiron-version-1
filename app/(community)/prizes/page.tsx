@@ -1,99 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { Gift, Trophy } from 'lucide-react'
 import { SeasonCountdownBlock } from './CountdownBlock'
-import type React from 'react'
-
-// ─── Icon components (module-level — never defined inside render) ─────────────
-
-function IPhoneIcon() {
-  return (
-    <svg viewBox="0 0 64 110" width="64" height="110" fill="none">
-      {/* Body */}
-      <rect x="2" y="2" width="60" height="106" rx="10"
-        fill="rgba(26,18,5,0.98)" stroke="rgba(240,192,48,0.5)" strokeWidth="1.5" />
-      {/* Screen area */}
-      <rect x="6" y="8" width="52" height="90" rx="7"
-        fill="rgba(8,5,1,1)" />
-      {/* Dynamic island */}
-      <rect x="20" y="12" width="24" height="7" rx="3.5"
-        fill="rgba(4,3,0,1)" stroke="rgba(240,192,48,0.22)" strokeWidth="0.5" />
-      {/* Crown glyph on screen */}
-      <text x="32" y="62" textAnchor="middle" fontSize="20"
-        fill="rgba(240,192,48,0.65)" fontFamily="serif">♛</text>
-      {/* Faint screen lines */}
-      <rect x="14" y="76" width="16" height="1.5" rx="0.75"
-        fill="rgba(240,192,48,0.18)" />
-      <rect x="14" y="80" width="24" height="1.5" rx="0.75"
-        fill="rgba(240,192,48,0.12)" />
-      {/* Home bar */}
-      <rect x="22" y="94" width="20" height="3" rx="1.5"
-        fill="rgba(240,192,48,0.32)" />
-      {/* Side volume buttons */}
-      <rect x="0" y="26" width="2.5" height="10" rx="1.25"
-        fill="rgba(240,192,48,0.28)" />
-      {/* Power button */}
-      <rect x="61.5" y="34" width="2.5" height="16" rx="1.25"
-        fill="rgba(240,192,48,0.28)" />
-    </svg>
-  )
-}
-
-function PS5Icon() {
-  return (
-    <svg viewBox="0 0 120 76" width="120" height="76" fill="none">
-      {/* Console main body */}
-      <path
-        d="M18 28 Q18 16 32 16 L88 16 Q102 16 102 28 L102 58 Q102 66 88 66 L32 66 Q18 66 18 58 Z"
-        fill="rgba(18,18,26,0.98)" stroke="rgba(148,163,184,0.45)" strokeWidth="1.5"
-      />
-      {/* Curved top accent — white wing panels */}
-      <path d="M36 16 Q60 6 84 16" stroke="rgba(148,163,184,0.25)" strokeWidth="1" fill="none" />
-      {/* Disc slot */}
-      <rect x="26" y="34" width="30" height="3" rx="1.5"
-        fill="rgba(148,163,184,0.2)" stroke="rgba(148,163,184,0.1)" strokeWidth="0.5" />
-      {/* Center button cluster */}
-      <circle cx="74" cy="42" r="9"
-        fill="rgba(12,12,20,1)" stroke="rgba(148,163,184,0.35)" strokeWidth="1.2" />
-      <text x="74" y="46" textAnchor="middle" fontSize="8"
-        fill="rgba(148,163,184,0.55)" fontFamily="monospace" fontWeight="700">PS</text>
-      {/* USB port */}
-      <rect x="26" y="50" width="10" height="4" rx="1"
-        fill="rgba(148,163,184,0.1)" stroke="rgba(148,163,184,0.18)" strokeWidth="0.5" />
-      {/* LED strip */}
-      <rect x="18" y="42" width="6" height="2" rx="1"
-        fill="rgba(148,163,184,0.3)" />
-    </svg>
-  )
-}
-
-function GiftCardIcon() {
-  return (
-    <svg viewBox="0 0 100 66" width="100" height="66" fill="none">
-      {/* Card body */}
-      <rect x="2" y="2" width="96" height="62" rx="8"
-        fill="rgba(26,14,4,0.98)" stroke="rgba(190,120,55,0.5)" strokeWidth="1.5" />
-      {/* Top band */}
-      <rect x="2" y="2" width="96" height="17" rx="8"
-        fill="rgba(190,120,55,0.16)" />
-      <rect x="2" y="13" width="96" height="6" fill="rgba(190,120,55,0.08)" />
-      {/* Ribbon vertical */}
-      <rect x="43" y="2" width="14" height="62" fill="rgba(190,120,55,0.09)" />
-      {/* Ribbon horizontal */}
-      <rect x="2" y="27" width="96" height="5" fill="rgba(190,120,55,0.06)" />
-      {/* Bow knot */}
-      <circle cx="50" cy="19" r="5"
-        fill="rgba(190,120,55,0.12)" stroke="rgba(190,120,55,0.3)" strokeWidth="0.8" />
-      {/* Shine lines */}
-      <rect x="10" y="36" width="20" height="2" rx="1"
-        fill="rgba(190,120,55,0.22)" />
-      <rect x="10" y="41" width="30" height="1.5" rx="0.75"
-        fill="rgba(190,120,55,0.14)" />
-      {/* Value text */}
-      <text x="50" y="58" textAnchor="middle" fontSize="16"
-        fill="rgba(190,120,55,0.8)" fontFamily="serif" fontWeight="700">₪700</text>
-    </svg>
-  )
-}
+import Image from 'next/image'
 
 // ─── Prize definitions ────────────────────────────────────────────────────────
 
@@ -110,7 +18,8 @@ interface Prize {
   glowColor: string
   cardW: number
   podiumH: number
-  Icon: () => React.ReactElement
+  image: string
+  imgH: number
 }
 
 const PRIZES: Prize[] = [
@@ -127,7 +36,8 @@ const PRIZES: Prize[] = [
     glowColor: 'rgba(148,163,184,0.15)',
     cardW: 205,
     podiumH: 30,
-    Icon: PS5Icon,
+    image: '/sony-5-winner-2.png',
+    imgH: 128,
   },
   {
     place: 1,
@@ -142,7 +52,8 @@ const PRIZES: Prize[] = [
     glowColor: 'rgba(240,192,48,0.2)',
     cardW: 260,
     podiumH: 58,
-    Icon: IPhoneIcon,
+    image: '/iphone-winner-1.png',
+    imgH: 168,
   },
   {
     place: 3,
@@ -157,7 +68,8 @@ const PRIZES: Prize[] = [
     glowColor: 'rgba(190,120,55,0.15)',
     cardW: 182,
     podiumH: 16,
-    Icon: GiftCardIcon,
+    image: '/gift-card-winner-3.png',
+    imgH: 112,
   },
 ]
 
@@ -255,7 +167,7 @@ function PrizeCard({ prize }: { prize: Prize }) {
           />
         )}
 
-        {/* Icon area */}
+        {/* Image area */}
         <div
           style={{
             display: 'flex',
@@ -267,10 +179,20 @@ function PrizeCard({ prize }: { prize: Prize }) {
         >
           <div
             style={{
+              position: 'relative',
+              width: '100%',
+              height: prize.imgH,
               filter: `drop-shadow(0 0 ${isFirst ? 28 : 12}px ${prize.glowColor})`,
             }}
           >
-            <prize.Icon />
+            <Image
+              src={prize.image}
+              alt={prize.label}
+              fill
+              sizes={`${prize.cardW}px`}
+              style={{ objectFit: 'contain', objectPosition: 'center' }}
+              priority={isFirst}
+            />
           </div>
         </div>
 
