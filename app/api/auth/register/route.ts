@@ -7,7 +7,7 @@ import { getCatchUpMultiplier } from '@/lib/utils'
 import { recalculatePower } from '@/lib/game/power'
 
 const registerSchema = z.object({
-  username:   z.string().min(3).max(20).regex(/^[a-zA-Z0-9]+$/),
+  username:   z.string().min(3).max(20).regex(/^[\u0590-\u05FFa-zA-Z0-9]+$/),
   email:      z.string().email(),
   password:   z.string().min(8),
   army_name:  z.string().min(3).max(20),

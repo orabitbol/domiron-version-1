@@ -85,7 +85,7 @@ export default function RegisterPage() {
                 value={form.username}
                 onChange={(e) => update('username', e.target.value)}
                 placeholder="שמך"
-                hint="3–20 תווים אלפאנומריים"
+                hint="3–20 תווים (עברית, אנגלית, מספרים)"
                 required
               />
               <Input

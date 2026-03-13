@@ -8,7 +8,7 @@ import { getCatchUpMultiplier } from '@/lib/utils'
 import { recalculatePower } from '@/lib/game/power'
 
 const schema = z.object({
-  username: z.string().min(3).max(20).regex(/^[a-zA-Z0-9]+$/),
+  username: z.string().min(3).max(20).regex(/^[\u0590-\u05FFa-zA-Z0-9]+$/),
 })
 
 export async function POST(request: NextRequest) {
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'שם קרב חייב להיות 3–20 תווים אנגליים או מספרים' },
+        { error: 'שם קרב חייב להיות 3–20 תווים (עברית, אנגלית או מספרים)' },
         { status: 400 },
       )
     }

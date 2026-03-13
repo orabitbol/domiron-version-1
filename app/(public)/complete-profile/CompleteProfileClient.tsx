@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const USERNAME_RE = /^[a-zA-Z0-9]+$/
+const USERNAME_RE = /^[\u0590-\u05FFa-zA-Z0-9]+$/
 
 interface Props {
   email: string
@@ -130,7 +130,7 @@ export function CompleteProfileClient({ email }: Props) {
                 value={username}
                 onChange={(e) => handleUsernameChange(e.target.value)}
                 placeholder="הכנס שם ייחודי"
-                hint="3–20 תווים אנגליים / מספרים בלבד"
+                hint="3–20 תווים (עברית, אנגלית או מספרים)"
                 maxLength={20}
                 autoFocus
                 autoComplete="off"
@@ -150,7 +150,7 @@ export function CompleteProfileClient({ email }: Props) {
                     <span className="text-game-red-bright">✗ השם כבר תפוס — בחר שם אחר</span>
                   )}
                   {!checking && available === null && username.length > 0 && !formatOk(username) && (
-                    <span className="text-game-text-muted">רק אותיות אנגליות ומספרים, 3–20 תווים</span>
+                    <span className="text-game-text-muted">עברית, אנגלית או מספרים — 3–20 תווים</span>
                   )}
                 </div>
               )}

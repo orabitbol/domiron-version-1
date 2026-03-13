@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-const USERNAME_RE = /^[a-zA-Z0-9]+$/
+const USERNAME_RE = /^[\u0590-\u05FFa-zA-Z0-9]+$/
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
