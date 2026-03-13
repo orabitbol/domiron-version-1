@@ -107,7 +107,7 @@ export interface Player {
   id: string
   username: string
   email: string
-  password_hash: string
+  password_hash: string | null
   role: PlayerRole
   race: Race
   army_name: string
@@ -613,6 +613,8 @@ declare module 'next-auth' {
       email: string
       name: string
       role: PlayerRole
+      /** True for a Google user who authenticated but has not yet chosen a username. */
+      needsSetup?: boolean
     }
   }
   interface User {
@@ -627,5 +629,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     role: PlayerRole
+    /** True for a Google user whose game profile is not yet complete. */
+    needsSetup?: boolean
   }
 }
