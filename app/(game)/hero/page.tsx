@@ -6,7 +6,11 @@ import { HeroClient } from './HeroClient'
 // Hero row comes from PlayerContext — only fetch spells and active effects here.
 export const dynamic = 'force-dynamic'
 
-export default async function HeroPage() {
+export default async function HeroPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>
+}) {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
@@ -21,9 +25,15 @@ export default async function HeroPage() {
     .eq('player_id', playerId)
     .gt('cooldown_ends_at', now)  // include cooling-down effects so UI can show cooldown
 
+  const paymentStatus =
+    typeof searchParams?.payment === 'string'
+      ? searchParams.payment
+      : undefined
+
   return (
     <HeroClient
       activeEffects={activeEffects ?? []}
+      paymentStatus={paymentStatus}
     />
   )
 }

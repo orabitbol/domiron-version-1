@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Zap, Shield, Sword, Eye, Radar, X } from 'lucide-react'
+import { Zap, Shield, Sword, Eye, Radar, X, Loader2 } from 'lucide-react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { formatNumber } from '@/lib/utils'
@@ -45,7 +45,11 @@ const BOOST_ACTIONS = [
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Props { activeEffects: PlayerHeroEffect[] }
+interface Props {
+  activeEffects: PlayerHeroEffect[]
+  /** Echoed from ?payment= query param after Lemon redirect. */
+  paymentStatus?: string
+}
 
 type ShieldKey = 'soldier_shield' | 'resource_shield'
 
@@ -360,7 +364,15 @@ function BoostRow({ cat, tierIdx, onSelectTier }: {
 
 // ── ManaPackageCard ───────────────────────────────────────────────────────────
 
-function ManaPackageCard({ pkg }: { pkg: typeof MANA_PACKAGES[number] }) {
+function ManaPackageCard({
+  pkg,
+  loading,
+  onBuy,
+}: {
+  pkg: typeof MANA_PACKAGES[number]
+  loading: boolean
+  onBuy: () => void
+}) {
   const { popular, accent, accentRgb } = pkg
 
   return (
@@ -455,23 +467,33 @@ function ManaPackageCard({ pkg }: { pkg: typeof MANA_PACKAGES[number] }) {
               USD
             </div>
           </div>
-          <button disabled style={{
-            padding: '5px 16px',
-            borderRadius: 7, cursor: 'not-allowed', opacity: 0.7,
-            fontFamily: 'var(--font-heading, sans-serif)',
-            fontSize: 11, fontWeight: 700,
-            letterSpacing: '0.06em',
-            background: popular
-              ? `linear-gradient(135deg, ${accent}, rgba(${accentRgb},0.7))`
-              : 'rgba(255,255,255,0.06)',
-            border: popular
-              ? `1px solid rgba(${accentRgb},0.5)`
-              : '1px solid rgba(255,255,255,0.12)',
-            color: popular ? '#000' : 'rgba(255,255,255,0.45)',
-            boxShadow: popular ? `0 2px 10px rgba(${accentRgb},0.3)` : 'none',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-          }}>
+          <button
+            disabled={loading}
+            onClick={onBuy}
+            style={{
+              padding: '5px 16px',
+              borderRadius: 7,
+              cursor: loading ? 'wait' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              fontFamily: 'var(--font-heading, sans-serif)',
+              fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.06em',
+              background: popular
+                ? `linear-gradient(135deg, ${accent}, rgba(${accentRgb},0.7))`
+                : 'rgba(255,255,255,0.06)',
+              border: popular
+                ? `1px solid rgba(${accentRgb},0.5)`
+                : '1px solid rgba(255,255,255,0.12)',
+              color: popular ? '#000' : 'rgba(255,255,255,0.45)',
+              boxShadow: popular ? `0 2px 10px rgba(${accentRgb},0.3)` : 'none',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            {loading
+              ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />
+              : null}
             רכוש
           </button>
         </div>
@@ -482,7 +504,7 @@ function ManaPackageCard({ pkg }: { pkg: typeof MANA_PACKAGES[number] }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function HeroClient({ activeEffects }: Props) {
+export function HeroClient({ activeEffects, paymentStatus }: Props) {
   const { hero, refresh, applyPatch } = usePlayer()
 
   const [localEffects,   setLocalEffects]   = useState<PlayerHeroEffect[]>(activeEffects)
@@ -490,6 +512,8 @@ export function HeroClient({ activeEffects }: Props) {
   const [message,        setMessage]        = useState<{ text: string; ok: boolean } | null>(null)
   const [premiumTab,     setPremiumTab]     = useState<'spells' | 'buy'>('spells')
   const [confirmPayload, setConfirmPayload] = useState<ConfirmPayload | null>(null)
+  /** The pack key currently being purchased (null = idle). Disables all buy buttons while set. */
+  const [buyingPackKey,  setBuyingPackKey]  = useState<string | null>(null)
 
   const [soldierHours,  setSoldierHours]  = useState<number>(DURATION_PRESETS[2])
   const [resourceHours, setResourceHours] = useState<number>(DURATION_PRESETS[2])
@@ -549,6 +573,30 @@ export function HeroClient({ activeEffects }: Props) {
     if (!confirmPayload) return
     if (confirmPayload.kind === 'shield' && confirmPayload.shieldKey && confirmPayload.hours) {
       handleActivateShield(confirmPayload.shieldKey, confirmPayload.hours)
+    }
+  }
+
+  async function handleBuyPack(packKey: string) {
+    if (buyingPackKey) return          // already processing another pack
+    setBuyingPackKey(packKey)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/payments/lemon/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packKey }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) {
+        setMessage({ text: data.error ?? 'שגיאה ביצירת עמוד תשלום', ok: false })
+        return
+      }
+      // Redirect to Lemon Squeezy hosted checkout
+      window.location.href = data.url
+    } catch {
+      setMessage({ text: 'שגיאת רשת — נסה שנית', ok: false })
+    } finally {
+      setBuyingPackKey(null)
     }
   }
 
@@ -621,7 +669,31 @@ export function HeroClient({ activeEffects }: Props) {
           </div>
         </div>
 
-        {/* Message */}
+        {/* Payment return banner (from Lemon redirect) */}
+        {paymentStatus === 'success' && (
+          <div style={{
+            padding: '11px 16px', borderRadius: 9,
+            background: 'rgba(74,222,128,0.07)',
+            border: '1px solid rgba(74,222,128,0.25)',
+            color: '#4ade80',
+            fontFamily: 'var(--font-body, sans-serif)', fontSize: 13,
+          }}>
+            ✓ התשלום התקבל! המאנה והתורות יעודכנו בחשבונך תוך דקה.
+          </div>
+        )}
+        {paymentStatus === 'cancel' && (
+          <div style={{
+            padding: '11px 16px', borderRadius: 9,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.45)',
+            fontFamily: 'var(--font-body, sans-serif)', fontSize: 13,
+          }}>
+            הרכישה בוטלה — תוכל לרכוש בכל עת.
+          </div>
+        )}
+
+        {/* Message (in-page action feedback) */}
         {message && (
           <div style={{
             padding: '9px 16px', borderRadius: 9,
@@ -698,9 +770,17 @@ export function HeroClient({ activeEffects }: Props) {
           {/* ── TAB 2: רכישת מאנה ────────────────────────────────────────── */}
           {premiumTab === 'buy' && (
             <div style={{ paddingTop: 8, paddingBottom: 14, display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {MANA_PACKAGES.map((pkg) => (
-                <ManaPackageCard key={pkg.name} pkg={pkg} />
-              ))}
+              {MANA_PACKAGES.map((pkg) => {
+                const packKey = String(pkg.mana)
+                return (
+                  <ManaPackageCard
+                    key={pkg.name}
+                    pkg={pkg}
+                    loading={buyingPackKey === packKey}
+                    onBuy={() => handleBuyPack(packKey)}
+                  />
+                )
+              })}
             </div>
           )}
 
