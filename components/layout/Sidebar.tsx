@@ -42,7 +42,7 @@ const NAV_ITEMS = [
   { href: "/guide",  icon: BookOpen, label: "מדריך",  labelEn: "Guide"  },
 ];
 
-const MOBILE_NAV = ["/base", "/attack", "/tribe", "/hero", "/training"];
+const MOBILE_NAV = ["/base", "/attack", "/tribe", "/hero", "/training", "/shop", "/mine", "/bank", "/develop", "/history", "/guide", "/prizes"];
 
 const RACE_LABEL: Record<string, string> = {
   orc: "אורק",
@@ -294,17 +294,18 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile bottom navigation */}
+      {/* Mobile bottom navigation — horizontally scrollable so all pages are reachable */}
       <nav
         className={cn(
           "md:hidden fixed bottom-0 start-0 end-0 z-30",
           "bg-game-surface/97 backdrop-blur-game",
           "border-t border-game-border-gold/30",
           "shadow-[0_-4px_20px_rgba(0,0,0,0.5)]",
-          // Use safe-area-inset-bottom so nav doesn't hide behind iPhone home indicator
           "pb-[env(safe-area-inset-bottom)]",
-          "flex items-center justify-around px-1 pt-1",
+          // overflow-x-auto makes all routes reachable by swiping; no squishing
+          "flex items-center overflow-x-auto gap-0.5 px-1 pt-1",
         )}
+        style={{ scrollbarWidth: "none" }}
       >
         {NAV_ITEMS.filter((i) => MOBILE_NAV.includes(i.href)).map(
           ({ href, icon: Icon, label }) => {
@@ -314,8 +315,8 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  // flex-1 ensures equal distribution regardless of screen width
-                  "flex flex-col items-center gap-0.5 flex-1 py-2 rounded-game",
+                  // shrink-0 + w-14 keeps each item fixed-width; no squishing
+                  "flex flex-col items-center gap-0.5 shrink-0 w-14 py-2 rounded-game",
                   "transition-all duration-200 min-h-[48px] justify-center",
                   isActive
                     ? "text-game-gold-bright bg-game-gold/10"
@@ -328,7 +329,7 @@ export function Sidebar() {
                     isActive && "drop-shadow-[0_0_8px_rgba(240,192,48,0.6)]",
                   )}
                 />
-                <span className="text-[9px] font-heading uppercase tracking-wide">
+                <span className="text-[10px] font-heading uppercase tracking-wide leading-none text-center">
                   {label}
                 </span>
               </Link>

@@ -47,6 +47,7 @@ export async function recalculatePower(
   // ── Attack Power ────────────────────────────────────────────────────────────
   const baseAttackUnits = army.soldiers + army.cavalry * BALANCE.combat.cavalryMultiplier
   const attackWeaponPower =
+    weapons.crude_club   * atkWeapons.crude_club.power   +
     weapons.slingshot    * atkWeapons.slingshot.power    +
     weapons.boomerang    * atkWeapons.boomerang.power    +
     weapons.pirate_knife * atkWeapons.pirate_knife.power +
@@ -65,6 +66,7 @@ export async function recalculatePower(
   // ── Defense Power ───────────────────────────────────────────────────────────
   const baseDefenseUnits = army.soldiers + army.cavalry * BALANCE.combat.cavalryMultiplier
   let defWeaponMult = 1.0
+  if (weapons.wooden_buckler   > 0) defWeaponMult *= defWeapons.wooden_buckler.multiplier
   if (weapons.wood_shield      > 0) defWeaponMult *= defWeapons.wood_shield.multiplier
   if (weapons.iron_shield      > 0) defWeaponMult *= defWeapons.iron_shield.multiplier
   if (weapons.leather_armor    > 0) defWeaponMult *= defWeapons.leather_armor.multiplier
@@ -84,6 +86,7 @@ export async function recalculatePower(
   // ── Spy Power ───────────────────────────────────────────────────────────────
   const spyTrainMult = 1 + training.spy_level * BALANCE.training.advancedMultiplierPerLevel
   let spyWeaponMult = 1.0
+  if (weapons.spy_hood       > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.spy_hood
   if (weapons.shadow_cloak   > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.shadow_cloak
   if (weapons.dark_mask      > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.dark_mask
   if (weapons.elven_gear     > 0) spyWeaponMult *= BALANCE.pp.SPY_GEAR_MULT.elven_gear
@@ -98,6 +101,7 @@ export async function recalculatePower(
   // ── Scout Power ─────────────────────────────────────────────────────────────
   const scoutTrainMult = 1 + training.scout_level * BALANCE.training.advancedMultiplierPerLevel
   let scoutWeaponMult = 1.0
+  if (weapons.scout_cap      > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.scout_cap
   if (weapons.scout_boots    > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.scout_boots
   if (weapons.scout_cloak    > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.scout_cloak
   if (weapons.elven_boots    > 0) scoutWeaponMult *= BALANCE.pp.SCOUT_GEAR_MULT.elven_boots

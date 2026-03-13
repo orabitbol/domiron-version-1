@@ -99,6 +99,7 @@ export const BALANCE = {
     // Attack weapons: additive per unit. Defense/Spy/Scout gear: binary.
     EQUIPMENT_PP: {
       // Attack weapons — PP per unit owned (additive)
+      crude_club: 1, // [TUNE] starter tier
       slingshot: 2, // [TUNE]
       boomerang: 5, // [TUNE]
       pirate_knife: 12, // [TUNE]
@@ -110,6 +111,7 @@ export const BALANCE = {
       war_hammer: 1_500, // [TUNE]
       dragon_sword: 3_200, // [TUNE]
       // Defense equipment — PP granted once if count > 0 (binary)
+      wooden_buckler: 60, // [TUNE] starter tier
       wood_shield: 150, // [TUNE]
       iron_shield: 800, // [TUNE]
       leather_armor: 2_500, // [TUNE]
@@ -121,6 +123,7 @@ export const BALANCE = {
       void_armor: 600_000, // [TUNE]
       celestial_armor: 1_400_000, // [TUNE]
       // Spy gear — binary
+      spy_hood: 200, // [TUNE] starter tier
       shadow_cloak: 500, // [TUNE]
       dark_mask: 2_000, // [TUNE]
       elven_gear: 8_000, // [TUNE]
@@ -129,6 +132,7 @@ export const BALANCE = {
       phantom_shroud: 200_000, // [TUNE]
       arcane_veil: 650_000, // [TUNE]
       // Scout gear — binary
+      scout_cap: 200, // [TUNE] starter tier
       scout_boots: 500, // [TUNE]
       scout_cloak: 2_000, // [TUNE]
       elven_boots: 8_000, // [TUNE]
@@ -165,7 +169,8 @@ export const BALANCE = {
     // Applied multiplicatively to spy/scout unit count.
     // Each piece stacks: e.g. shadow_cloak + dark_mask → ×1.15 × ×1.30.
     SPY_GEAR_MULT: {
-      shadow_cloak: 1.15, // [TUNE]  stacked all 7 → ×7.6 max
+      spy_hood:     1.08, // [TUNE]  starter tier
+      shadow_cloak: 1.15, // [TUNE]  stacked all 8 → ×8.2 max
       dark_mask:    1.30, // [TUNE]
       elven_gear:   1.50, // [TUNE]
       mystic_cloak: 1.20, // [TUNE]
@@ -175,7 +180,8 @@ export const BALANCE = {
     } as Record<string, number>,
 
     SCOUT_GEAR_MULT: {
-      scout_boots:    1.15, // [TUNE]  stacked all 7 → ×7.6 max
+      scout_cap:      1.08, // [TUNE]  starter tier
+      scout_boots:    1.15, // [TUNE]  stacked all 8 → ×8.2 max
       scout_cloak:    1.30, // [TUNE]
       elven_boots:    1.50, // [TUNE]
       swift_boots:    1.20, // [TUNE]
@@ -547,7 +553,8 @@ export const BALANCE = {
   weapons: {
     attack: {
       // cost: { gold, iron, wood, food } — per unit, all 4 equal [TUNE]
-      // Tiers 1–7: early–mid game. Tiers 8–10: late-game resource sinks.
+      // Tier 0: starter. Tiers 1–7: early–mid game. Tiers 8–10: late-game resource sinks.
+      crude_club:   { power: 1,     cost: { gold: 750,       iron: 750,       wood: 750,       food: 750       } },
       slingshot:    { power: 2,     cost: { gold: 2_000,     iron: 2_000,     wood: 2_000,     food: 2_000     } },
       boomerang:    { power: 5,     cost: { gold: 4_000,     iron: 4_000,     wood: 4_000,     food: 4_000     } },
       pirate_knife: { power: 12,    cost: { gold: 8_000,     iron: 8_000,     wood: 8_000,     food: 8_000     } },
@@ -561,7 +568,8 @@ export const BALANCE = {
     },
     defense: {
       // one per player; cost: all 4 resources equally [TUNE]
-      // Tiers 1–7: early–mid game. Tiers 8–10: late-game resource sinks.
+      // Tier 0: starter. Tiers 1–7: early–mid game. Tiers 8–10: late-game resource sinks.
+      wooden_buckler:   { multiplier: 1.05, cost: { gold: 1_500,      iron: 1_500,      wood: 1_500,      food: 1_500      } },
       wood_shield:      { multiplier: 1.10, cost: { gold: 3_750,      iron: 3_750,      wood: 3_750,      food: 3_750      } },
       iron_shield:      { multiplier: 1.25, cost: { gold: 20_000,     iron: 20_000,     wood: 20_000,     food: 20_000     } },
       leather_armor:    { multiplier: 1.40, cost: { gold: 62_500,     iron: 62_500,     wood: 62_500,     food: 62_500     } },
@@ -575,7 +583,8 @@ export const BALANCE = {
     },
     spy: {
       // one per player; no explicit multiplier field — effect via SPY_GEAR_MULT in pp
-      // Tiers 1–3: early–mid game. Tiers 4–7: late-game resource sinks.
+      // Tier 0: starter. Tiers 1–3: early–mid game. Tiers 4–7: late-game resource sinks.
+      spy_hood:      { cost: { gold: 4_500,     iron: 4_500,     wood: 4_500,     food: 4_500     } },
       shadow_cloak:  { cost: { gold: 12_500,    iron: 12_500,    wood: 12_500,    food: 12_500    } },
       dark_mask:     { cost: { gold: 50_000,    iron: 50_000,    wood: 50_000,    food: 50_000    } },
       elven_gear:    { cost: { gold: 200_000,   iron: 200_000,   wood: 200_000,   food: 200_000   } },
@@ -586,7 +595,8 @@ export const BALANCE = {
     },
     scout: {
       // one per player; no explicit multiplier field — effect via SCOUT_GEAR_MULT in pp
-      // Tiers 1–3: early–mid game. Tiers 4–7: late-game resource sinks.
+      // Tier 0: starter. Tiers 1–3: early–mid game. Tiers 4–7: late-game resource sinks.
+      scout_cap:     { cost: { gold: 4_500,     iron: 4_500,     wood: 4_500,     food: 4_500     } },
       scout_boots:   { cost: { gold: 12_500,    iron: 12_500,    wood: 12_500,    food: 12_500    } },
       scout_cloak:   { cost: { gold: 50_000,    iron: 50_000,    wood: 50_000,    food: 50_000    } },
       elven_boots:   { cost: { gold: 200_000,   iron: 200_000,   wood: 200_000,   food: 200_000   } },

@@ -248,7 +248,7 @@ export function TrainingClient() {
                     {UNIT_LABELS[unit]}
                   </span>
                   {/* Mobile: show owned inline */}
-                  <span className="sm:hidden ml-2 text-game-xs text-game-text-muted font-body">
+                  <span className="sm:hidden ms-2 text-game-xs text-game-text-muted font-body">
                     ×{formatNumber(ownedCount)}
                   </span>
                 </div>
@@ -353,7 +353,7 @@ export function TrainingClient() {
                     {ADVANCED_LABELS[type]}
                   </span>
                   {/* Mobile: level inline */}
-                  <span className="sm:hidden ml-2 text-game-xs text-game-text-muted font-body">
+                  <span className="sm:hidden ms-2 text-game-xs text-game-text-muted font-body">
                     רמה {level}
                   </span>
                 </div>

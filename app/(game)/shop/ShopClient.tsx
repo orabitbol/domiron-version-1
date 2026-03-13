@@ -42,6 +42,7 @@ const TABS = [
 ];
 
 const ATTACK_WEAPONS = [
+  { key: "crude_club",   label: "אלה גסה"        },
   { key: "slingshot",    label: "קלע"           },
   { key: "boomerang",    label: "בומרנג"         },
   { key: "pirate_knife", label: "סכין פיראטים"  },
@@ -55,6 +56,7 @@ const ATTACK_WEAPONS = [
 ] as const;
 
 const DEFENSE_WEAPONS = [
+  { key: "wooden_buckler", label: "מגן עץ קטן"      },
   { key: "wood_shield",    label: "מגן עץ"         },
   { key: "iron_shield",    label: "מגן ברזל"       },
   { key: "leather_armor",  label: "שריון עור"      },
@@ -68,6 +70,7 @@ const DEFENSE_WEAPONS = [
 ] as const;
 
 const SPY_WEAPONS = [
+  { key: "spy_hood",       label: "כיסוי ריגול"     },
   { key: "shadow_cloak",   label: "גלימת צל"        },
   { key: "dark_mask",      label: "מסכת חושך"       },
   { key: "elven_gear",     label: "ציוד אלפים"      },
@@ -78,6 +81,7 @@ const SPY_WEAPONS = [
 ] as const;
 
 const SCOUT_WEAPONS = [
+  { key: "scout_cap",      label: "כובע סייר"       },
   { key: "scout_boots",    label: "מגפי סייר"       },
   { key: "scout_cloak",    label: "גלימת סייר"      },
   { key: "elven_boots",    label: "מגפי אלפים"      },
@@ -86,8 +90,6 @@ const SCOUT_WEAPONS = [
   { key: "phantom_stride", label: "מדרך הרוח"       },
   { key: "arcane_lens",    label: "עדשה ארקאנית"    },
 ] as const;
-
-const ROMAN = ["I", "II", "III"] as const;
 
 // ── Visual tier system ────────────────────────────────────────────────────────
 
@@ -165,6 +167,7 @@ const TIER: Record<TierKey, TierStyle> = {
 
 const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
   // Attack
+  crude_club:   { icon: "🪵", tier: "rustic" },
   slingshot:    { icon: "🪃", tier: "rustic" },
   boomerang:    { icon: "🎯", tier: "rustic" },
   pirate_knife: { icon: "🗡️", tier: "iron"   },
@@ -176,6 +179,7 @@ const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
   war_hammer:   { icon: "🔨", tier: "divine" },
   dragon_sword: { icon: "🐉", tier: "divine" },
   // Defense
+  wooden_buckler:   { icon: "🪵", tier: "rustic" },
   wood_shield:      { icon: "🛡️", tier: "rustic" },
   iron_shield:      { icon: "🛡️", tier: "iron"   },
   leather_armor:    { icon: "🥷", tier: "iron"   },
@@ -187,6 +191,7 @@ const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
   void_armor:       { icon: "🕳️", tier: "divine" },
   celestial_armor:  { icon: "✨", tier: "divine" },
   // Spy
+  spy_hood:       { icon: "🎩", tier: "rustic" },
   shadow_cloak:   { icon: "🌑", tier: "iron"   },
   dark_mask:      { icon: "🎭", tier: "forged" },
   elven_gear:     { icon: "🧝", tier: "runic"  },
@@ -195,6 +200,7 @@ const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
   phantom_shroud: { icon: "👻", tier: "divine" },
   arcane_veil:    { icon: "🔮", tier: "divine" },
   // Scout
+  scout_cap:      { icon: "🧢", tier: "rustic" },
   scout_boots:    { icon: "👢", tier: "iron"   },
   scout_cloak:    { icon: "🗺️", tier: "forged" },
   elven_boots:    { icon: "🌟", tier: "runic"  },
@@ -730,6 +736,7 @@ export function ShopClient() {
                         justifyContent: "flex-end",
                         gap: "6px",
                         direction: "ltr",
+                        flexShrink: 0,
                         background: "rgba(0,0,0,0.22)",
                         border: "1px solid rgba(201,144,26,0.14)",
                         borderRadius: "10px",
@@ -903,27 +910,42 @@ export function ShopClient() {
                   </div>
                 </div>
 
-                <div
-                  className="flex items-center gap-2 px-3 pb-3"
-                >
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, "defense")}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", padding: "0 12px 10px" }}>
+                  <OwnedPill count={owned} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: "6px",
+                      direction: "ltr",
+                      flexShrink: 0,
+                      background: "rgba(0,0,0,0.22)",
+                      border: "1px solid rgba(201,144,26,0.14)",
+                      borderRadius: "10px",
+                      padding: "6px 8px",
+                      boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)",
+                    }}
                   >
-                    {owned > 0 ? "Owned" : "Buy"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, "defense")}
-                  >
-                    Sell
-                  </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={isFrozen || !canBuy || !!loading}
+                      loading={loading === `buy-${key}`}
+                      onClick={() => handleBuy(key, "defense")}
+                    >
+                      {owned > 0 ? "Owned" : "Buy"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={isFrozen || !canSell || !!loading}
+                      loading={loading === `sell-${key}`}
+                      onClick={() => handleSell(key, "defense")}
+                    >
+                      Sell
+                    </Button>
+                  </div>
                 </div>
               </RowWrap>
             );
@@ -941,7 +963,7 @@ export function ShopClient() {
           subtitle="ציוד סמוי שמשפר את סוכניך. פריט אחד לכל מבצע."
           resource="🪙⚙️🪵🌾 כל המשאבים"
         >
-          {SPY_WEAPONS.map(({ key, label }, idx) => {
+          {SPY_WEAPONS.map(({ key, label }) => {
             const cfg    = BALANCE.weapons.spy[key];
             const owned  = (weaponState[key] as number) ?? 0;
             const cost   = cfg.cost;
@@ -954,7 +976,7 @@ export function ShopClient() {
             const canSell = owned > 0;
             const meta    = WEAPON_META[key] ?? { icon: "🌑", tier: "iron" as TierKey };
             const t       = TIER[meta.tier];
-            const tierNum = ROMAN[idx];
+            const spyMult = (BALANCE.pp.SPY_GEAR_MULT as Record<string, number>)[key] ?? 1;
             const refundEach = Math.floor(cost.gold * BALANCE.weapons.sellRefundPercent);
 
             return (
@@ -1022,7 +1044,7 @@ export function ShopClient() {
                     </div>
                   </div>
 
-                  {/* Spy tier stat plate */}
+                  {/* Spy gear stat plate */}
                   <div
                     style={{
                       flexShrink: 0,
@@ -1044,7 +1066,7 @@ export function ShopClient() {
                         lineHeight: 1,
                       }}
                     >
-                      {tierNum}
+                      ×{spyMult.toFixed(2)}
                     </div>
                     <div
                       style={{
@@ -1056,30 +1078,47 @@ export function ShopClient() {
                         fontFamily: "Cinzel, serif",
                       }}
                     >
-                      Spy Gear
+                      Spy Mult
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 pb-3">
-                  <Button
-                    variant="magic"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, "spy")}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", padding: "0 12px 10px" }}>
+                  <OwnedPill count={owned} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: "6px",
+                      direction: "ltr",
+                      flexShrink: 0,
+                      background: "rgba(0,0,0,0.22)",
+                      border: "1px solid rgba(201,144,26,0.14)",
+                      borderRadius: "10px",
+                      padding: "6px 8px",
+                      boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)",
+                    }}
                   >
-                    {owned > 0 ? "Owned" : "Buy"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, "spy")}
-                  >
-                    Sell
-                  </Button>
+                    <Button
+                      variant="magic"
+                      size="sm"
+                      disabled={isFrozen || !canBuy || !!loading}
+                      loading={loading === `buy-${key}`}
+                      onClick={() => handleBuy(key, "spy")}
+                    >
+                      {owned > 0 ? "Owned" : "Buy"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={isFrozen || !canSell || !!loading}
+                      loading={loading === `sell-${key}`}
+                      onClick={() => handleSell(key, "spy")}
+                    >
+                      Sell
+                    </Button>
+                  </div>
                 </div>
               </RowWrap>
             );
@@ -1097,7 +1136,7 @@ export function ShopClient() {
           subtitle="ציוד שמחדד את ראיית סיירייך והישגם. פריט אחד לכל סייר."
           resource="🪙⚙️🪵🌾 כל המשאבים"
         >
-          {SCOUT_WEAPONS.map(({ key, label }, idx) => {
+          {SCOUT_WEAPONS.map(({ key, label }) => {
             const cfg    = BALANCE.weapons.scout[key];
             const owned  = (weaponState[key] as number) ?? 0;
             const cost   = cfg.cost;
@@ -1110,7 +1149,7 @@ export function ShopClient() {
             const canSell = owned > 0;
             const meta    = WEAPON_META[key] ?? { icon: "👢", tier: "iron" as TierKey };
             const t       = TIER[meta.tier];
-            const tierNum = ROMAN[idx];
+            const scoutMult = (BALANCE.pp.SCOUT_GEAR_MULT as Record<string, number>)[key] ?? 1;
             const refundEach = Math.floor(cost.gold * BALANCE.weapons.sellRefundPercent);
 
             return (
@@ -1178,7 +1217,7 @@ export function ShopClient() {
                     </div>
                   </div>
 
-                  {/* Scout tier stat plate */}
+                  {/* Scout gear stat plate */}
                   <div
                     style={{
                       flexShrink: 0,
@@ -1200,7 +1239,7 @@ export function ShopClient() {
                         lineHeight: 1,
                       }}
                     >
-                      {tierNum}
+                      ×{scoutMult.toFixed(2)}
                     </div>
                     <div
                       style={{
@@ -1212,30 +1251,47 @@ export function ShopClient() {
                         fontFamily: "Cinzel, serif",
                       }}
                     >
-                      Scout Gear
+                      Scout Mult
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 pb-3">
-                  <Button
-                    variant="magic"
-                    size="sm"
-                    disabled={isFrozen || !canBuy || !!loading}
-                    loading={loading === `buy-${key}`}
-                    onClick={() => handleBuy(key, "scout")}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", padding: "0 12px 10px" }}>
+                  <OwnedPill count={owned} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: "6px",
+                      direction: "ltr",
+                      flexShrink: 0,
+                      background: "rgba(0,0,0,0.22)",
+                      border: "1px solid rgba(201,144,26,0.14)",
+                      borderRadius: "10px",
+                      padding: "6px 8px",
+                      boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)",
+                    }}
                   >
-                    {owned > 0 ? "Owned" : "Buy"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isFrozen || !canSell || !!loading}
-                    loading={loading === `sell-${key}`}
-                    onClick={() => handleSell(key, "scout")}
-                  >
-                    Sell
-                  </Button>
+                    <Button
+                      variant="magic"
+                      size="sm"
+                      disabled={isFrozen || !canBuy || !!loading}
+                      loading={loading === `buy-${key}`}
+                      onClick={() => handleBuy(key, "scout")}
+                    >
+                      {owned > 0 ? "Owned" : "Buy"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={isFrozen || !canSell || !!loading}
+                      loading={loading === `sell-${key}`}
+                      onClick={() => handleSell(key, "scout")}
+                    >
+                      Sell
+                    </Button>
+                  </div>
                 </div>
               </RowWrap>
             );

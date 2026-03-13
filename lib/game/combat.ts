@@ -245,6 +245,7 @@ function calcEquipScore(weapons: Weapons): number {
   const { EQUIPMENT_PP } = BALANCE.pp
 
   const attackScore =
+    weapons.crude_club   * EQUIPMENT_PP.crude_club   +
     weapons.slingshot    * EQUIPMENT_PP.slingshot    +
     weapons.boomerang    * EQUIPMENT_PP.boomerang    +
     weapons.pirate_knife * EQUIPMENT_PP.pirate_knife +
@@ -257,6 +258,7 @@ function calcEquipScore(weapons: Weapons): number {
     weapons.dragon_sword * EQUIPMENT_PP.dragon_sword
 
   const defenseScore =
+    (weapons.wooden_buckler  > 0 ? EQUIPMENT_PP.wooden_buckler  : 0) +
     (weapons.wood_shield     > 0 ? EQUIPMENT_PP.wood_shield     : 0) +
     (weapons.iron_shield     > 0 ? EQUIPMENT_PP.iron_shield     : 0) +
     (weapons.leather_armor   > 0 ? EQUIPMENT_PP.leather_armor   : 0) +
@@ -269,6 +271,7 @@ function calcEquipScore(weapons: Weapons): number {
     (weapons.celestial_armor > 0 ? EQUIPMENT_PP.celestial_armor : 0)
 
   const spyGearScore =
+    (weapons.spy_hood       > 0 ? EQUIPMENT_PP.spy_hood       : 0) +
     (weapons.shadow_cloak   > 0 ? EQUIPMENT_PP.shadow_cloak   : 0) +
     (weapons.dark_mask      > 0 ? EQUIPMENT_PP.dark_mask      : 0) +
     (weapons.elven_gear     > 0 ? EQUIPMENT_PP.elven_gear     : 0) +
@@ -278,6 +281,7 @@ function calcEquipScore(weapons: Weapons): number {
     (weapons.arcane_veil    > 0 ? EQUIPMENT_PP.arcane_veil    : 0)
 
   const scoutGearScore =
+    (weapons.scout_cap      > 0 ? EQUIPMENT_PP.scout_cap      : 0) +
     (weapons.scout_boots    > 0 ? EQUIPMENT_PP.scout_boots    : 0) +
     (weapons.scout_cloak    > 0 ? EQUIPMENT_PP.scout_cloak    : 0) +
     (weapons.elven_boots    > 0 ? EQUIPMENT_PP.elven_boots    : 0) +

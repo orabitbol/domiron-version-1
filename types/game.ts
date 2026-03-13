@@ -177,7 +177,8 @@ export interface Army {
 export interface Weapons {
   id: string
   player_id: string
-  // Attack (tiers 1–10)
+  // Attack (tier 0–10)
+  crude_club: number
   slingshot: number
   boomerang: number
   pirate_knife: number
@@ -188,7 +189,8 @@ export interface Weapons {
   battle_axe: number
   war_hammer: number
   dragon_sword: number
-  // Defense (tiers 1–10)
+  // Defense (tiers 0–10)
+  wooden_buckler: number
   wood_shield: number
   iron_shield: number
   leather_armor: number
@@ -199,7 +201,8 @@ export interface Weapons {
   shadow_armor: number
   void_armor: number
   celestial_armor: number
-  // Spy (tiers 1–7)
+  // Spy (tiers 0–7)
+  spy_hood: number
   shadow_cloak: number
   dark_mask: number
   elven_gear: number
@@ -207,7 +210,8 @@ export interface Weapons {
   shadow_veil: number
   phantom_shroud: number
   arcane_veil: number
-  // Scout (tiers 1–7)
+  // Scout (tiers 0–7)
+  scout_cap: number
   scout_boots: number
   scout_cloak: number
   elven_boots: number
