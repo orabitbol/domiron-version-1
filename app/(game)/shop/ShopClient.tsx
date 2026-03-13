@@ -42,35 +42,49 @@ const TABS = [
 ];
 
 const ATTACK_WEAPONS = [
-  { key: "slingshot",    label: "קלע"          },
-  { key: "boomerang",    label: "בומרנג"        },
-  { key: "pirate_knife", label: "סכין פיראטים" },
-  { key: "axe",          label: "גרזן"         },
-  { key: "master_knife", label: "סכין מאסטר"   },
-  { key: "knight_axe",   label: "גרזן אביר"    },
-  { key: "iron_ball",    label: "כדור ברזל"    },
+  { key: "slingshot",    label: "קלע"           },
+  { key: "boomerang",    label: "בומרנג"         },
+  { key: "pirate_knife", label: "סכין פיראטים"  },
+  { key: "axe",          label: "גרזן"          },
+  { key: "master_knife", label: "סכין מאסטר"    },
+  { key: "knight_axe",   label: "גרזן אביר"     },
+  { key: "iron_ball",    label: "כדור ברזל"     },
+  { key: "battle_axe",   label: "גרזן קרב"      },
+  { key: "war_hammer",   label: "פטיש מלחמה"    },
+  { key: "dragon_sword", label: "חרב הדרקון"    },
 ] as const;
 
 const DEFENSE_WEAPONS = [
-  { key: "wood_shield",   label: "מגן עץ"        },
-  { key: "iron_shield",   label: "מגן ברזל"      },
-  { key: "leather_armor", label: "שריון עור"     },
-  { key: "chain_armor",   label: "שריון שרשרת"   },
-  { key: "plate_armor",   label: "שריון פלדה"    },
-  { key: "mithril_armor", label: "שריון מיתריל"  },
-  { key: "gods_armor",    label: "שריון האלים"   },
+  { key: "wood_shield",    label: "מגן עץ"         },
+  { key: "iron_shield",    label: "מגן ברזל"       },
+  { key: "leather_armor",  label: "שריון עור"      },
+  { key: "chain_armor",    label: "שריון שרשרת"    },
+  { key: "plate_armor",    label: "שריון פלדה"     },
+  { key: "mithril_armor",  label: "שריון מיתריל"   },
+  { key: "gods_armor",     label: "שריון האלים"    },
+  { key: "shadow_armor",   label: "שריון הצל"      },
+  { key: "void_armor",     label: "שריון הריק"     },
+  { key: "celestial_armor",label: "שריון שמימי"    },
 ] as const;
 
 const SPY_WEAPONS = [
-  { key: "shadow_cloak", label: "גלימת צל"   },
-  { key: "dark_mask",    label: "מסכת חושך"  },
-  { key: "elven_gear",   label: "ציוד אלפים" },
+  { key: "shadow_cloak",   label: "גלימת צל"        },
+  { key: "dark_mask",      label: "מסכת חושך"       },
+  { key: "elven_gear",     label: "ציוד אלפים"      },
+  { key: "mystic_cloak",   label: "גלימה מיסטית"    },
+  { key: "shadow_veil",    label: "רעלת הצל"        },
+  { key: "phantom_shroud", label: "כסות הרוח"       },
+  { key: "arcane_veil",    label: "מחסום ארקאני"    },
 ] as const;
 
 const SCOUT_WEAPONS = [
-  { key: "scout_boots", label: "מגפי סייר"   },
-  { key: "scout_cloak", label: "גלימת סייר"  },
-  { key: "elven_boots", label: "מגפי אלפים"  },
+  { key: "scout_boots",    label: "מגפי סייר"       },
+  { key: "scout_cloak",    label: "גלימת סייר"      },
+  { key: "elven_boots",    label: "מגפי אלפים"      },
+  { key: "swift_boots",    label: "מגפי מהירות"     },
+  { key: "shadow_steps",   label: "צעדי הצל"        },
+  { key: "phantom_stride", label: "מדרך הרוח"       },
+  { key: "arcane_lens",    label: "עדשה ארקאנית"    },
 ] as const;
 
 const ROMAN = ["I", "II", "III"] as const;
@@ -150,6 +164,7 @@ const TIER: Record<TierKey, TierStyle> = {
 };
 
 const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
+  // Attack
   slingshot:    { icon: "🪃", tier: "rustic" },
   boomerang:    { icon: "🎯", tier: "rustic" },
   pirate_knife: { icon: "🗡️", tier: "iron"   },
@@ -157,19 +172,36 @@ const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
   master_knife: { icon: "⚔️", tier: "forged" },
   knight_axe:   { icon: "🔱", tier: "runic"  },
   iron_ball:    { icon: "💀", tier: "divine" },
-  wood_shield:   { icon: "🛡️", tier: "rustic" },
-  iron_shield:   { icon: "🛡️", tier: "iron"   },
-  leather_armor: { icon: "🥷", tier: "iron"   },
-  chain_armor:   { icon: "⛓️", tier: "forged" },
-  plate_armor:   { icon: "🦾", tier: "forged" },
-  mithril_armor: { icon: "💠", tier: "runic"  },
-  gods_armor:    { icon: "👑", tier: "divine" },
-  shadow_cloak: { icon: "🌑", tier: "iron"   },
-  dark_mask:    { icon: "🎭", tier: "forged" },
-  elven_gear:   { icon: "🧝", tier: "runic"  },
-  scout_boots:  { icon: "👢", tier: "iron"   },
-  scout_cloak:  { icon: "🗺️", tier: "forged" },
-  elven_boots:  { icon: "🌟", tier: "runic"  },
+  battle_axe:   { icon: "🪖", tier: "divine" },
+  war_hammer:   { icon: "🔨", tier: "divine" },
+  dragon_sword: { icon: "🐉", tier: "divine" },
+  // Defense
+  wood_shield:      { icon: "🛡️", tier: "rustic" },
+  iron_shield:      { icon: "🛡️", tier: "iron"   },
+  leather_armor:    { icon: "🥷", tier: "iron"   },
+  chain_armor:      { icon: "⛓️", tier: "forged" },
+  plate_armor:      { icon: "🦾", tier: "forged" },
+  mithril_armor:    { icon: "💠", tier: "runic"  },
+  gods_armor:       { icon: "👑", tier: "divine" },
+  shadow_armor:     { icon: "🌑", tier: "divine" },
+  void_armor:       { icon: "🕳️", tier: "divine" },
+  celestial_armor:  { icon: "✨", tier: "divine" },
+  // Spy
+  shadow_cloak:   { icon: "🌑", tier: "iron"   },
+  dark_mask:      { icon: "🎭", tier: "forged" },
+  elven_gear:     { icon: "🧝", tier: "runic"  },
+  mystic_cloak:   { icon: "🌀", tier: "runic"  },
+  shadow_veil:    { icon: "🌫️", tier: "divine" },
+  phantom_shroud: { icon: "👻", tier: "divine" },
+  arcane_veil:    { icon: "🔮", tier: "divine" },
+  // Scout
+  scout_boots:    { icon: "👢", tier: "iron"   },
+  scout_cloak:    { icon: "🗺️", tier: "forged" },
+  elven_boots:    { icon: "🌟", tier: "runic"  },
+  swift_boots:    { icon: "💨", tier: "runic"  },
+  shadow_steps:   { icon: "👣", tier: "divine" },
+  phantom_stride: { icon: "🌌", tier: "divine" },
+  arcane_lens:    { icon: "🔭", tier: "divine" },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

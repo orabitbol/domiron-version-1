@@ -105,6 +105,9 @@ export const BALANCE = {
       master_knife: 64, // [TUNE]
       knight_axe: 148, // [TUNE]
       iron_ball: 340, // [TUNE]
+      battle_axe: 680, // [TUNE]
+      war_hammer: 1_500, // [TUNE]
+      dragon_sword: 3_200, // [TUNE]
       // Defense equipment — PP granted once if count > 0 (binary)
       wood_shield: 150, // [TUNE]
       iron_shield: 800, // [TUNE]
@@ -113,14 +116,25 @@ export const BALANCE = {
       plate_armor: 25_000, // [TUNE]
       mithril_armor: 70_000, // [TUNE]
       gods_armor: 150_000, // [TUNE]
+      shadow_armor: 280_000, // [TUNE]
+      void_armor: 600_000, // [TUNE]
+      celestial_armor: 1_400_000, // [TUNE]
       // Spy gear — binary
       shadow_cloak: 500, // [TUNE]
       dark_mask: 2_000, // [TUNE]
       elven_gear: 8_000, // [TUNE]
+      mystic_cloak: 20_000, // [TUNE]
+      shadow_veil: 60_000, // [TUNE]
+      phantom_shroud: 200_000, // [TUNE]
+      arcane_veil: 650_000, // [TUNE]
       // Scout gear — binary
       scout_boots: 500, // [TUNE]
       scout_cloak: 2_000, // [TUNE]
       elven_boots: 8_000, // [TUNE]
+      swift_boots: 20_000, // [TUNE]
+      shadow_steps: 60_000, // [TUNE]
+      phantom_stride: 200_000, // [TUNE]
+      arcane_lens: 650_000, // [TUNE]
     },
 
     // ── Skill PP values — per training level ──────────────
@@ -150,15 +164,23 @@ export const BALANCE = {
     // Applied multiplicatively to spy/scout unit count.
     // Each piece stacks: e.g. shadow_cloak + dark_mask → ×1.15 × ×1.30.
     SPY_GEAR_MULT: {
-      shadow_cloak: 1.15, // [TUNE]
-      dark_mask: 1.3, // [TUNE]
-      elven_gear: 1.5, // [TUNE]
+      shadow_cloak: 1.15, // [TUNE]  stacked all 7 → ×7.6 max
+      dark_mask:    1.30, // [TUNE]
+      elven_gear:   1.50, // [TUNE]
+      mystic_cloak: 1.20, // [TUNE]
+      shadow_veil:  1.30, // [TUNE]
+      phantom_shroud: 1.40, // [TUNE]
+      arcane_veil:  1.52, // [TUNE]
     } as Record<string, number>,
 
     SCOUT_GEAR_MULT: {
-      scout_boots: 1.15, // [TUNE]
-      scout_cloak: 1.3, // [TUNE]
-      elven_boots: 1.5, // [TUNE]
+      scout_boots:    1.15, // [TUNE]  stacked all 7 → ×7.6 max
+      scout_cloak:    1.30, // [TUNE]
+      elven_boots:    1.50, // [TUNE]
+      swift_boots:    1.20, // [TUNE]
+      shadow_steps:   1.30, // [TUNE]
+      phantom_stride: 1.40, // [TUNE]
+      arcane_lens:    1.52, // [TUNE]
     } as Record<string, number>,
 
     // Fortification defense multiplier per level above 1.
@@ -372,16 +394,16 @@ export const BALANCE = {
     enableCavalry: true, // [TOGGLE]
 
     populationPerTick: {
-      1: 3,
-      2: 6,
-      3: 9,
-      4: 12,
-      5: 15,
-      6: 18,
-      7: 21,
-      8: 24,
-      9: 27,
-      10: 30,
+      1: 2,
+      2: 4,
+      3: 6,
+      4: 8,
+      5: 10,
+      6: 12,
+      7: 14,
+      8: 16,
+      9: 18,
+      10: 20,
     } as Record<number, number>,
 
     advancedMultiplierPerLevel: 0.08, // [TUNE]
@@ -511,33 +533,53 @@ export const BALANCE = {
   weapons: {
     attack: {
       // cost: { gold, iron, wood, food } — per unit, all 4 equal [TUNE]
-      slingshot:    { power: 2,   cost: { gold: 2_000,   iron: 2_000,   wood: 2_000,   food: 2_000   } },
-      boomerang:    { power: 5,   cost: { gold: 4_000,   iron: 4_000,   wood: 4_000,   food: 4_000   } },
-      pirate_knife: { power: 12,  cost: { gold: 8_000,   iron: 8_000,   wood: 8_000,   food: 8_000   } },
-      axe:          { power: 28,  cost: { gold: 16_000,  iron: 16_000,  wood: 16_000,  food: 16_000  } },
-      master_knife: { power: 64,  cost: { gold: 32_000,  iron: 32_000,  wood: 32_000,  food: 32_000  } },
-      knight_axe:   { power: 148, cost: { gold: 64_000,  iron: 64_000,  wood: 64_000,  food: 64_000  } },
-      iron_ball:    { power: 340, cost: { gold: 128_000, iron: 128_000, wood: 128_000, food: 128_000 } },
+      // Tiers 1–7: early–mid game. Tiers 8–10: late-game resource sinks.
+      slingshot:    { power: 2,     cost: { gold: 2_000,     iron: 2_000,     wood: 2_000,     food: 2_000     } },
+      boomerang:    { power: 5,     cost: { gold: 4_000,     iron: 4_000,     wood: 4_000,     food: 4_000     } },
+      pirate_knife: { power: 12,    cost: { gold: 8_000,     iron: 8_000,     wood: 8_000,     food: 8_000     } },
+      axe:          { power: 28,    cost: { gold: 16_000,    iron: 16_000,    wood: 16_000,    food: 16_000    } },
+      master_knife: { power: 64,    cost: { gold: 32_000,    iron: 32_000,    wood: 32_000,    food: 32_000    } },
+      knight_axe:   { power: 148,   cost: { gold: 64_000,    iron: 64_000,    wood: 64_000,    food: 64_000    } },
+      iron_ball:    { power: 340,   cost: { gold: 128_000,   iron: 128_000,   wood: 128_000,   food: 128_000   } },
+      battle_axe:   { power: 680,   cost: { gold: 256_000,   iron: 256_000,   wood: 256_000,   food: 256_000   } },
+      war_hammer:   { power: 1_500, cost: { gold: 512_000,   iron: 512_000,   wood: 512_000,   food: 512_000   } },
+      dragon_sword: { power: 3_200, cost: { gold: 1_024_000, iron: 1_024_000, wood: 1_024_000, food: 1_024_000 } },
     },
     defense: {
       // one per player; cost: all 4 resources equally [TUNE]
-      wood_shield:   { multiplier: 1.10, cost: { gold: 3_750,     iron: 3_750,     wood: 3_750,     food: 3_750     } },
-      iron_shield:   { multiplier: 1.25, cost: { gold: 20_000,    iron: 20_000,    wood: 20_000,    food: 20_000    } },
-      leather_armor: { multiplier: 1.40, cost: { gold: 62_500,    iron: 62_500,    wood: 62_500,    food: 62_500    } },
-      chain_armor:   { multiplier: 1.55, cost: { gold: 200_000,   iron: 200_000,   wood: 200_000,   food: 200_000   } },
-      plate_armor:   { multiplier: 1.70, cost: { gold: 625_000,   iron: 625_000,   wood: 625_000,   food: 625_000   } },
-      mithril_armor: { multiplier: 1.90, cost: { gold: 1_750_000, iron: 1_750_000, wood: 1_750_000, food: 1_750_000 } },
-      gods_armor:    { multiplier: 2.20, cost: { gold: 2_500_000, iron: 2_500_000, wood: 2_500_000, food: 2_500_000 } },
+      // Tiers 1–7: early–mid game. Tiers 8–10: late-game resource sinks.
+      wood_shield:      { multiplier: 1.10, cost: { gold: 3_750,      iron: 3_750,      wood: 3_750,      food: 3_750      } },
+      iron_shield:      { multiplier: 1.25, cost: { gold: 20_000,     iron: 20_000,     wood: 20_000,     food: 20_000     } },
+      leather_armor:    { multiplier: 1.40, cost: { gold: 62_500,     iron: 62_500,     wood: 62_500,     food: 62_500     } },
+      chain_armor:      { multiplier: 1.55, cost: { gold: 200_000,    iron: 200_000,    wood: 200_000,    food: 200_000    } },
+      plate_armor:      { multiplier: 1.70, cost: { gold: 625_000,    iron: 625_000,    wood: 625_000,    food: 625_000    } },
+      mithril_armor:    { multiplier: 1.90, cost: { gold: 1_750_000,  iron: 1_750_000,  wood: 1_750_000,  food: 1_750_000  } },
+      gods_armor:       { multiplier: 2.20, cost: { gold: 2_500_000,  iron: 2_500_000,  wood: 2_500_000,  food: 2_500_000  } },
+      shadow_armor:     { multiplier: 1.30, cost: { gold: 4_000_000,  iron: 4_000_000,  wood: 4_000_000,  food: 4_000_000  } },
+      void_armor:       { multiplier: 1.42, cost: { gold: 9_000_000,  iron: 9_000_000,  wood: 9_000_000,  food: 9_000_000  } },
+      celestial_armor:  { multiplier: 1.55, cost: { gold: 20_000_000, iron: 20_000_000, wood: 20_000_000, food: 20_000_000 } },
     },
     spy: {
-      shadow_cloak: { cost: { gold: 12_500,  iron: 12_500,  wood: 12_500,  food: 12_500  } },
-      dark_mask:    { cost: { gold: 50_000,  iron: 50_000,  wood: 50_000,  food: 50_000  } },
-      elven_gear:   { cost: { gold: 200_000, iron: 200_000, wood: 200_000, food: 200_000 } },
+      // one per player; no explicit multiplier field — effect via SPY_GEAR_MULT in pp
+      // Tiers 1–3: early–mid game. Tiers 4–7: late-game resource sinks.
+      shadow_cloak:  { cost: { gold: 12_500,    iron: 12_500,    wood: 12_500,    food: 12_500    } },
+      dark_mask:     { cost: { gold: 50_000,    iron: 50_000,    wood: 50_000,    food: 50_000    } },
+      elven_gear:    { cost: { gold: 200_000,   iron: 200_000,   wood: 200_000,   food: 200_000   } },
+      mystic_cloak:  { cost: { gold: 500_000,    iron: 500_000,    wood: 500_000,    food: 500_000    } },
+      shadow_veil:   { cost: { gold: 1_500_000,  iron: 1_500_000,  wood: 1_500_000,  food: 1_500_000  } },
+      phantom_shroud:{ cost: { gold: 4_500_000,  iron: 4_500_000,  wood: 4_500_000,  food: 4_500_000  } },
+      arcane_veil:   { cost: { gold: 12_000_000, iron: 12_000_000, wood: 12_000_000, food: 12_000_000 } },
     },
     scout: {
-      scout_boots:  { cost: { gold: 12_500,  iron: 12_500,  wood: 12_500,  food: 12_500  } },
-      scout_cloak:  { cost: { gold: 50_000,  iron: 50_000,  wood: 50_000,  food: 50_000  } },
-      elven_boots:  { cost: { gold: 200_000, iron: 200_000, wood: 200_000, food: 200_000 } },
+      // one per player; no explicit multiplier field — effect via SCOUT_GEAR_MULT in pp
+      // Tiers 1–3: early–mid game. Tiers 4–7: late-game resource sinks.
+      scout_boots:   { cost: { gold: 12_500,    iron: 12_500,    wood: 12_500,    food: 12_500    } },
+      scout_cloak:   { cost: { gold: 50_000,    iron: 50_000,    wood: 50_000,    food: 50_000    } },
+      elven_boots:   { cost: { gold: 200_000,   iron: 200_000,   wood: 200_000,   food: 200_000   } },
+      swift_boots:   { cost: { gold: 500_000,    iron: 500_000,    wood: 500_000,    food: 500_000    } },
+      shadow_steps:  { cost: { gold: 1_500_000,  iron: 1_500_000,  wood: 1_500_000,  food: 1_500_000  } },
+      phantom_stride:{ cost: { gold: 4_500_000,  iron: 4_500_000,  wood: 4_500_000,  food: 4_500_000  } },
+      arcane_lens:   { cost: { gold: 12_000_000, iron: 12_000_000, wood: 12_000_000, food: 12_000_000 } },
     },
     sellRefundPercent: 0.2,
   },

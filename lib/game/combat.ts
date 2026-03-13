@@ -251,26 +251,40 @@ function calcEquipScore(weapons: Weapons): number {
     weapons.axe          * EQUIPMENT_PP.axe          +
     weapons.master_knife * EQUIPMENT_PP.master_knife +
     weapons.knight_axe   * EQUIPMENT_PP.knight_axe   +
-    weapons.iron_ball    * EQUIPMENT_PP.iron_ball
+    weapons.iron_ball    * EQUIPMENT_PP.iron_ball    +
+    weapons.battle_axe   * EQUIPMENT_PP.battle_axe   +
+    weapons.war_hammer   * EQUIPMENT_PP.war_hammer   +
+    weapons.dragon_sword * EQUIPMENT_PP.dragon_sword
 
   const defenseScore =
-    (weapons.wood_shield   > 0 ? EQUIPMENT_PP.wood_shield   : 0) +
-    (weapons.iron_shield   > 0 ? EQUIPMENT_PP.iron_shield   : 0) +
-    (weapons.leather_armor > 0 ? EQUIPMENT_PP.leather_armor : 0) +
-    (weapons.chain_armor   > 0 ? EQUIPMENT_PP.chain_armor   : 0) +
-    (weapons.plate_armor   > 0 ? EQUIPMENT_PP.plate_armor   : 0) +
-    (weapons.mithril_armor > 0 ? EQUIPMENT_PP.mithril_armor : 0) +
-    (weapons.gods_armor    > 0 ? EQUIPMENT_PP.gods_armor    : 0)
+    (weapons.wood_shield     > 0 ? EQUIPMENT_PP.wood_shield     : 0) +
+    (weapons.iron_shield     > 0 ? EQUIPMENT_PP.iron_shield     : 0) +
+    (weapons.leather_armor   > 0 ? EQUIPMENT_PP.leather_armor   : 0) +
+    (weapons.chain_armor     > 0 ? EQUIPMENT_PP.chain_armor     : 0) +
+    (weapons.plate_armor     > 0 ? EQUIPMENT_PP.plate_armor     : 0) +
+    (weapons.mithril_armor   > 0 ? EQUIPMENT_PP.mithril_armor   : 0) +
+    (weapons.gods_armor      > 0 ? EQUIPMENT_PP.gods_armor      : 0) +
+    (weapons.shadow_armor    > 0 ? EQUIPMENT_PP.shadow_armor    : 0) +
+    (weapons.void_armor      > 0 ? EQUIPMENT_PP.void_armor      : 0) +
+    (weapons.celestial_armor > 0 ? EQUIPMENT_PP.celestial_armor : 0)
 
   const spyGearScore =
-    (weapons.shadow_cloak > 0 ? EQUIPMENT_PP.shadow_cloak : 0) +
-    (weapons.dark_mask    > 0 ? EQUIPMENT_PP.dark_mask    : 0) +
-    (weapons.elven_gear   > 0 ? EQUIPMENT_PP.elven_gear   : 0)
+    (weapons.shadow_cloak   > 0 ? EQUIPMENT_PP.shadow_cloak   : 0) +
+    (weapons.dark_mask      > 0 ? EQUIPMENT_PP.dark_mask      : 0) +
+    (weapons.elven_gear     > 0 ? EQUIPMENT_PP.elven_gear     : 0) +
+    (weapons.mystic_cloak   > 0 ? EQUIPMENT_PP.mystic_cloak   : 0) +
+    (weapons.shadow_veil    > 0 ? EQUIPMENT_PP.shadow_veil    : 0) +
+    (weapons.phantom_shroud > 0 ? EQUIPMENT_PP.phantom_shroud : 0) +
+    (weapons.arcane_veil    > 0 ? EQUIPMENT_PP.arcane_veil    : 0)
 
   const scoutGearScore =
-    (weapons.scout_boots  > 0 ? EQUIPMENT_PP.scout_boots  : 0) +
-    (weapons.scout_cloak  > 0 ? EQUIPMENT_PP.scout_cloak  : 0) +
-    (weapons.elven_boots  > 0 ? EQUIPMENT_PP.elven_boots  : 0)
+    (weapons.scout_boots    > 0 ? EQUIPMENT_PP.scout_boots    : 0) +
+    (weapons.scout_cloak    > 0 ? EQUIPMENT_PP.scout_cloak    : 0) +
+    (weapons.elven_boots    > 0 ? EQUIPMENT_PP.elven_boots    : 0) +
+    (weapons.swift_boots    > 0 ? EQUIPMENT_PP.swift_boots    : 0) +
+    (weapons.shadow_steps   > 0 ? EQUIPMENT_PP.shadow_steps   : 0) +
+    (weapons.phantom_stride > 0 ? EQUIPMENT_PP.phantom_stride : 0) +
+    (weapons.arcane_lens    > 0 ? EQUIPMENT_PP.arcane_lens    : 0)
 
   return attackScore + defenseScore + spyGearScore + scoutGearScore
 }

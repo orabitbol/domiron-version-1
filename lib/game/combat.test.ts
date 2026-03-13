@@ -54,12 +54,20 @@ const EMPTY_ARMY = {
 
 const EMPTY_WEAPONS = {
   id: 'w', player_id: 'p', updated_at: '',
+  // Attack (tiers 1–10)
   slingshot: 0, boomerang: 0, pirate_knife: 0, axe: 0,
   master_knife: 0, knight_axe: 0, iron_ball: 0,
+  battle_axe: 0, war_hammer: 0, dragon_sword: 0,
+  // Defense (tiers 1–10)
   wood_shield: 0, iron_shield: 0, leather_armor: 0, chain_armor: 0,
   plate_armor: 0, mithril_armor: 0, gods_armor: 0,
+  shadow_armor: 0, void_armor: 0, celestial_armor: 0,
+  // Spy (tiers 1–7)
   shadow_cloak: 0, dark_mask: 0, elven_gear: 0,
+  mystic_cloak: 0, shadow_veil: 0, phantom_shroud: 0, arcane_veil: 0,
+  // Scout (tiers 1–7)
   scout_boots: 0, scout_cloak: 0, elven_boots: 0,
+  swift_boots: 0, shadow_steps: 0, phantom_stride: 0, arcane_lens: 0,
 }
 
 const EMPTY_TRAINING = {

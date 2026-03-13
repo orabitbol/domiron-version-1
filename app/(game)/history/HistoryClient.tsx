@@ -670,7 +670,7 @@ export function HistoryClient({
               תקיפות שלי
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '2px 8px' }}>
-              {outgoingCount} סה"כ
+              {outgoingCount} סה&quot;כ
             </span>
           </div>
           {outgoingAttacks.length === 0 ? (
@@ -697,7 +697,7 @@ export function HistoryClient({
               תקיפות נכנסות
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '2px 8px' }}>
-              {incomingCount} סה"כ
+              {incomingCount} סה&quot;כ
             </span>
           </div>
           {incomingAttacks.length === 0 ? (
@@ -724,7 +724,7 @@ export function HistoryClient({
               משימות ריגול
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-body, sans-serif)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '2px 8px' }}>
-              {spyCount} סה"כ
+              {spyCount} סה&quot;כ
             </span>
           </div>
           {spyHistory.length === 0 ? (
@@ -747,7 +747,7 @@ export function HistoryClient({
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingTop: 8 }}>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-body, sans-serif)' }}>
-            עמוד {currentPage} מתוך {totalPages} &middot; {formatNumber(getCount())} סה"כ
+            עמוד {currentPage} מתוך {totalPages} &middot; {formatNumber(getCount())} סה&quot;כ
           </span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <PageBtn label="&#8249;" onClick={() => handlePage(currentPage - 1)} disabled={currentPage <= 1} />

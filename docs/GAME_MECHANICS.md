@@ -178,18 +178,18 @@ growth  = floor(base × vipMult)
 
 | Level | Base Pop/Tick | With VIP (×1.10) |
 |-------|--------------|------------------|
-| 1     | 3            | 3                |
-| 2     | 6            | 6                |
-| 3     | 9            | 9                |
-| 4     | 12           | 13               |
-| 5     | 15           | 16               |
-| 6     | 18           | 19               |
-| 7     | 21           | 23               |
-| 8     | 24           | 26               |
-| 9     | 27           | 29               |
-| 10    | 30           | 33               |
+| 1     | 2            | 2                |
+| 2     | 4            | 4                |
+| 3     | 6            | 6                |
+| 4     | 8            | 8                |
+| 5     | 10           | 11               |
+| 6     | 12           | 13               |
+| 7     | 14           | 15               |
+| 8     | 16           | 17               |
+| 9     | 18           | 19               |
+| 10    | 20           | 22               |
 
-**Scaling:** Linear (+3 per level). Level 10 produces 10× level 1. Growth is predictable and steady from the first upgrade.
+**Scaling:** Linear (+2 per level). Level 10 produces 10× level 1. Growth is predictable and steady from the first upgrade.
 
 ### 3.3 Population Consumption
 
@@ -688,6 +688,10 @@ weapMult  = 1.0
             × (1.15 if shadow_cloak owned)
             × (1.30 if dark_mask owned)
             × (1.50 if elven_gear owned)
+            × (1.20 if mystic_cloak owned)
+            × (1.30 if shadow_veil owned)
+            × (1.40 if phantom_shroud owned)
+            × (1.52 if arcane_veil owned)
 raceMult  = 1.20 if elf, else 1.0
 ```
 
@@ -703,6 +707,10 @@ weapMult  = 1.0
             × (1.15 if scout_boots owned)
             × (1.30 if scout_cloak owned)
             × (1.50 if elven_boots owned)
+            × (1.20 if swift_boots owned)
+            × (1.30 if shadow_steps owned)
+            × (1.40 if phantom_stride owned)
+            × (1.52 if arcane_lens owned)
 raceMult  = 1.20 if elf, else 1.0
 ```
 
@@ -1237,7 +1245,7 @@ Expressed as `raceGoldBonus = 0.15` in `calcSlaveProduction`. Applied as `(1 + 0
 
 ## 16. Weapons System
 
-### 16.1 Attack Weapons (Additive per unit)
+### 16.1 Attack Weapons (Additive per unit, stackable — no cap)
 
 | Weapon | Combat Power/unit | Cost per resource (all 4) | PP Contribution/unit |
 |--------|------------------|---------------------------|---------------------|
@@ -1248,15 +1256,13 @@ Expressed as `raceGoldBonus = 0.15` in `calcSlaveProduction`. Applied as `(1 + 0
 | Master Knife | 64 | 32,000 | 64 |
 | Knight Axe | 148 | 64,000 | 148 |
 | Iron Ball | 340 | 128,000 | 340 |
+| Battle Axe | 680 | 256,000 | 680 |
+| War Hammer | 1,500 | 512,000 | 1,500 |
+| Dragon Sword | 3,200 | 1,024,000 | 3,200 |
 
 **Sell refund:** 20% of purchase price.
 
-**Total max attack weapon power:**
-```
-25×2 + 12×5 + 6×12 + 3×28 + 1×64 + 1×148 + 1×340 = 50+60+72+84+64+148+340 = 818
-```
-
-### 16.2 Defense Weapons (Multiplicative, binary — owned or not)
+### 16.2 Defense Weapons (Multiplicative, binary — owned or not, one per player)
 
 | Item | Multiplier | Total cost (all 4 resources equal) |
 |------|-----------|-------------------------------------|
@@ -1267,36 +1273,47 @@ Expressed as `raceGoldBonus = 0.15` in `calcSlaveProduction`. Applied as `(1 + 0
 | Plate Armor | ×1.70 | 2,500,000 |
 | Mithril Armor | ×1.90 | 7,000,000 |
 | God's Armor | ×2.20 | 10,000,000 |
+| Shadow Armor | ×1.30 | 16,000,000 |
+| Void Armor | ×1.42 | 36,000,000 |
+| Celestial Armor | ×1.55 | 80,000,000 |
 
 **All defense multipliers stack multiplicatively:**
 ```
 defWeaponMult = product of all owned defense items' multipliers
 ```
 
-**Maximum defense multiplier (all items):**
+**Maximum defense multiplier (all 10 items):**
 ```
-1.10 × 1.25 × 1.40 × 1.55 × 1.70 × 1.90 × 2.20 = 17.27×
+1.10 × 1.25 × 1.40 × 1.55 × 1.70 × 1.90 × 2.20 × 1.30 × 1.42 × 1.55 ≈ 60.7×
 ```
 
-### 16.3 Spy Gear (Multiplicative, binary)
+### 16.3 Spy Gear (Multiplicative, binary — one per player)
 
 | Item | Spy Power Multiplier | Total cost (all 4 resources equal) |
 |------|---------------------|-------------------------------------|
 | Shadow Cloak | ×1.15 | 50,000 |
 | Dark Mask | ×1.30 | 200,000 |
 | Elven Gear | ×1.50 | 800,000 |
+| Mystic Cloak | ×1.20 | 2,000,000 |
+| Shadow Veil | ×1.30 | 6,000,000 |
+| Phantom Shroud | ×1.40 | 18,000,000 |
+| Arcane Veil | ×1.52 | 48,000,000 |
 
-**Max spy weapon multiplier:** `1.15 × 1.30 × 1.50 = 2.2425×`
+**Max spy gear multiplier (all 7):** `1.15 × 1.30 × 1.50 × 1.20 × 1.30 × 1.40 × 1.52 ≈ 7.6×`
 
-### 16.4 Scout Gear (Multiplicative, binary)
+### 16.4 Scout Gear (Multiplicative, binary — one per player)
 
 | Item | Scout Defense Multiplier | Total cost (all 4 resources equal) |
 |------|--------------------------|-------------------------------------|
 | Scout Boots | ×1.15 | 50,000 |
 | Scout Cloak | ×1.30 | 200,000 |
 | Elven Boots | ×1.50 | 800,000 |
+| Swift Boots | ×1.20 | 2,000,000 |
+| Shadow Steps | ×1.30 | 6,000,000 |
+| Phantom Stride | ×1.40 | 18,000,000 |
+| Arcane Lens | ×1.52 | 48,000,000 |
 
-**Max scout weapon multiplier:** `1.15 × 1.30 × 1.50 = 2.2425×`
+**Max scout gear multiplier (all 7):** `1.15 × 1.30 × 1.50 × 1.20 × 1.30 × 1.40 × 1.52 ≈ 7.6×`
 
 ---
 
@@ -1415,7 +1432,9 @@ power_defense    = floor(
 
 ```
 spyTrainMult = 1 + spy_level × 0.08
-spyWeaponMult = 1.0 × (1.15 if shadow_cloak) × (1.30 if dark_mask) × (1.50 if elven_gear)
+spyWeaponMult = 1.0
+  × (1.15 if shadow_cloak) × (1.30 if dark_mask) × (1.50 if elven_gear)
+  × (1.20 if mystic_cloak) × (1.30 if shadow_veil) × (1.40 if phantom_shroud) × (1.52 if arcane_veil)
 power_spy    = floor(spies × spyTrainMult × spyWeaponMult × raceSpyMult)
 ```
 
@@ -1423,7 +1442,9 @@ power_spy    = floor(spies × spyTrainMult × spyWeaponMult × raceSpyMult)
 
 ```
 scoutTrainMult  = 1 + scout_level × 0.08
-scoutWeaponMult = 1.0 × (1.15 if scout_boots) × (1.30 if scout_cloak) × (1.50 if elven_boots)
+scoutWeaponMult = 1.0
+  × (1.15 if scout_boots) × (1.30 if scout_cloak) × (1.50 if elven_boots)
+  × (1.20 if swift_boots) × (1.30 if shadow_steps) × (1.40 if phantom_stride) × (1.52 if arcane_lens)
 power_scout     = floor(scouts × scoutTrainMult × scoutWeaponMult × raceScoutMult)
 ```
 

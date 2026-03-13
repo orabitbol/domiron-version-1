@@ -399,7 +399,7 @@ export function MineClient() {
         <div className="border-t border-game-gold/15 bg-game-bg/45 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted">סה"כ / טיק</span>
+              <span className="text-game-xs font-heading uppercase tracking-wide text-game-text-muted">סה&quot;כ / טיק</span>
               <span className="font-heading text-game-base font-bold tabular-nums text-game-gold-bright">
                 {formatNumber(grandMin)}–{formatNumber(grandMax)}
               </span>
@@ -458,7 +458,7 @@ export function MineClient() {
           })}
           {/* Grand total row */}
           <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2 bg-game-bg/30">
-            <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">סה"כ כולל</span>
+            <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">סה&quot;כ כולל</span>
             <span />
             <span className="text-game-xs font-heading tabular-nums text-game-gold-bright text-right min-w-[80px]">
               {formatNumber(grandMin)}–{formatNumber(grandMax)}/tick
