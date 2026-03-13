@@ -278,8 +278,10 @@ export async function POST(request: NextRequest) {
       wood: result.loot.wood * turnsUsed,
       food: result.loot.food * turnsUsed,
     }
-    const attLossesScaled = Math.min(result.attackerLosses * turnsUsed, attArmy.soldiers)
-    const defLossesScaled = Math.min(result.defenderLosses * turnsUsed, defArmy.soldiers)
+    // Floor after scaling: per-turn losses may be fractional at normal army sizes;
+    // accumulating the float before flooring gives correct multi-turn totals.
+    const attLossesScaled = Math.floor(Math.min(result.attackerLosses * turnsUsed, attArmy.soldiers))
+    const defLossesScaled = Math.floor(Math.min(result.defenderLosses * turnsUsed, defArmy.soldiers))
 
     // Safety clamps — never steal more than defender has
     const goldStolen = Math.min(scaledLoot.gold, defResources.gold)

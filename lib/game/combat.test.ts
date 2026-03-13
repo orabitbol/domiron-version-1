@@ -439,16 +439,18 @@ describe('calculateSoldierLosses', () => {
     expect(losses.attackerLosses).toBe(0)
   })
 
-  it('both sides lose BASE_LOSS fraction at R = 1.0 (even match)', () => {
-    const { BASE_LOSS, ATTACKER_FLOOR, DEFENDER_BLEED_FLOOR } = BALANCE.combat
+  it('at R = 1.0 (even match) both sides lose their respective base rates', () => {
+    const { ATTACKER_BASE_LOSS, DEFENDER_BASE_LOSS, ATTACKER_FLOOR, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE } = BALANCE.combat
     const losses = calculateSoldierLosses(deployedA, deployedD, 1.0, NO_COOLDOWN, NO_PROTECT, NO_PROTECT)
-    const expectedRate = Math.max(BASE_LOSS, Math.max(ATTACKER_FLOOR, DEFENDER_BLEED_FLOOR))
-    // Both are symmetric at R=1
-    expect(losses.attackerLosses).toBeGreaterThanOrEqual(Math.floor(deployedA * ATTACKER_FLOOR))
-    expect(losses.defenderLosses).toBeGreaterThanOrEqual(Math.floor(deployedD * DEFENDER_BLEED_FLOOR))
-    // And neither exceeds 30%
-    expect(losses.attackerLosses).toBeLessThanOrEqual(Math.floor(deployedA * 0.30))
-    expect(losses.defenderLosses).toBeLessThanOrEqual(Math.floor(deployedD * 0.30))
+    // At R=1.0 the power-curve exponent cancels: rate = BASE_LOSS / 1.0^exp = BASE_LOSS
+    expect(losses.attackerLosses).toBeCloseTo(deployedA * ATTACKER_BASE_LOSS, 10)
+    expect(losses.defenderLosses).toBeCloseTo(deployedD * DEFENDER_BASE_LOSS, 10)
+    // Floors apply
+    expect(losses.attackerLosses).toBeGreaterThanOrEqual(deployedA * ATTACKER_FLOOR)
+    expect(losses.defenderLosses).toBeGreaterThanOrEqual(deployedD * DEFENDER_BLEED_FLOOR)
+    // Cap applies
+    expect(losses.attackerLosses).toBeLessThanOrEqual(deployedA * MAX_LOSS_RATE)
+    expect(losses.defenderLosses).toBeLessThanOrEqual(deployedD * MAX_LOSS_RATE)
   })
 
   it('losses apply only to deployed count, not total army', () => {
@@ -504,32 +506,46 @@ describe('getLootDecayMultiplier', () => {
 describe('calculateLoot', () => {
 
   it('returns zero loot on loss', () => {
-    const loot = calculateLoot(UNBANKED_1000, 'loss', 1, false)
+    const loot = calculateLoot(UNBANKED_1000, 'loss', 1.0, 1, false)
     expect(loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 
   it('returns zero loot when defender is protected (new player)', () => {
-    const loot = calculateLoot(UNBANKED_1000, 'win', 1, true)
+    const loot = calculateLoot(UNBANKED_1000, 'win', 1.0, 1, true)
     expect(loot).toEqual({ gold: 0, iron: 0, wood: 0, food: 0 })
   })
 
-  it('win loot = BASE_LOOT_RATE of unbanked on first attack', () => {
-    const loot = calculateLoot(UNBANKED_1000, 'win', 1, false)
-    const expected = Math.floor(1000 * BALANCE.combat.BASE_LOOT_RATE * 1.0 * 1.0)
+  it('win loot = BASE_LOOT_RATE × ratioMult of unbanked on first attack (ratio=1.0)', () => {
+    // At ratio=1.0: ratioMult = 1.0^LOOT_RATIO_EXPONENT = 1.0 → same as old BASE_LOOT_RATE formula
+    const loot = calculateLoot(UNBANKED_1000, 'win', 1.0, 1, false)
+    const expected = Math.floor(1000 * BALANCE.combat.BASE_LOOT_RATE * 1.0)
     expect(loot.gold).toBe(expected)
     expect(loot.iron).toBe(expected)
     expect(loot.wood).toBe(expected)
     expect(loot.food).toBe(expected)
   })
 
-  it('win loot = full BASE_LOOT_RATE (no partial/draw bucket)', () => {
-    const winLoot = calculateLoot(UNBANKED_1000, 'win', 1, false)
+  it('win loot at ratio=1.0 = BASE_LOOT_RATE × unbanked (no ratio boost at R=1)', () => {
+    const winLoot = calculateLoot(UNBANKED_1000, 'win', 1.0, 1, false)
     expect(winLoot.gold).toBe(Math.floor(UNBANKED_1000.gold * BALANCE.combat.BASE_LOOT_RATE))
   })
 
+  it('higher ratio yields more loot (ratio boost)', () => {
+    const lootR1 = calculateLoot(UNBANKED_1000, 'win', 1.0, 1, false)
+    const lootR3 = calculateLoot(UNBANKED_1000, 'win', 3.0, 1, false)
+    expect(lootR3.gold).toBeGreaterThan(lootR1.gold)
+  })
+
+  it('loot ratio boost is capped at LOOT_RATIO_CAP', () => {
+    const lootAtCap   = calculateLoot(UNBANKED_1000, 'win', BALANCE.combat.LOOT_RATIO_CAP, 1, false)
+    const lootBeyond  = calculateLoot(UNBANKED_1000, 'win', BALANCE.combat.LOOT_RATIO_CAP + 10, 1, false)
+    // Beyond the cap the multiplier doesn't grow further
+    expect(lootBeyond.gold).toBe(lootAtCap.gold)
+  })
+
   it('loot decays on repeat attacks: 2nd attack is less than 1st', () => {
-    const loot1 = calculateLoot(UNBANKED_1000, 'win', 1, false)
-    const loot2 = calculateLoot(UNBANKED_1000, 'win', 2, false)
+    const loot1 = calculateLoot(UNBANKED_1000, 'win', 1.0, 1, false)
+    const loot2 = calculateLoot(UNBANKED_1000, 'win', 1.0, 2, false)
     // loot2 uses DecayFactor=0.70 vs loot1 DecayFactor=1.0.
     // Due to independent Math.floor calls, exact equality to floor(loot1×0.7) is not
     // guaranteed (floating-point: 0.2×0.7 = 0.13999...). Verify monotonic decrease and
@@ -539,21 +555,21 @@ describe('calculateLoot', () => {
   })
 
   it('loot never drops to zero from decay alone (5th+ = 10%)', () => {
-    const loot = calculateLoot({ gold: 10_000, iron: 0, wood: 0, food: 0 }, 'win', 10, false)
+    const loot = calculateLoot({ gold: 10_000, iron: 0, wood: 0, food: 0 }, 'win', 1.0, 10, false)
     expect(loot.gold).toBeGreaterThan(0)
   })
 
-  it('no hard cap on loot', () => {
+  it('no hard cap on loot amount (at ratio=1.0, result = BASE_LOOT_RATE × unbanked)', () => {
     const hugeLoot = calculateLoot(
       { gold: 100_000_000, iron: 100_000_000, wood: 100_000_000, food: 100_000_000 },
-      'win', 1, false,
+      'win', 1.0, 1, false,
     )
-    // BASE_LOOT_RATE of 100M = no cap should reduce this.
+    // At R=1.0 ratioMult=1.0, so result equals the old formula
     expect(hugeLoot.gold).toBe(Math.floor(100_000_000 * BALANCE.combat.BASE_LOOT_RATE))
   })
 
   it('all loot values are non-negative integers', () => {
-    const loot = calculateLoot(UNBANKED_1000, 'win', 3, false)
+    const loot = calculateLoot(UNBANKED_1000, 'win', 1.5, 3, false)
     for (const value of Object.values(loot)) {
       expect(value).toBeGreaterThanOrEqual(0)
       expect(Number.isInteger(value)).toBe(true)

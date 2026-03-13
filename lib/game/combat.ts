@@ -446,21 +446,31 @@ export function calculateSoldierLosses(
   attackerIsProtected: boolean,
   defenderIsProtected: boolean,
 ): SoldierLossResult {
-  const { BASE_LOSS, MAX_LOSS_RATE, DEFENDER_BLEED_FLOOR, ATTACKER_FLOOR } = BALANCE.combat
+  const {
+    ATTACKER_BASE_LOSS, ATTACKER_LOSS_EXPONENT,
+    DEFENDER_BASE_LOSS, DEFENDER_LOSS_EXPONENT,
+    MAX_LOSS_RATE, DEFENDER_BLEED_FLOOR, ATTACKER_FLOOR,
+  } = BALANCE.combat
 
-  const rawAttackerRate  = BASE_LOSS / Math.max(ratio, 0.01)
+  const safeRatio = Math.max(ratio, 0.01)
+
+  // Power-curve formulas: stronger attacker loses far fewer soldiers.
+  // Losses are returned as floats — caller must floor AFTER turn scaling
+  // so that multi-turn attacks accumulate sub-1 per-turn rates correctly.
+  const rawAttackerRate  = ATTACKER_BASE_LOSS / Math.pow(safeRatio, ATTACKER_LOSS_EXPONENT)
   const attackerLossRate = attackerIsProtected
     ? 0
     : clamp(rawAttackerRate, ATTACKER_FLOOR, MAX_LOSS_RATE)
 
-  const rawDefenderRate  = BASE_LOSS * ratio
+  const rawDefenderRate  = DEFENDER_BASE_LOSS * Math.pow(safeRatio, DEFENDER_LOSS_EXPONENT)
   const defenderLossRate = (killCooldownActive || defenderIsProtected)
     ? 0
     : clamp(rawDefenderRate, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE)
 
+  // Return raw floats — do NOT floor here.
   return {
-    attackerLosses: Math.floor(deployedSoldiers * attackerLossRate),
-    defenderLosses: Math.floor(defenderSoldiers * defenderLossRate),
+    attackerLosses: deployedSoldiers * attackerLossRate,
+    defenderLosses: defenderSoldiers * defenderLossRate,
   }
 }
 
@@ -557,17 +567,21 @@ export function getLootDecayMultiplier(attackCountInWindow: number): number {
 // ─────────────────────────────────────────
 
 /**
- * BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE      (0.10)
+ * BaseLoot[r]  = Unbanked[r] × BASE_LOOT_RATE × RatioMultiplier
  * FinalLoot[r] = BaseLoot[r] × OutcomeMultiplier × DecayFactor
  *
+ * RatioMultiplier = min(ratio, LOOT_RATIO_CAP) ^ LOOT_RATIO_EXPONENT
+ *   R=1.0 → 1.00× | R=2.0 → 1.87× | R=3.0+ → 2.55×
+ *
  * OutcomeMultiplier: win=1.0, loss=0.0
- * No hard cap. No power-gap block. City restriction is the access limiter.
+ * No hard cap on absolute amount. City access is the gate.
  *
  * Returns zero loot if outcome is 'loss' or defender is protected.
  */
 export function calculateLoot(
   unbanked:            UnbankedResources,
   outcome:             CombatOutcome,
+  ratio:               number,
   attackCountInWindow: number,
   defenderIsProtected: boolean,
 ): UnbankedResources {
@@ -575,9 +589,11 @@ export function calculateLoot(
     return { gold: 0, iron: 0, wood: 0, food: 0 }
   }
 
-  const outcomeMult = BALANCE.combat.LOOT_OUTCOME_MULTIPLIER[outcome]
+  const { BASE_LOOT_RATE, LOOT_OUTCOME_MULTIPLIER, LOOT_RATIO_CAP, LOOT_RATIO_EXPONENT } = BALANCE.combat
+  const outcomeMult = LOOT_OUTCOME_MULTIPLIER[outcome]
   const decayFactor = getLootDecayMultiplier(attackCountInWindow)
-  const totalMult   = BALANCE.combat.BASE_LOOT_RATE * outcomeMult * decayFactor
+  const ratioMult   = Math.pow(Math.min(Math.max(ratio, 0.01), LOOT_RATIO_CAP), LOOT_RATIO_EXPONENT)
+  const totalMult   = BASE_LOOT_RATE * outcomeMult * decayFactor * ratioMult
 
   return {
     gold: Math.floor(unbanked.gold * totalMult),
@@ -651,10 +667,11 @@ export function resolveCombat(inputs: CombatResolutionInputs): CombatResolutionR
     ? 0
     : losses.defenderLosses
 
-  // Step 5: Loot calculation
+  // Step 5: Loot calculation (ratio-scaled)
   const rawLoot = calculateLoot(
     inputs.defenderUnbanked,
     outcome,
+    ratio,
     inputs.attackCountInWindow,
     inputs.defenderIsProtected,
   )

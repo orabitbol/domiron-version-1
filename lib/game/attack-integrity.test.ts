@@ -36,7 +36,12 @@ import {
 // SHARED HELPERS — mirrors route safety-clamp logic exactly
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Mirrors the route's safety-clamp block (lines after resolveCombat) */
+/** Mirrors the route's safety-clamp block (lines after resolveCombat).
+ *
+ * NOTE: resolveCombat() returns per-turn FLOAT losses (not yet floored).
+ * The real route does Math.floor(min(losses × turnsUsed, soldiers)).
+ * This helper mirrors single-turn resolution: floor(min(losses, soldiers)).
+ */
 function applyRouteSafetyClamps(
   result: ReturnType<typeof resolveCombat>,
   defenderSoldiers: number,
@@ -46,7 +51,8 @@ function applyRouteSafetyClamps(
   const ironStolen    = Math.min(result.loot.iron, defResources.iron)
   const woodStolen    = Math.min(result.loot.wood, defResources.wood)
   const foodStolen    = Math.min(result.loot.food, defResources.food)
-  const safeDefLosses = Math.min(result.defenderLosses, defenderSoldiers)
+  // Floor here matches the route's Math.floor after scaling (at turnsUsed=1)
+  const safeDefLosses = Math.floor(Math.min(result.defenderLosses, defenderSoldiers))
   return { goldStolen, ironStolen, woodStolen, foodStolen, safeDefLosses }
 }
 
@@ -57,13 +63,15 @@ function computeAttAfter(
   foodCost: number,
   clamps: ReturnType<typeof applyRouteSafetyClamps>,
 ) {
+  // Floor attacker losses to match route behaviour (floor after turn scaling)
+  const attLossInt = Math.floor(Math.min(attackerLosses, attBefore.soldiers))
   return {
     gold:     attBefore.gold + clamps.goldStolen,
     iron:     attBefore.iron + clamps.ironStolen,
     wood:     attBefore.wood + clamps.woodStolen,
     food:     Math.max(0, attBefore.food - foodCost + clamps.foodStolen),
-    soldiers: Math.max(0, attBefore.soldiers - attackerLosses),
-    // Captives: 10% of killed defender soldiers are added to attacker army.slaves
+    soldiers: Math.max(0, attBefore.soldiers - attLossInt),
+    // Captives: 40% of killed defender soldiers are added to attacker army.slaves
     slaves:   attBefore.slaves + calculateCaptives(clamps.safeDefLosses),
   }
 }
@@ -97,15 +105,14 @@ const NO_FLAGS = {
 // Controlled inputs → deterministic expected outputs verified by hand.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Attack integrity: base WIN scenario', () => {
-  // Attacker: 100 soldiers, 0 everything else (no weapons/training/dev modelled here)
-  // Defender: 50 soldiers, 20 existing slaves, full resources
-  const ATT_BEFORE = { gold: 0, iron: 0, wood: 0, food: 0, soldiers: 100, slaves: 0 }
-  const DEF_BEFORE = { gold: 10_000, iron: 5_000, wood: 5_000, food: 5_000, soldiers: 50, slaves: 20 }
-
-  // PP passed directly to resolveCombat: use ratio that guarantees WIN (≥ 1.30)
+  // Attacker: 5000 soldiers (large enough to get meaningful losses at high R)
+  // Defender: 2000 soldiers, 20 existing slaves, full resources
   // PP 2000 vs 500 → ratio = 4.0 → well above WIN_THRESHOLD
+  const ATT_BEFORE = { gold: 0, iron: 0, wood: 0, food: 0, soldiers: 5_000, slaves: 0 }
+  const DEF_BEFORE = { gold: 50_000, iron: 25_000, wood: 25_000, food: 25_000, soldiers: 2_000, slaves: 20 }
+
   const turnsUsed = 3
-  const foodCost  = ATT_BEFORE.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 100 × 0.05 × 3 = 15
+  const foodCost  = ATT_BEFORE.soldiers * BALANCE.combat.FOOD_PER_SOLDIER * turnsUsed  // 5000 × 0.05 × 3 = 750
 
   const result = resolveCombat({
     attackerPP: 2000, defenderPP: 500,
@@ -127,12 +134,16 @@ describe('Attack integrity: base WIN scenario', () => {
   })
 
   // ── Loot ─────────────────────────────────────────────────────────────────
-  it('loot = floor(unbanked × BASE_LOOT_RATE) with win multiplier', () => {
-    const mult = BALANCE.combat.BASE_LOOT_RATE * BALANCE.combat.LOOT_OUTCOME_MULTIPLIER.win
-    expect(clamps.goldStolen).toBe(Math.floor(DEF_BEFORE.gold * mult))
-    expect(clamps.ironStolen).toBe(Math.floor(DEF_BEFORE.iron * mult))
-    expect(clamps.woodStolen).toBe(Math.floor(DEF_BEFORE.wood * mult))
-    expect(clamps.foodStolen).toBe(Math.floor(DEF_BEFORE.food * mult))
+  it('loot uses ratio-scaled formula (calculateLoot reference)', () => {
+    // Use calculateLoot as the canonical reference — it applies ratio multiplier + decay
+    const refLoot = calculateLoot(
+      { gold: DEF_BEFORE.gold, iron: DEF_BEFORE.iron, wood: DEF_BEFORE.wood, food: DEF_BEFORE.food },
+      'win', result.ratio, 1, false,
+    )
+    expect(clamps.goldStolen).toBe(Math.min(refLoot.gold, DEF_BEFORE.gold))
+    expect(clamps.ironStolen).toBe(Math.min(refLoot.iron, DEF_BEFORE.iron))
+    expect(clamps.woodStolen).toBe(Math.min(refLoot.wood, DEF_BEFORE.wood))
+    expect(clamps.foodStolen).toBe(Math.min(refLoot.food, DEF_BEFORE.food))
   })
 
   it('loot never exceeds what the defender has', () => {
@@ -176,16 +187,17 @@ describe('Attack integrity: base WIN scenario', () => {
     expect(DEF_BEFORE.soldiers - defAfter.soldiers).toBe(clamps.safeDefLosses)
   })
 
-  it('attacker loses soldiers = attackerLosses (clamped by army size)', () => {
-    const expectedLoss = Math.min(result.attackerLosses, ATT_BEFORE.soldiers)
+  it('attacker loses soldiers = floor(attackerLosses) (clamped by army size)', () => {
+    // Losses are floored after turn scaling; use Math.floor to match route behaviour
+    const expectedLoss = Math.floor(Math.min(result.attackerLosses, ATT_BEFORE.soldiers))
     expect(ATT_BEFORE.soldiers - attAfter.soldiers).toBe(expectedLoss)
   })
 
-  // ── Captives (attacker gains slaves = 10% of killed defender soldiers) ─────
+  // ── Captives (attacker gains slaves = CAPTURE_RATE% of killed defender soldiers) ─────
   it('attacker.after.slaves = attacker.before.slaves + captives', () => {
     const captives = calculateCaptives(clamps.safeDefLosses)
     expect(attAfter.slaves).toBe(ATT_BEFORE.slaves + captives)
-    // Dominant attacker, no flags → def losses > 0 → captives > 0
+    // Dominant attacker (R=4.0), 2000 defenders, no flags → def losses > 0 → captives > 0
     expect(captives).toBeGreaterThan(0)
   })
 
@@ -222,19 +234,21 @@ describe('Attack integrity: base WIN scenario', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Edge case A: defender Resource Shield active', () => {
   const DEF_RESOURCES = { gold: 10_000, iron: 5_000, wood: 5_000, food: 5_000 }
+  // 2000 defenders so floor(2000 × 0.003) = 6 losses per turn (confirms shield check is meaningful)
+  const DEF_SOLDIERS  = 2_000
 
   const result = resolveCombat({
     attackerPP: 2000, defenderPP: 500,
-    deployedSoldiers: 100, defenderSoldiers: 50,
+    deployedSoldiers: 100, defenderSoldiers: DEF_SOLDIERS,
     defenderUnbanked: DEF_RESOURCES,
     attackCountInWindow: 1,
     ...NO_FLAGS,
     resourceShieldActive: true,   // ← shield active
   })
 
-  const clamps   = applyRouteSafetyClamps(result, 50, DEF_RESOURCES)
+  const clamps   = applyRouteSafetyClamps(result, DEF_SOLDIERS, DEF_RESOURCES)
   const defAfter = computeDefAfter(
-    { ...DEF_RESOURCES, soldiers: 50, slaves: 0 }, clamps
+    { ...DEF_RESOURCES, soldiers: DEF_SOLDIERS, slaves: 0 }, clamps
   )
 
   it('all loot is zero when Resource Shield is active', () => {
@@ -332,8 +346,8 @@ describe('Edge case C: kill cooldown active', () => {
 
   it('loot still resolves normally during kill cooldown', () => {
     // Kill cooldown only blocks soldier losses — loot is unaffected
-    const expectedGold = Math.floor(DEF_RESOURCES.gold * BALANCE.combat.BASE_LOOT_RATE)
-    expect(clamps.goldStolen).toBe(expectedGold)
+    const expectedGold = calculateLoot(DEF_RESOURCES, 'win', result.ratio, 1, false).gold
+    expect(clamps.goldStolen).toBe(Math.min(expectedGold, DEF_RESOURCES.gold))
   })
 
   it('attacker still loses soldiers during kill cooldown', () => {
@@ -363,8 +377,8 @@ describe('Edge case D: defender Soldier Shield active', () => {
   })
 
   it('loot still resolves normally (soldier shield does not protect resources)', () => {
-    const expectedGold = Math.floor(DEF_RESOURCES.gold * BALANCE.combat.BASE_LOOT_RATE)
-    expect(clamps.goldStolen).toBe(expectedGold)
+    const expectedGold = calculateLoot(DEF_RESOURCES, 'win', result.ratio, 1, false).gold
+    expect(clamps.goldStolen).toBe(Math.min(expectedGold, DEF_RESOURCES.gold))
   })
 })
 
@@ -383,8 +397,9 @@ describe('Edge case E: anti-farm loot decay', () => {
       attackCountInWindow: 1,
       ...NO_FLAGS,
     })
-    const baseLoot = Math.floor(DEF_RESOURCES.gold * BALANCE.combat.BASE_LOOT_RATE)
-    expect(result.loot.gold).toBe(Math.floor(baseLoot * STEPS[0]))  // × 1.0
+    // Reference loot uses calculateLoot (includes ratio multiplier)
+    const refLoot = calculateLoot(DEF_RESOURCES, 'win', result.ratio, 1, false)
+    expect(result.loot.gold).toBe(refLoot.gold)
     expect(getLootDecayMultiplier(1)).toBe(STEPS[0])
   })
 
@@ -399,7 +414,7 @@ describe('Edge case E: anti-farm loot decay', () => {
     // Use calculateLoot directly to get the reference value — avoids floating-point
     // ordering differences between (gold × rate × decay) vs (gold × (rate × decay))
     const decayMult  = STEPS[1]  // 0.70
-    const referenceLoot = calculateLoot(DEF_RESOURCES, 'win', 2, false)
+    const referenceLoot = calculateLoot(DEF_RESOURCES, 'win', result.ratio, 2, false)
     expect(result.loot.gold).toBe(referenceLoot.gold)
     expect(getLootDecayMultiplier(2)).toBe(decayMult)
   })
@@ -510,8 +525,9 @@ describe('Silent failure prevention', () => {
     // The route throws if goldStolen > defResources.gold.
     // Verify this condition is always false under correct logic.
     const defGold    = 10_000
-    const rawLoot    = Math.floor(defGold * BALANCE.combat.BASE_LOOT_RATE)  // 2000
-    const goldStolen = Math.min(rawLoot, defGold)  // still 2000
+    // Loot is clamped to what defender has regardless of ratio multiplier
+    const rawLoot    = Math.floor(defGold * BALANCE.combat.BASE_LOOT_RATE * 2.5)  // ~2500 (with ratio boost)
+    const goldStolen = Math.min(rawLoot, defGold)  // still ≤ 10000
     expect(goldStolen).toBeLessThanOrEqual(defGold)  // invariant holds
   })
 
@@ -541,6 +557,9 @@ describe('Silent failure prevention', () => {
  * Mirrors the route's multi-turn scaling + clamp logic exactly.
  * lootPerTurn and losses come from resolveCombat(); this function
  * applies the turnsUsed multiplier then safety-clamps.
+ *
+ * Losses are floored AFTER scaling to match route behaviour:
+ *   route: Math.floor(Math.min(result.losses * turns, soldiers))
  */
 function applyMultiTurnScaling(
   result: ReturnType<typeof resolveCombat>,
@@ -560,15 +579,16 @@ function applyMultiTurnScaling(
     ironStolen:      Math.min(scaledLoot.iron, defResources.iron),
     woodStolen:      Math.min(scaledLoot.wood, defResources.wood),
     foodStolen:      Math.min(scaledLoot.food, defResources.food),
-    attLossesScaled: Math.min(result.attackerLosses * turnsUsed, attSoldiers),
-    defLossesScaled: Math.min(result.defenderLosses * turnsUsed, defSoldiers),
+    attLossesScaled: Math.floor(Math.min(result.attackerLosses * turnsUsed, attSoldiers)),
+    defLossesScaled: Math.floor(Math.min(result.defenderLosses * turnsUsed, defSoldiers)),
   }
 }
 
 describe('Multi-turn attack scaling', () => {
-  const DEF_RES     = { gold: 10_000, iron: 5_000, wood: 5_000, food: 5_000 }
-  const ATT_SOLDIERS = 200
-  const DEF_SOLDIERS = 100
+  const DEF_RES      = { gold: 10_000, iron: 5_000, wood: 5_000, food: 5_000 }
+  // Use large armies so per-turn fractional losses accumulate to ≥1 over 10 turns
+  const ATT_SOLDIERS = 10_000
+  const DEF_SOLDIERS = 5_000
 
   const base = resolveCombat({
     attackerPP: 2000, defenderPP: 500,
@@ -579,16 +599,17 @@ describe('Multi-turn attack scaling', () => {
     ...NO_FLAGS,
   })
 
-  it('1-turn baseline: scaled values equal single-resolution values', () => {
+  it('1-turn baseline: scaled values equal single-resolution values (floored)', () => {
     const s = applyMultiTurnScaling(base, 1, ATT_SOLDIERS, DEF_SOLDIERS, DEF_RES)
     expect(s.goldStolen).toBe(Math.min(base.loot.gold, DEF_RES.gold))
-    expect(s.attLossesScaled).toBe(Math.min(base.attackerLosses, ATT_SOLDIERS))
-    expect(s.defLossesScaled).toBe(Math.min(base.defenderLosses, DEF_SOLDIERS))
+    // Losses are floored after ×1 scaling
+    expect(s.attLossesScaled).toBe(Math.floor(Math.min(base.attackerLosses * 1, ATT_SOLDIERS)))
+    expect(s.defLossesScaled).toBe(Math.floor(Math.min(base.defenderLosses * 1, DEF_SOLDIERS)))
   })
 
   it('5-turn attack: loot is exactly 5× per-turn loot (before cap)', () => {
-    // With DEF_RES.gold=10000 and BASE_LOOT_RATE=0.10 win loot=1000 per turn.
-    // 5 turns → scaledLoot.gold = 5000. Verify scaling is monotone and capped to available.
+    // Per-turn loot includes ratio boost; scaledLoot = base.loot.gold × 5.
+    // Verify scaling is monotone and capped to available resources.
     const s5 = applyMultiTurnScaling(base, 5, ATT_SOLDIERS, DEF_SOLDIERS, DEF_RES)
     const s1 = applyMultiTurnScaling(base, 1, ATT_SOLDIERS, DEF_SOLDIERS, DEF_RES)
     // scaledLoot before cap

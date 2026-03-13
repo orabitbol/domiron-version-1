@@ -313,14 +313,35 @@ export const BALANCE = {
     // Outcome threshold [FIXED] — binary win/loss, no partial/draw
     WIN_THRESHOLD: 1.0, // [FIXED] R >= 1.0 → win; R < 1.0 → loss
 
-    // Soldier loss rates [TUNE]
-    BASE_LOSS: 0.15, // [TUNE: placeholder] Loss rate at R = 1.0
-    MAX_LOSS_RATE: 0.3, // [FIXED] Hard cap — never lose more than 30%
-    DEFENDER_BLEED_FLOOR: 0.05, // [TUNE] Minimum defender loss even from weak attacker
-    ATTACKER_FLOOR: 0.03, // [TUNE] Attacker always loses at least this fraction
+    // ─── Soldier loss rates (power-curve model) ────────────────────────────
+    // R = attackerECP / defenderECP
+    //
+    // rawAttackerRate = ATTACKER_BASE_LOSS / R ^ ATTACKER_LOSS_EXPONENT
+    // rawDefenderRate = DEFENDER_BASE_LOSS × R ^ DEFENDER_LOSS_EXPONENT
+    //
+    // Losses (float) = deployedSoldiers × clampedRate
+    // Final integer = floor(losses × turnsUsed)  — flooring happens AFTER turn scaling
+    //
+    // Designed for 10k-soldier armies, 10-turn attacks:
+    //   R=1.0  → att ~25, def ~35  (even fight)
+    //   R=1.4  → att ~11, def ~59
+    //   R=2.2  → att ~4,  def ~134
+    //   R=3.0  → att ~2,  def ~226
+    ATTACKER_BASE_LOSS:     0.00025, // [TUNE]
+    ATTACKER_LOSS_EXPONENT: 2.3,     // [TUNE] power-curve: strong attacker loses far fewer
+    DEFENDER_BASE_LOSS:     0.00035, // [TUNE]
+    DEFENDER_LOSS_EXPONENT: 1.7,     // [TUNE] power-curve: strong attacker kills far more
+    MAX_LOSS_RATE:          0.003,   // [TUNE] per-turn hard cap (applied before turn scaling)
+    DEFENDER_BLEED_FLOOR:   0.0001,  // [TUNE] defender always bleeds a tiny amount
+    ATTACKER_FLOOR:         0.000001,// [TUNE] rate floor — attacker always has non-zero risk
 
-    // Loot
-    BASE_LOOT_RATE: 0.10, // [TUNE] 10% of each unbanked resource (softened from 0.20)
+    // ─── Loot ─────────────────────────────────────────────────────────────
+    // FinalLoot = Unbanked × BASE_LOOT_RATE × ratioMult × decayFactor × turnsUsed
+    // ratioMult = min(R, LOOT_RATIO_CAP) ^ LOOT_RATIO_EXPONENT
+    // Stronger attackers plunder more: R=1→1×, R=2→1.87×, R=3+→2.55×
+    BASE_LOOT_RATE:       0.10, // [TUNE] 10% of each unbanked resource per turn
+    LOOT_RATIO_CAP:       3.0,  // [TUNE] ratio boost capped at 3×
+    LOOT_RATIO_EXPONENT:  0.85, // [TUNE] sub-linear ratio scaling
 
     LOOT_OUTCOME_MULTIPLIER: {
       win: 1.0,
@@ -345,7 +366,7 @@ export const BALANCE = {
 
     // Captives: fraction of killed defender soldiers that become attacker slaves (army.slaves).
     // Applied only when defenderLosses > 0 (kill cooldown / shields / protection bypass this).
-    CAPTURE_RATE: 0.1, // [TUNE] 10% of killed defender soldiers become captives
+    CAPTURE_RATE: 0.40, // [TUNE] 40% of killed defender soldiers become captives
 
     // New player protection window
     // Protection does NOT block attacks — see note above.
