@@ -14,8 +14,9 @@ const balanceSchema = z.object({
   tick: z.object({
     intervalMinutes: z.number(),
     turnsPerTick:    z.number(),
-    maxTurns:        z.number(),
-    turnsPerDay:     z.number(),
+    maxTurns:              z.number(),
+    purchasedTurnsMaxCap:  z.number(),
+    turnsPerDay:           z.number(),
   }),
   startingResources: z.object({
     gold:               z.number(),
@@ -64,10 +65,12 @@ const balanceSchema = z.object({
       ATTACK_POWER_10:  z.number(),
       DEFENSE_POWER_10: z.number(),
     }),
-    SHIELD_ACTIVE_HOURS:   z.number(),
-    SHIELD_COOLDOWN_HOURS: z.number(),
-    SOLDIER_SHIELD_MANA:   z.number(),
-    RESOURCE_SHIELD_MANA:  z.number(),
+    SHIELD_ACTIVE_HOURS:       z.number(),
+    SHIELD_COOLDOWN_HOURS:     z.number(),
+    SHIELD_MANA_PER_HOUR:      z.number(),
+    SHIELD_DURATION_PRESETS:   z.array(z.number()),
+    SOLDIER_SHIELD_MANA:       z.number(),
+    RESOURCE_SHIELD_MANA:      z.number(),
   }),
   combat: z.object({
     WIN_THRESHOLD:          z.number(),

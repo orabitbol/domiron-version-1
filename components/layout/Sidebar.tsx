@@ -21,7 +21,6 @@ import {
   Landmark,
   History,
   LogOut,
-  Gem,
   Zap,
   Crown,
   Gift,
@@ -39,7 +38,6 @@ const NAV_ITEMS = [
   { href: "/mine", icon: Pickaxe, label: "מכרות", labelEn: "Mines" },
   { href: "/bank", icon: Landmark, label: "בנק", labelEn: "Bank" },
   { href: "/history", icon: History, label: "היסטוריה", labelEn: "History" },
-  { href: "/vip",    icon: Gem,      label: "VIP",    labelEn: "VIP"    },
   { href: "/prizes", icon: Gift,     label: "פרסים",  labelEn: "Prizes" },
   { href: "/guide",  icon: BookOpen, label: "מדריך",  labelEn: "Guide"  },
 ];

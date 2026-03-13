@@ -120,10 +120,12 @@ export function isShieldActive(
 
 /**
  * Returns the new turn count after applying a purchased turns pack.
- * Clamped to BALANCE.tick.maxTurns (200). Never exceeds the cap.
+ * Clamped to BALANCE.tick.purchasedTurnsMaxCap (5000) — intentionally higher than the
+ * normal tick-regen cap (200) so bought turns are never silently discarded.
+ * Tick regen still uses calcTurnsToAdd() which clamps at maxTurns.
  */
 export function applyTurnsPack(currentTurns: number, amount: number): number {
-  return Math.min(currentTurns + amount, BALANCE.tick.maxTurns)
+  return Math.min(currentTurns + amount, BALANCE.tick.purchasedTurnsMaxCap)
 }
 
 // ─────────────────────────────────────────

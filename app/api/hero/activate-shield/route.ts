@@ -6,8 +6,14 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { BALANCE } from '@/lib/game/balance'
 import { getActiveSeason, seasonFreezeResponse } from '@/lib/game/season'
 
+const ALLOWED_DURATIONS = BALANCE.hero.SHIELD_DURATION_PRESETS as unknown as number[]
+
 const schema = z.object({
   shield_type: z.enum(['soldier_shield', 'resource_shield']),
+  hours: z.number().refine(
+    (h) => ALLOWED_DURATIONS.includes(h),
+    { message: `hours must be one of: ${ALLOWED_DURATIONS.join(', ')}` }
+  ),
 })
 
 export async function POST(request: NextRequest) {
@@ -20,19 +26,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
     }
 
-    const { shield_type } = parsed.data
+    const { shield_type, hours } = parsed.data
     const supabase = createAdminClient()
     const activeSeason = await getActiveSeason(supabase)
     if (!activeSeason) return seasonFreezeResponse()
 
     const isSoldier  = shield_type === 'soldier_shield'
     const effectType = isSoldier ? 'SOLDIER_SHIELD' : 'RESOURCE_SHIELD'
-    const manaCost   = isSoldier
-      ? BALANCE.hero.SOLDIER_SHIELD_MANA
-      : BALANCE.hero.RESOURCE_SHIELD_MANA
+    const manaCost   = hours * BALANCE.hero.SHIELD_MANA_PER_HOUR
 
     const { data: hero } = await supabase
       .from('hero')
@@ -71,14 +75,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Compute effect window using canonical config constants
-    const endsAt         = new Date(now.getTime() + BALANCE.hero.SHIELD_ACTIVE_HOURS * 3_600_000)
+    // Compute effect window from the user-selected hours
+    const endsAt         = new Date(now.getTime() + hours * 3_600_000)
     const cooldownEndsAt = new Date(
-      now.getTime() +
-      (BALANCE.hero.SHIELD_ACTIVE_HOURS + BALANCE.hero.SHIELD_COOLDOWN_HOURS) * 3_600_000
+      now.getTime() + (hours + BALANCE.hero.SHIELD_COOLDOWN_HOURS) * 3_600_000
     )
 
-    // Deduct mana + insert shield effect into player_hero_effects (canonical table)
     await Promise.all([
       supabase.from('hero').update({
         mana:       hero.mana - manaCost,
@@ -97,6 +99,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       data: {
         shield_type,
+        hours,
+        mana_cost:        manaCost,
         ends_at:          endsAt.toISOString(),
         cooldown_ends_at: cooldownEndsAt.toISOString(),
         mana_remaining:   hero.mana - manaCost,

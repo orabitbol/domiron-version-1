@@ -231,33 +231,40 @@ describe('isShieldActive', () => {
 })
 
 // ─────────────────────────────────────────
-// 4. applyTurnsPack — 200 cap
+// 4. applyTurnsPack — purchasedTurnsMaxCap (5000)
+// Purchased packs intentionally bypass the normal 200 tick-regen cap.
 // ─────────────────────────────────────────
 
 describe('applyTurnsPack', () => {
+
+  const cap = BALANCE.tick.purchasedTurnsMaxCap
 
   it('adds turns when safely below cap', () => {
     expect(applyTurnsPack(100, 50)).toBe(150)
   })
 
-  it('clamps to 200 when purchase would exceed cap', () => {
-    expect(applyTurnsPack(195, 20)).toBe(200)
+  it('can exceed the tick-regen cap (200) — purchased turns are not discarded', () => {
+    expect(applyTurnsPack(195, 20)).toBe(215)
   })
 
-  it('stays at 200 when already at cap', () => {
-    expect(applyTurnsPack(200, 10)).toBe(200)
+  it('can go well above 200 for a large purchased pack', () => {
+    expect(applyTurnsPack(0, 2700)).toBe(2700)
   })
 
-  it('stays at 200 when already over cap (edge case)', () => {
-    expect(applyTurnsPack(250, 10)).toBe(200)
+  it('clamps to purchasedTurnsMaxCap when purchase would exceed it', () => {
+    expect(applyTurnsPack(cap - 5, 100)).toBe(cap)
+  })
+
+  it('stays at purchasedTurnsMaxCap when already at cap', () => {
+    expect(applyTurnsPack(cap, 10)).toBe(cap)
   })
 
   it('adding 0 turns returns current value', () => {
     expect(applyTurnsPack(80, 0)).toBe(80)
   })
 
-  it('never exceeds BALANCE.tick.maxTurns', () => {
-    expect(applyTurnsPack(0, 999)).toBe(BALANCE.tick.maxTurns)
+  it('never exceeds purchasedTurnsMaxCap', () => {
+    expect(applyTurnsPack(0, 99999)).toBe(cap)
   })
 
 })

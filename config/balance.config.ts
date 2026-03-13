@@ -33,7 +33,8 @@ export const BALANCE = {
   tick: {
     intervalMinutes: 30, // [FIXED] Vercel Cron runs every 30 min
     turnsPerTick: 3, // [FIXED] +3 turns added per tick
-    maxTurns: 200, // [FIXED] Hard cap — regen stops at this value
+    maxTurns: 200, // [FIXED] Hard cap — tick regen stops at this value
+    purchasedTurnsMaxCap: 5000, // [FIXED] Upper bound for turns granted by purchased packages — intentionally above maxTurns
     turnsPerDay: 144, // [FIXED] 3 × 48 ticks. Informational; do not use in formulas.
   },
 
@@ -260,12 +261,25 @@ export const BALANCE = {
       DEFENSE_POWER_10: 0.1, // [FIXED] +10% defender PP (never multiplies ClanBonus)
     } as const,
 
-    SHIELD_ACTIVE_HOURS: 23, // [FIXED] Duration of shield protection
+    SHIELD_ACTIVE_HOURS: 23, // [LEGACY] kept for shield metadata route; active UI uses SHIELD_MANA_PER_HOUR + SHIELD_DURATION_PRESETS
     SHIELD_COOLDOWN_HOURS: 1, // [FIXED] Vulnerability window before next shield can start
 
-    // Mana cost per shield type — flat keys, accessed as BALANCE.hero.SOLDIER_SHIELD_MANA
-    SOLDIER_SHIELD_MANA: 10, // [TUNE]
-    RESOURCE_SHIELD_MANA: 10, // [TUNE]
+    // Per-hour mana pricing (Izra-style): manaCost = selectedHours * SHIELD_MANA_PER_HOUR
+    SHIELD_MANA_PER_HOUR: 25, // [TUNE] 4h=100, 8h=200, 12h=300, 15h=375, 23h=575
+    // Allowed duration presets exposed in the UI
+    SHIELD_DURATION_PRESETS: [4, 8, 12, 15, 23] as const,
+
+    // Legacy flat costs kept for buy-spell route (not used by activate-shield anymore)
+    SOLDIER_SHIELD_MANA: 50, // [LEGACY]
+    RESOURCE_SHIELD_MANA: 50, // [LEGACY]
+
+    // Mana costs for temporary combat/production boosts (24h duration)
+    // Accessed as BALANCE.hero.BOOST_MANA.SMALL etc.
+    BOOST_MANA: {
+      SMALL:  50,  // [TUNE] small tier boost
+      MEDIUM: 100, // [TUNE] medium tier boost
+      LARGE:  150, // [TUNE] large tier boost
+    },
   },
 
   // ═══════════════════════════════════════
