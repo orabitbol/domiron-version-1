@@ -390,7 +390,7 @@ describe('calculateSoldierLosses', () => {
   const NO_COOLDOWN = false
   const NO_PROTECT  = false
 
-  it('neither side loses more than MAX_LOSS_RATE (30%) of their deployed soldiers', () => {
+  it('neither side loses more than MAX_LOSS_RATE per turn of their deployed soldiers', () => {
     // Test at very extreme ratios
     const extremeR = 100
     const losses = calculateSoldierLosses(deployedA, deployedD, extremeR, NO_COOLDOWN, NO_PROTECT, NO_PROTECT)

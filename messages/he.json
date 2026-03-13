@@ -173,7 +173,9 @@
     "turns_chip": "תורות",
     "soldiers_label": "חיילים",
     "resource_shield_active": "מגן משאבים פעיל",
-    "soldier_shield_active": "מגן חיילים פעיל"
+    "soldier_shield_active": "מגן חיילים פעיל",
+    "your_losses": "אבדות שלך",
+    "enemy_losses": "אבדות האויב"
   },
   "dialog": {
     "action_title": "פעולה",

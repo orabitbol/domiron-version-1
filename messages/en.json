@@ -173,7 +173,9 @@
     "turns_chip": "Turns",
     "soldiers_label": "Soldiers",
     "resource_shield_active": "Resource Shield Active",
-    "soldier_shield_active": "Soldier Shield Active"
+    "soldier_shield_active": "Soldier Shield Active",
+    "your_losses": "Your Losses",
+    "enemy_losses": "Enemy Losses"
   },
   "dialog": {
     "action_title": "Action",

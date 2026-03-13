@@ -2,149 +2,177 @@
 
 ## Summary
 
-Complete rework of the soldier-loss and loot formulas in the Domiron combat engine.
-Goal: make attacks worth doing frequently, with strong ratio-driven differentiation.
+Full re-tune of combat balance constants plus a complete battle report UI redesign.
+
+Goals:
+- Fights feel more impactful and rewarding
+- Strong attackers benefit much more clearly from their ratio advantage
+- Loot is more generous across all turn counts
+- Captives/slaves are meaningfully higher
+- Battle report instantly communicates what happened
 
 ---
 
-## Problems with the old formula
+## Part 1 — Soldier Loss Constants
 
-| Issue | Old behaviour | Impact |
-|---|---|---|
-| Linear loss division | `attackerRate = BASE_LOSS / R` | Dominant attacker still lost many soldiers |
-| Linear loss multiplication | `defenderRate = BASE_LOSS × R` | Defender losses grew too slowly at high R |
-| No ratio-scaled loot | `loot = unbanked × 0.10` | No reward for overwhelming the defender |
-| Low CAPTURE_RATE | 10% | Slavery/captive system underutilised |
-| Pre-multiplication floor | `floor(soldiers × rate) × turns` | Sub-1 per-turn losses rounded to 0; multi-turn gave 0 at normal army sizes |
-
----
-
-## New formulas
-
-### Soldier losses (power-curve model)
+### Formula (unchanged in structure)
 
 ```
 rawAttackerRate = ATTACKER_BASE_LOSS / R ^ ATTACKER_LOSS_EXPONENT
 rawDefenderRate = DEFENDER_BASE_LOSS × R ^ DEFENDER_LOSS_EXPONENT
 
-attackerLossRate = clamp(rawAttackerRate, ATTACKER_FLOOR, MAX_LOSS_RATE)
+attackerLossRate = clamp(rawAttackerRate, ATTACKER_FLOOR,       MAX_LOSS_RATE)
 defenderLossRate = clamp(rawDefenderRate, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE)
 
--- Per-turn raw float (no floor yet):
-attackerLosses = deployedSoldiers × attackerLossRate
-defenderLosses = defenderSoldiers × defenderLossRate
-
--- Final integer (floored AFTER turn scaling in route):
-finalAttackerLosses = floor(min(attackerLosses × turnsUsed, attArmy.soldiers))
-finalDefenderLosses = floor(min(defenderLosses × turnsUsed, defArmy.soldiers))
+-- Returns floats; floor happens AFTER turn-scaling in route:
+finalAttackerLosses = floor(min(attackerLosses_float × turnsUsed, attArmy.soldiers))
+finalDefenderLosses = floor(min(defenderLosses_float × turnsUsed, defArmy.soldiers))
 ```
 
-**Key change**: `Math.floor` moved from `calculateSoldierLosses` to the route's
-multi-turn scaling step. This ensures that sub-1 per-turn rates accumulate
-correctly over multiple turns rather than rounding to 0 each turn.
+### Constants Changed
 
-### Loot (ratio-scaled)
+| Constant | Before | After | Ratio |
+|---|---|---|---|
+| `ATTACKER_BASE_LOSS` | 0.00025 | **0.0005** | ×2 |
+| `ATTACKER_LOSS_EXPONENT` | 2.3 | **2.5** | steeper |
+| `DEFENDER_BASE_LOSS` | 0.00035 | **0.0015** | ×4.3 |
+| `DEFENDER_LOSS_EXPONENT` | 1.7 | **2.0** | steeper |
+| `MAX_LOSS_RATE` | 0.003 | **0.02** | ×6.7 |
+| `DEFENDER_BLEED_FLOOR` | 0.0001 | **0.0002** | ×2 |
+| `ATTACKER_FLOOR` | 0.000001 | 0.000001 | unchanged |
+
+### Expected Outcomes: 10,000 soldiers per side, 10-turn attack, no shields
+
+| R (ratio) | Att losses before | Att losses after | Def losses before | Def losses after |
+|---|---|---|---|---|
+| R=1.0 | ~25 | **~50** | ~35 | **~150** |
+| R=1.5 | ~11 | **~18** | ~62 | **~338** |
+| R=2.0 | ~5 | **~8** | ~113 | **~600** |
+| R=3.0 | ~2 | **~3** | ~226 | **~1350** |
+
+**Key effects:**
+- Even fights (R=1.0): both sides take real, noticeable losses now
+- Dominant wins (R=2.0+): attacker loses almost nothing; defender takes heavy casualties
+- The ratio gap between attacker and defender losses grows steeply with R
+- MAX_LOSS_RATE increased from 0.3%/turn to 2%/turn — dominant attacker can now eliminate up to 20% of defenders in a 10-turn attack
+
+---
+
+## Part 2 — Loot Constants
+
+### Formula (unchanged in structure)
 
 ```
 ratioMult  = min(R, LOOT_RATIO_CAP) ^ LOOT_RATIO_EXPONENT
 totalMult  = BASE_LOOT_RATE × outcomeMult × decayFactor × ratioMult
-loot[r]    = floor(unbanked[r] × totalMult) × turnsUsed
+loot[r]    = floor(unbanked[r] × totalMult) × turnsUsed    (then safety-clamped to defender's actual resources)
 ```
 
-Stronger attackers earn proportionally more loot:
+### Constants Changed
 
-| R | ratioMult |
-|---|---|
-| 1.0 | 1.00× |
-| 1.4 | 1.30× |
-| 2.0 | 1.87× |
-| 2.2 | 2.00× |
-| 3.0+ | 2.55× (capped) |
-
----
-
-## Constants changed
-
-| Constant | Old | New | Notes |
+| Constant | Before | After | Notes |
 |---|---|---|---|
-| `BASE_LOSS` | `0.15` | _removed_ | Split into ATTACKER/DEFENDER_BASE_LOSS |
-| `ATTACKER_BASE_LOSS` | — | `0.00025` | New |
-| `ATTACKER_LOSS_EXPONENT` | — | `2.3` | New; strong convexity |
-| `DEFENDER_BASE_LOSS` | — | `0.00035` | New |
-| `DEFENDER_LOSS_EXPONENT` | — | `1.7` | New |
-| `MAX_LOSS_RATE` | `0.30` | `0.003` | Per-turn cap (applied before turn scaling) |
-| `DEFENDER_BLEED_FLOOR` | `0.05` | `0.0001` | Much lower; meaningful only at scale |
-| `ATTACKER_FLOOR` | `0.03` | `0.000001` | Near-zero; dominant attacker pays almost nothing |
-| `CAPTURE_RATE` | `0.10` | `0.40` | 4× increase; captives now a real reward |
-| `LOOT_RATIO_CAP` | — | `3.0` | New |
-| `LOOT_RATIO_EXPONENT` | — | `0.85` | New; sub-linear to prevent runaway |
+| `BASE_LOOT_RATE` | 0.10 | **0.12** | +20% base |
+| `LOOT_RATIO_EXPONENT` | 0.85 | **1.0** | linear scaling (was sub-linear) |
+| `LOOT_RATIO_CAP` | 3.0 | 3.0 | unchanged |
+
+### Loot Scenarios (% of unbanked taken, first attack, no decay)
+
+| Turns used | R=1.0 before→after | R=2.0 before→after | R=3.0 before→after |
+|---|---|---|---|
+| 1 turn | 10% → **12%** | 18% → **24%** | 25% → **36%** |
+| 3 turns | 30% → **36%** | 54% → **72%** | 76% → **all** |
+| 5 turns | 50% → **60%** | 90% → **all** | all → **all** |
+| 10 turns | all → **all** | all → **all** | all → **all** |
+
+**Key effects:**
+- 1-turn attacks: meaningfully more loot at all ratios
+- 3-turn dominant attacks: take 72–100% of unbanked (was 54–76%)
+- Linear exponent (1.0): R=2 gives exactly 2× loot, R=3 gives exactly 3× — clean and predictable
 
 ---
 
-## Verified balance targets
+## Part 3 — Captives
 
-All examples assume 10k soldiers per side, 10-turn attack, no shields/cooldowns.
-R = attacker ECP / defender ECP.
+| Constant | Before | After |
+|---|---|---|
+| `CAPTURE_RATE` | 0.40 | **0.50** |
 
-| Scenario | R | Att losses | Def losses | Loot/resource¹ | Captives |
-|---|---|---|---|---|---|
-| A — Even fight | 1.0 | ~25 | ~35 | ~25k | ~14 |
-| B — Moderate win | 1.4 | ~11 | ~59 | ~33k | ~24 |
-| C — Strong win | 2.2 | ~4 | ~134 | ~50k | ~54 |
-| D — Dominant | 3.0 | ~2 | ~226 | ~64k | ~90 |
-| E — 7k att vs 10k def (R≈1.6) | 1.6 | ~6 | ~100 | ~36k | ~40 |
-| F — Loss (12k att, R≈0.714) | 0.714 | ~65 | ~28 | 0 | 0 |
-| G — Soldier shield (R≈2.2) | 2.2 | ~4 | 0 | high (if no res shield) | 0 |
+With defender losses ~4× higher AND 50% capture rate (was 40%), captives per attack are approximately **5× more** than before.
 
-¹ Assuming ~25k unbanked gold per resource. Loot scales linearly with `turnsUsed`.
-
-**Formula verification (examples A, C, D):**
-```
-A: attRate = 0.00025/1.0^2.3 = 0.00025  → 10000×0.00025×10 = floor(25.0) = 25 ✓
-   defRate = 0.00035×1.0^1.7 = 0.00035  → 10000×0.00035×10 = floor(35.0) = 35 ✓
-C: attRate = 0.00025/2.2^2.3 = 0.0000408 → 10000×0.0000408×10 = floor(4.08) = 4 ✓
-   defRate = 0.00035×2.2^1.7 = 0.001337  → 10000×0.001337×10 = floor(133.7) = 133 ✓
-D: attRate = 0.00025/3.0^2.3 = 0.0000200 → 10000×0.0000200×10 = floor(2.0) = 2 ✓
-   defRate = 0.00035×3.0^1.7 = 0.002265  → 10000×0.002265×10 = floor(226.5) = 226 ✓
-```
+**Invariant always holds**: `captives = floor(defenderLosses × 0.50) < defenderLosses` because 0.50 < 1.0.
 
 ---
 
-## Files changed
+## Part 4 — Shields / Protections (Behavior Unchanged)
+
+These all function identically:
+
+| Mechanic | Effect |
+|---|---|
+| Soldier Shield | `defenderLosses = 0` → captives also 0 (derived) |
+| Resource Shield | `loot = 0` for all resources |
+| Defender Protection | `defenderLosses = 0` and `loot = 0` |
+| Attacker Protection | `attackerLosses = 0` |
+| Kill Cooldown | `defenderLosses = 0` and captives 0; loot still applies |
+| Cavalry | Contributes to PP; never dies in combat |
+| Anti-farm decay | Steps [1.0, 0.7, 0.4, 0.2, 0.1] — unchanged |
+| Multi-turn scaling | `loot × turnsUsed`; `floor(losses_float × turnsUsed)` |
+
+---
+
+## Part 5 — Battle Report UI Redesign
+
+### Old Layout (problems)
+1. Small "Victory/Defeat" text with muted ratio inline
+2. Two small cards (Your Attack / Enemy Defense) with multiple text rows for PP/clan/tribe
+3. Horizontal strip: turns spent + food
+4. 3-column table: unit | you lost | enemy lost
+5. 2-col resource grid for gains + italic anti-farm note
+6. Conditional "why nothing" section OR modifiers section
+7. Close button
+
+**Issues**: flat visual weight, no immediate outcome clarity, gains section looks like a data table not a reward, WIN and LOSS states look similar, zero values look broken.
+
+### New Layout
+1. **Outcome Banner** — full-width color panel. Gold/amber for WIN, red/dark for LOSS. Large display title + ratio badge inline.
+2. **Power Comparison** — 2-col grid. Each: large ECP number + PP below + clan bonus if active.
+3. **Cost | Gains** — 2-col grid. Left: turns + food paid. Right: only non-zero resources shown (gold-colored `+N`), captives in amber. Gains panel highlighted amber when non-empty. Shows "—" cleanly when nothing gained.
+4. **Casualties** — 2-col grid. Left: your soldiers lost (red if > 0, muted if 0). Right: enemy soldiers lost (green if > 0, muted if 0). Large bold tabular numbers.
+5. **Modifiers** — only rendered if `report.reasons.length > 0`. Compact bullet list.
+6. Close button
+
+### What Is Better
+- Outcome is unmistakable in 0.1 seconds (banner + color)
+- Cost and gains are adjacent and visually paired
+- Non-zero gains pop out in gold — feels rewarding
+- Zero casualties look clean and intentional, not broken
+- Separate casualties section from gains section — clearer mental model
+- Modal size changed `md` → `lg` for better spacing
+- No "why nothing was gained" section — now the modifiers section covers this whenever it matters
+
+---
+
+## Part 6 — Cleanup
+
+- Removed `console.log('[attack/debug]', JSON.stringify({...}))` from `app/api/attack/route.ts` — was logging all combat state on every attack (noisy in production)
+- Removed unused `OUTCOME_COLORS` constant from `AttackClient.tsx`
+- Fixed misleading test description: was `'MAX_LOSS_RATE (30%)'` — corrected to `'MAX_LOSS_RATE per turn'` (the old value was 0.003 = 0.3%, not 30%)
+
+---
+
+## Files Changed
 
 | File | Change |
 |---|---|
-| `config/balance.config.ts` | Replaced `BASE_LOSS` with 6 new constants; updated `CAPTURE_RATE`, `MAX_LOSS_RATE`, floors |
-| `lib/game/balance-validate.ts` | Schema updated to match new fields |
-| `lib/game/combat.ts` | `calculateSoldierLosses`: power-curve formula, returns floats. `calculateLoot`: added `ratio` parameter. `resolveCombat`: passes `ratio` to `calculateLoot`. |
-| `app/api/attack/route.ts` | `Math.floor(Math.min(losses × turnsUsed, army))` — floor moved after scaling |
-| `lib/game/combat.test.ts` | Removed `BASE_LOSS` reference; added `ratio` param to all `calculateLoot` calls; added ratio-boost tests |
-| `lib/game/attack-integrity.test.ts` | Updated test scenarios; `applyRouteSafetyClamps` floors safeDefLosses; `computeAttAfter` floors attacker losses; loot assertions use `calculateLoot` as reference |
+| `config/balance.config.ts` | Retuned 6 loss constants + BASE_LOOT_RATE + LOOT_RATIO_EXPONENT + CAPTURE_RATE |
+| `lib/game/combat.ts` | Updated doc comment (formula + expected outcomes) |
+| `app/api/attack/route.ts` | Removed verbose debug log |
+| `app/(game)/attack/AttackClient.tsx` | Full redesign of `BattleReportModal`; removed `OUTCOME_COLORS`; modal size `md`→`lg` |
+| `lib/game/combat.test.ts` | Fixed test description string |
+| `messages/he.json` | Added `attack.your_losses`, `attack.enemy_losses` |
+| `messages/en.json` | Added `attack.your_losses`, `attack.enemy_losses` |
 
----
+`lib/game/balance-validate.ts` — no changes needed (all combat values are `z.number()` with no min/max constraints).
 
-## Invariants preserved
-
-All existing combat invariants remain intact:
-
-- Binary outcome (win/loss) — no draw
-- `soldierShieldActive` → `defenderLosses = 0`
-- `resourceShieldActive` → `loot = 0`
-- `killCooldownActive` → `defenderLosses = 0`, loot still applies
-- `defenderIsProtected` → `defenderLosses = 0`, `loot = 0`
-- `attackerIsProtected` → `attackerLosses = 0`
-- `captives = floor(defenderLosses × CAPTURE_RATE)` — always < defenderLosses
-- Cavalry never die (unchanged)
-- Atomic `attack_resolve_apply` RPC — no changes to SQL (receives pre-computed values)
-- Anti-farm decay (5-step) — unchanged
-
----
-
-## Test results
-
-```
-✓ lib/game/combat.test.ts         93 tests
-✓ lib/game/attack-integrity.test.ts  57 tests
-✓ npx tsc --noEmit               0 errors
-✓ npx next build                 0 errors
-```
+`lib/game/attack-integrity.test.ts` — no changes needed (all assertions are driven by `BALANCE.*` constants and will adapt automatically to the new values).

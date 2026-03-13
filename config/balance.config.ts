@@ -323,25 +323,26 @@ export const BALANCE = {
     // Final integer = floor(losses × turnsUsed)  — flooring happens AFTER turn scaling
     //
     // Designed for 10k-soldier armies, 10-turn attacks:
-    //   R=1.0  → att ~25, def ~35  (even fight)
-    //   R=1.4  → att ~11, def ~59
-    //   R=2.2  → att ~4,  def ~134
-    //   R=3.0  → att ~2,  def ~226
-    ATTACKER_BASE_LOSS:     0.00025, // [TUNE]
-    ATTACKER_LOSS_EXPONENT: 2.3,     // [TUNE] power-curve: strong attacker loses far fewer
-    DEFENDER_BASE_LOSS:     0.00035, // [TUNE]
-    DEFENDER_LOSS_EXPONENT: 1.7,     // [TUNE] power-curve: strong attacker kills far more
-    MAX_LOSS_RATE:          0.003,   // [TUNE] per-turn hard cap (applied before turn scaling)
-    DEFENDER_BLEED_FLOOR:   0.0001,  // [TUNE] defender always bleeds a tiny amount
+    //   R=1.0  → att ~50,  def ~150  (even fight — both sides take real losses)
+    //   R=1.5  → att ~18,  def ~338
+    //   R=2.0  → att ~8,   def ~600
+    //   R=3.0  → att ~3,   def ~1350
+    ATTACKER_BASE_LOSS:     0.0005,  // [TUNE]
+    ATTACKER_LOSS_EXPONENT: 2.5,     // [TUNE] power-curve: strong attacker loses far fewer
+    DEFENDER_BASE_LOSS:     0.0015,  // [TUNE]
+    DEFENDER_LOSS_EXPONENT: 2.0,     // [TUNE] power-curve: strong attacker kills far more
+    MAX_LOSS_RATE:          0.02,    // [TUNE] per-turn hard cap (2% per turn; 20% per 10-turn attack)
+    DEFENDER_BLEED_FLOOR:   0.0002,  // [TUNE] defender always bleeds a tiny amount
     ATTACKER_FLOOR:         0.000001,// [TUNE] rate floor — attacker always has non-zero risk
 
     // ─── Loot ─────────────────────────────────────────────────────────────
     // FinalLoot = Unbanked × BASE_LOOT_RATE × ratioMult × decayFactor × turnsUsed
     // ratioMult = min(R, LOOT_RATIO_CAP) ^ LOOT_RATIO_EXPONENT
-    // Stronger attackers plunder more: R=1→1×, R=2→1.87×, R=3+→2.55×
-    BASE_LOOT_RATE:       0.10, // [TUNE] 10% of each unbanked resource per turn
+    // Stronger attackers plunder more: R=1→1×, R=2→2×, R=3+→3×
+    // At 10 turns any R≥1.0 takes all unbanked; at 3 turns R=1.0→36%, R=2.0→72%, R=3.0→all
+    BASE_LOOT_RATE:       0.12, // [TUNE] 12% of each unbanked resource per turn
     LOOT_RATIO_CAP:       3.0,  // [TUNE] ratio boost capped at 3×
-    LOOT_RATIO_EXPONENT:  0.85, // [TUNE] sub-linear ratio scaling
+    LOOT_RATIO_EXPONENT:  1.0,  // [TUNE] linear ratio scaling — R=2 gives 2×, R=3 gives 3×
 
     LOOT_OUTCOME_MULTIPLIER: {
       win: 1.0,
@@ -366,7 +367,7 @@ export const BALANCE = {
 
     // Captives: fraction of killed defender soldiers that become attacker slaves (army.slaves).
     // Applied only when defenderLosses > 0 (kill cooldown / shields / protection bypass this).
-    CAPTURE_RATE: 0.40, // [TUNE] 40% of killed defender soldiers become captives
+    CAPTURE_RATE: 0.50, // [TUNE] 50% of killed defender soldiers become captives
 
     // New player protection window
     // Protection does NOT block attacks — see note above.

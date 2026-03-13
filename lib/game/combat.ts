@@ -420,14 +420,14 @@ export function determineCombatOutcome(ratio: number): CombatOutcome {
 // ─────────────────────────────────────────
 
 /**
- * DefenderLossRate = clamp(BASE_LOSS × R, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE)
- * AttackerLossRate = clamp(BASE_LOSS / R, ATTACKER_FLOOR,       MAX_LOSS_RATE)
+ * DefenderLossRate = clamp(BASE_LOSS × R^EXPONENT, DEFENDER_BLEED_FLOOR, MAX_LOSS_RATE)
+ * AttackerLossRate = clamp(BASE_LOSS / R^EXPONENT, ATTACKER_FLOOR,       MAX_LOSS_RATE)
  *
- * killed_soldiers_attacker = floor(deployedSoldiers  × AttackerLossRate)
- * killed_soldiers_defender = floor(defenderSoldiers  × DefenderLossRate)
+ * killed_soldiers_attacker = deployedSoldiers  × AttackerLossRate  (float — floor after turn scaling)
+ * killed_soldiers_defender = defenderSoldiers  × DefenderLossRate  (float — floor after turn scaling)
  *
  * Guarantees:
- *   - Neither side ever exceeds MAX_LOSS_RATE (30%) per battle.
+ *   - Neither side ever exceeds MAX_LOSS_RATE per turn (hard cap before turn scaling).
  *   - Attacker always loses ≥ ATTACKER_FLOOR (never zero-cost attack).
  *   - Defender bleeds ≥ DEFENDER_BLEED_FLOOR even from a far-weaker attacker.
  *

@@ -295,36 +295,6 @@ export async function POST(request: NextRequest) {
     // Zero when safeDefLosses = 0 (kill cooldown / shields / protection bypass losses).
     const captives = calculateCaptives(safeDefLosses)
 
-    // ── Debug log — structured, filterable by '[attack/debug]' ───────────────
-    // Kill cooldown uses the `attacks` table (NOT player_hero_effects).
-    // Cooldown is active when attacker has a row with defender_losses > 0 for
-    // this target within KILL_COOLDOWN_HOURS. To diagnose "why is cooldown on?"
-    // check: SELECT * FROM attacks WHERE attacker_id=$1 AND defender_id=$2
-    //        AND defender_losses > 0 AND created_at >= (now - interval '6 hours')
-    console.log('[attack/debug]', JSON.stringify({
-      at:                       now.toISOString(),
-      attacker_id:              playerId,
-      defender_id,
-      kill_cooldown_window_hrs: BALANCE.combat.KILL_COOLDOWN_HOURS,
-      kill_cooldown_start:      killCooldownStart.toISOString(),
-      kill_count_in_window:     killCount ?? 0,
-      kill_cooldown_active:     killCooldown,
-      attacker_protected:       attackerProtected,
-      defender_protected:       defenderProtected,
-      soldier_shield_active:    defHero.soldierShieldActive,
-      resource_shield_active:   defHero.resourceShieldActive,
-      outcome:                  result.outcome,
-      ratio:                    result.ratio.toFixed(4),
-      attackerECP:              result.attackerECP,
-      defenderECP:              result.defenderECP,
-      turns_used:               turnsUsed,
-      attacker_losses_1turn:    result.attackerLosses,
-      defender_losses_1turn:    result.defenderLosses,
-      att_losses_scaled:        attLossesScaled,
-      def_losses_scaled:        safeDefLosses,
-      captives,
-    }))
-
     // New resource values
     const newAttSoldiers = Math.max(0, attArmy.soldiers - attLossesScaled)
     const newAttSlaves   = attArmy.slaves + captives
