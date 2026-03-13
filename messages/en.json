@@ -175,7 +175,19 @@
     "resource_shield_active": "Resource Shield Active",
     "soldier_shield_active": "Soldier Shield Active",
     "your_losses": "Your Losses",
-    "enemy_losses": "Enemy Losses"
+    "enemy_losses": "Enemy Losses",
+    "casualties": "Casualties",
+    "captives_enslaved": "Captives Enslaved",
+    "spoils_of_war": "Spoils of War",
+    "power_breakdown": "Power Breakdown",
+    "base_pp": "Base Power",
+    "hero_bonus_label": "Hero",
+    "race_bonus_label": "Race",
+    "tribe_spell_label": "Tribe Spell",
+    "final_ecp": "Final ECP",
+    "base_ecp_label": "Base ECP",
+    "cost_paid": "Cost Paid",
+    "none_gained": "Nothing gained"
   },
   "dialog": {
     "action_title": "Action",
@@ -231,7 +243,10 @@
     "spies_caught": "Spies Caught",
     "intel_revealed": "Intel Revealed",
     "res_shield": "Resource Shield Active",
-    "sol_shield": "Soldier Shield Active"
+    "sol_shield": "Soldier Shield Active",
+    "battle_duration": "Battle Duration",
+    "food_per_turn": "per turn",
+    "total_cost": "Total"
   },
   "spy_intel": {
     "resources": "Resources",

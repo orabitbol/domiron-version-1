@@ -62,6 +62,12 @@ export interface BattleReport {
     base_ecp_attack: number
     /** Final ECP including tribe spell multiplier. */
     ecp_attack:   number
+    /** Pre-clamped hero attack bonus (0–0.50). 0 if no active hero effects. */
+    hero_bonus_attack: number
+    /** Race attack bonus (e.g. 0.10 for orc). 0 if no race bonus. */
+    race_bonus_attack: number
+    /** Tribe combat spell multiplier (e.g. 1.25 for war_cry). 1.0 if no spell. */
+    tribe_mult_attack: number
     turns_spent:  number
     food_spent:   number
     losses:       { soldiers: number; cavalry: number }
@@ -78,6 +84,12 @@ export interface BattleReport {
     base_ecp_defense: number
     /** Final ECP including tribe spell multiplier. */
     ecp_defense:  number
+    /** Pre-clamped hero defense bonus (0–0.50). 0 if no active hero effects. */
+    hero_bonus_defense: number
+    /** Race defense bonus (e.g. 0.15 for dwarf). 0 if no race bonus. */
+    race_bonus_defense: number
+    /** Tribe combat spell multiplier for defense (e.g. 1.15 for tribe_shield). 1.0 if no spell. */
+    tribe_mult_defense: number
     losses:       { soldiers: number; cavalry: number }
     before:       BattleReportSnapshot
     after:        BattleReportSnapshot

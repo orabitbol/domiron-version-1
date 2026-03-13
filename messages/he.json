@@ -175,7 +175,19 @@
     "resource_shield_active": "מגן משאבים פעיל",
     "soldier_shield_active": "מגן חיילים פעיל",
     "your_losses": "אבדות שלך",
-    "enemy_losses": "אבדות האויב"
+    "enemy_losses": "אבדות האויב",
+    "casualties": "אבדות קרב",
+    "captives_enslaved": "שבויים שנלקחו",
+    "spoils_of_war": "שלל קרב",
+    "power_breakdown": "פירוט עוצמה",
+    "base_pp": "עוצמה בסיסית",
+    "hero_bonus_label": "גיבור",
+    "race_bonus_label": "גזע",
+    "tribe_spell_label": "כישוף שבט",
+    "final_ecp": "עוצמת קרב",
+    "base_ecp_label": "עוצמה בסיסית ECP",
+    "cost_paid": "עלות ששולמה",
+    "none_gained": "ללא שלל"
   },
   "dialog": {
     "action_title": "פעולה",
@@ -231,7 +243,10 @@
     "spies_caught": "מרגלים שנתפסו",
     "intel_revealed": "מידע שנחשף",
     "res_shield": "מגן משאבים פעיל",
-    "sol_shield": "מגן חיילים פעיל"
+    "sol_shield": "מגן חיילים פעיל",
+    "battle_duration": "משך הקרב",
+    "food_per_turn": "לסיבוב",
+    "total_cost": "סה\"כ"
   },
   "spy_intel": {
     "resources": "משאבים",
