@@ -514,3 +514,64 @@ Full JSX-only redesign of the attack modal flow. All combat formulas, logic, API
 
 - `npx tsc --noEmit` — ✅ 0 errors
 - `npm run build` — ✅ clean build, all routes compiled
+
+---
+
+## Attack Page — Target List Redesign (2026-03-14)
+
+### Goal 1 — Top 3 Global Players: Elite Row Styling
+
+**Data source**: `rank_global` from the `players` table — already fetched in `app/(game)/attack/page.tsx` (line 35 select). Added to `targetList` mapping and to the `Target` interface in `AttackClient.tsx`.
+
+**How top-3 is determined**: `target.rank_global !== null && target.rank_global <= 3`. This is true global ranking across all cities in the active season — NOT local page position, NOT city rank.
+
+**Medal badges** (`GlobalRankBadge` component):
+| Rank | Medal | Style |
+|---|---|---|
+| #1 | 👑 | Gold gradient row, amber-400 start border, `shadow-[0_0_20px_rgba(251,191,36,0.20)]` |
+| #2 | 🥈 | Slate gradient row, slate-300 start border, subtle silver glow |
+| #3 | 🥉 | Orange/bronze gradient row, orange-600 start border |
+
+Applied in both **mobile card rows** (via `className` on the row div) and **desktop table rows** (via new `rowClassNames` + `rowStyles` props on `GameTable`).
+
+**`GameTable` extended**: added optional `rowClassNames?: (string | undefined)[]` and `rowStyles?: (React.CSSProperties | undefined)[]` props — index-matched to rows array. Zero breaking change to existing call sites (both props are optional).
+
+### Goal 2 — Status Badge Redesign
+
+Replaced the old 4 colored dots (`w-3 h-3 rounded-full`) with vivid styled chip badges:
+
+| Status | Old | New |
+|---|---|---|
+| Resource shield | gold dot | `💰 מגן משאבים` amber chip with glow |
+| Soldier shield | blue dot | `🛡 מגן חיילים` blue chip with glow |
+| New-player protection | green dot | `🌱 הגנת טירון` emerald chip with glow |
+| Kill cooldown | amber dot | `⏳ קולדאון` orange chip with glow |
+| No active status | empty dots | `✓ פנוי` neutral chip |
+
+On mobile, chips show emoji only; on `sm+` the Hebrew label also appears (via `hidden sm:inline`).
+
+Status legend below the search bar also redesigned to use the same chip badges.
+
+### Goal 3 — Tooltips
+
+Every status chip has `title={tooltipHe}` with a full Hebrew explanation:
+- Resource shield: "מגן משאבים פעיל — לא ניתן לשדוד זהב, ברזל, עץ או מזון בתקיפה הבאה"
+- Soldier shield: "מגן חיילים פעיל — לא ניתן להרוג חיילים בהגנה בתקיפה הבאה"
+- New-player protection: "שחקן חדש — בהגנת טירון. לא ניתן לתקוף אותו בזמן זה"
+- Kill cooldown: "תקפת אותו לאחרונה — קולדאון הרג פעיל. הגנה לא תיפגע בתקיפה הבאה"
+
+### Files changed
+- `app/(game)/attack/page.tsx` — added `rank_global: p.rank_global` to targetList mapping
+- `app/(game)/attack/AttackClient.tsx` — `rank_global` in Target interface, `GLOBAL_RANK_META` config, `GlobalRankBadge` component, `STATUS_CHIP_DEFS` replacing dots, redesigned `StatusIndicators`, top-3 styling in both mobile + desktop views
+- `components/ui/game-table.tsx` — added `rowClassNames` + `rowStyles` optional props
+
+### Constraints preserved
+- No combat formulas, attack logic, or API routes changed
+- Sorting, search, and filtering unchanged
+- Attack button / dialog flow unchanged
+- Mobile layout clean: chips collapse to emoji-only on small screens
+- Hebrew RTL preserved
+
+### Verification
+- `npx tsc --noEmit` — ✅ 0 errors
+- `npm run build` — ✅ clean build

@@ -138,6 +138,7 @@ export default async function AttackPage() {
     id:                     p.id,
     army_name:              p.army_name,
     rank_city:              p.rank_city,
+    rank_global:            p.rank_global,
     tribe_name:             playerTribes[p.id] ?? null,
     soldiers:               armyRows.find((a) => a.player_id === p.id)?.soldiers ?? 0,
     gold:                   resourcesRows.find((r) => r.player_id === p.id)?.gold ?? 0,

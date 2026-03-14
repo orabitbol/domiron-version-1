@@ -8,9 +8,13 @@ interface GameTableProps {
   hoverable?: boolean
   loading?: boolean
   className?: string
+  /** Optional per-row additional classNames (index-matched to rows) */
+  rowClassNames?: (string | undefined)[]
+  /** Optional per-row inline styles (index-matched to rows) */
+  rowStyles?: (React.CSSProperties | undefined)[]
 }
 
-export function GameTable({ headers, rows, striped, hoverable, loading, className }: GameTableProps) {
+export function GameTable({ headers, rows, striped, hoverable, loading, className, rowClassNames, rowStyles }: GameTableProps) {
   if (loading) {
     return <TableSkeleton rows={5} cols={headers.length} />
   }
@@ -51,8 +55,10 @@ export function GameTable({ headers, rows, striped, hoverable, loading, classNam
                 className={cn(
                   'border-b border-game-border/60 last:border-0 transition-all duration-150',
                   striped && rowIdx % 2 === 1 && 'bg-game-elevated/30',
-                  hoverable && 'hover:bg-game-gold/5 hover:shadow-[inset_2px_0_0_rgba(201,144,26,0.4)]'
+                  hoverable && 'hover:bg-game-gold/5 hover:shadow-[inset_2px_0_0_rgba(201,144,26,0.4)]',
+                  rowClassNames?.[rowIdx]
                 )}
+                style={rowStyles?.[rowIdx]}
               >
                 {row.map((cell, colIdx) => (
                   <td key={colIdx} className="px-4 py-3 text-game-text">
