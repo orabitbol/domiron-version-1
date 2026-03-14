@@ -73,205 +73,94 @@ const PRIZES: Prize[] = [
   },
 ]
 
-// ─── Prize card ───────────────────────────────────────────────────────────────
+// ─── גובה מדרגת פודיום (אולימפי: 1 גבוה, 2 בינוני, 3 נמוך) ─────────────────
+const PODIUM_STEP_PX: Record<number, number> = { 1: 72, 2: 44, 3: 24 }
+
+// ─── Prize card — מספר ותווית מעל התמונה, מתחת מדרגת פודיום ─────────────────
 
 function PrizeCard({ prize }: { prize: Prize }) {
   const isFirst = prize.place === 1
+  const stepH = PODIUM_STEP_PX[prize.place] ?? 24
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        width: prize.cardW,
-        flexShrink: 0,
-      }}
-    >
-      {/* Place label */}
+    <div className="flex flex-col items-center w-full min-w-0 flex-1">
+      {/* דירוג מעל הכרטיס — לא על התמונה */}
       <div
-        style={{
-          fontFamily: '"Cinzel", serif',
-          fontSize: '0.55rem',
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: prize.colorDim,
-          marginBottom: '0.5rem',
-        }}
-      >
-        {prize.placeLabel}
-      </div>
-
-      {/* Number badge */}
-      <div
-        style={{
-          width: isFirst ? 44 : 32,
-          height: isFirst ? 44 : 32,
-          borderRadius: '50%',
-          background: prize.colorBg,
-          border: `${isFirst ? 2 : 1.5}px solid ${prize.borderColor}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: `0 0 ${isFirst ? 20 : 10}px ${prize.glowColor}`,
-          marginBottom: '0.75rem',
-          flexShrink: 0,
-        }}
+        className="flex flex-col items-center mb-3 shrink-0"
+        style={{ fontFamily: '"Cinzel", serif' }}
       >
         <span
+          className="uppercase tracking-[0.2em] text-game-text-secondary"
+          style={{ fontSize: '0.55rem' }}
+        >
+          {prize.placeLabel}
+        </span>
+        <span
+          className="flex items-center justify-center rounded-full font-bold mt-1.5"
           style={{
-            fontFamily: '"Cinzel", serif',
-            fontSize: isFirst ? '1.1rem' : '0.78rem',
-            fontWeight: 700,
+            width: isFirst ? 44 : 34,
+            height: isFirst ? 44 : 34,
+            background: prize.colorBg,
+            border: `2px solid ${prize.borderColor}`,
             color: prize.color,
-            lineHeight: 1,
+            fontSize: isFirst ? '1.15rem' : '0.9rem',
+            boxShadow: `0 0 16px ${prize.glowColor}, 0 2px 8px rgba(0,0,0,0.3)`,
           }}
         >
           {prize.place}
         </span>
       </div>
 
-      {/* Card body */}
+      {/* כרטיס — רק תמונה, בלי טקסט על התמונה */}
       <div
+        className="relative w-full overflow-hidden rounded-xl shrink-0"
         style={{
-          width: '100%',
-          borderRadius: 14,
-          border: `1px solid ${prize.borderColor}`,
-          borderTopColor: isFirst ? 'rgba(240,192,48,0.6)' : prize.borderColor,
-          background: isFirst
-            ? 'linear-gradient(180deg, rgba(22,16,4,0.99) 0%, rgba(10,6,1,1) 100%)'
-            : 'linear-gradient(180deg, rgba(16,12,5,0.98) 0%, rgba(10,7,3,1) 100%)',
-          boxShadow: [
-            '0 10px 48px rgba(0,0,0,0.75)',
-            `0 0 ${isFirst ? 64 : 32}px ${prize.glowColor}`,
-            isFirst ? 'inset 0 1px 0 rgba(240,192,48,0.07)' : '',
-          ]
-            .filter(Boolean)
-            .join(', '),
-          overflow: 'hidden',
-          position: 'relative',
+          aspectRatio: '3/4',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,144,26,0.12)',
+          border: `1px solid ${isFirst ? 'rgba(240,192,48,0.4)' : 'rgba(201,144,26,0.2)'}`,
         }}
       >
-        {/* Shimmer top edge for #1 */}
+        <Image
+          src={prize.image}
+          alt={prize.label}
+          fill
+          sizes="(max-width: 640px) 100vw, 280px"
+          style={{ objectFit: 'cover', objectPosition: 'center' }}
+          priority={isFirst}
+        />
         {isFirst && (
           <div
+            className="absolute top-0 left-0 right-0 h-px z-10"
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 2,
-              background:
-                'linear-gradient(90deg, transparent 0%, rgba(240,192,48,0.7) 50%, transparent 100%)',
+              background: 'linear-gradient(90deg, transparent 10%, rgba(240,192,48,0.65) 50%, transparent 90%)',
             }}
           />
         )}
-
-        {/* Image area */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: isFirst ? '2.25rem 1.5rem 1.5rem' : '1.625rem 1rem 1.25rem',
-            background: `radial-gradient(ellipse at 50% 65%, ${prize.colorBg} 0%, transparent 68%)`,
-          }}
-        >
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: prize.imgH,
-              filter: `drop-shadow(0 0 ${isFirst ? 28 : 12}px ${prize.glowColor})`,
-            }}
-          >
-            <Image
-              src={prize.image}
-              alt={prize.label}
-              fill
-              sizes={`${prize.cardW}px`}
-              style={{ objectFit: 'contain', objectPosition: 'center' }}
-              priority={isFirst}
-            />
-          </div>
-        </div>
-
-        {/* Info area */}
-        <div
-          style={{
-            padding: isFirst ? '0 1.5rem 1.625rem' : '0 1.125rem 1.25rem',
-            borderTop: `1px solid ${prize.colorBg}`,
-            textAlign: 'center',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: '"Cinzel", serif',
-              fontSize: isFirst ? '1.05rem' : '0.84rem',
-              fontWeight: 700,
-              color: prize.color,
-              letterSpacing: '0.04em',
-              textShadow: `0 0 22px ${prize.glowColor}`,
-              paddingTop: '0.875rem',
-              paddingBottom: '0.25rem',
-            }}
-          >
-            {prize.label}
-          </div>
-
-          <div
-            style={{
-              fontFamily: '"Cinzel", serif',
-              fontSize: '0.58rem',
-              color: prize.colorDim,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              marginBottom: '1rem',
-            }}
-          >
-            {prize.sublabel}
-          </div>
-
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: isFirst ? '0.45rem 1.25rem' : '0.3rem 0.875rem',
-              borderRadius: 999,
-              background: prize.colorBg,
-              border: `1px solid ${prize.borderColor}`,
-              boxShadow: `0 0 12px ${prize.glowColor}`,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: '"Cinzel", serif',
-                fontSize: isFirst ? '0.9rem' : '0.72rem',
-                fontWeight: 700,
-                color: prize.color,
-                letterSpacing: '0.06em',
-              }}
-            >
-              {prize.value}
-            </span>
-          </div>
-        </div>
       </div>
 
-      {/* Podium step */}
+      {/* מדרגת פודיום — מקום ראשון הכי גבוה, שלישי הכי נמוך */}
       <div
+        className="w-full shrink-0 rounded-b-md flex items-center justify-center"
         style={{
-          width: '100%',
-          height: prize.podiumH,
-          background: `linear-gradient(180deg, ${prize.colorBg} 0%, rgba(0,0,0,0) 100%)`,
-          borderBottom: `2px solid ${prize.borderColor}`,
-          borderLeft: `1px solid ${prize.borderColor}`,
-          borderRight: `1px solid ${prize.borderColor}`,
-          borderBottomLeftRadius: 6,
-          borderBottomRightRadius: 6,
-          flexShrink: 0,
+          height: stepH,
+          background: `linear-gradient(180deg, ${prize.colorBg} 0%, rgba(0,0,0,0.25) 100%)`,
+          border: `1px solid ${prize.borderColor}`,
+          borderTop: 'none',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
         }}
-      />
+      >
+        <span
+          className="font-bold tabular-nums"
+          style={{
+            fontFamily: '"Cinzel", serif',
+            fontSize: stepH >= 48 ? '0.7rem' : '0.6rem',
+            color: prize.colorDim,
+            letterSpacing: '0.12em',
+          }}
+        >
+          מקום {prize.place}
+        </span>
+      </div>
     </div>
   )
 }
@@ -341,33 +230,19 @@ export default async function PrizesPage() {
       {/* ── Season countdown ── */}
       <SeasonCountdownBlock endsAt={season?.ends_at ?? null} />
 
-      {/* ── Podium ── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-          gap: '1rem',
-          padding: '2rem 0.5rem 0',
-          position: 'relative',
-          overflowX: 'auto',
-          overflowY: 'visible',
-        }}
-      >
-        {/* Ambient floor glow */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            background:
-              'radial-gradient(ellipse 55% 32% at 50% 88%, rgba(240,192,48,0.055) 0%, transparent 70%)',
-          }}
-        />
-
-        {PODIUM_ORDER.map((prize) => (
-          <PrizeCard key={prize.place} prize={prize} />
-        ))}
+      {/* ── פודיום אולימפי — מקום 2 שמאל, 1 מרכז (גבוה), 3 ימין ── */}
+      <div className="w-full overflow-hidden px-4 sm:px-6 py-8">
+        <div className="flex flex-wrap justify-center items-end gap-4 sm:gap-8 max-w-4xl mx-auto min-h-0">
+          <div className="w-full sm:w-[200px] flex flex-col items-center order-2 sm:order-1">
+            <PrizeCard prize={PODIUM_ORDER[0]} />
+          </div>
+          <div className="w-full sm:w-[240px] flex flex-col items-center order-1 sm:order-2">
+            <PrizeCard prize={PODIUM_ORDER[1]} />
+          </div>
+          <div className="w-full sm:w-[200px] flex flex-col items-center order-3">
+            <PrizeCard prize={PODIUM_ORDER[2]} />
+          </div>
+        </div>
       </div>
 
       {/* ── Divider ── */}
