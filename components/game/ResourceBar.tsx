@@ -138,7 +138,7 @@ export function ResourceBar() {
       {/* Mobile compact status strip */}
       <div className="md:hidden flex items-center gap-2.5 flex-1 overflow-x-auto scrollbar-none">
         <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full bg-res-gold/8">
-          <span className="text-xs leading-none">🪙</span>
+          <img src="/icons/gold.png" alt="" aria-hidden style={{ width: 36, height: 36, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0 }} />
           <span className="font-body text-game-xs text-res-gold font-semibold tabular-nums">
             {formatNumber(resources?.gold ?? 0, true)}
           </span>

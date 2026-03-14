@@ -17,14 +17,14 @@ interface JobConfig {
   devLevelField: keyof Development
   label:         string
   resourceType:  'gold' | 'iron' | 'wood' | 'food'
-  icon:          string
+  iconSrc:       string
 }
 
 const JOBS: JobConfig[] = [
-  { key: 'gold', armyField: 'slaves_gold', devLevelField: 'gold_level', label: 'מכרה זהב',    resourceType: 'gold', icon: '⛏' },
-  { key: 'iron', armyField: 'slaves_iron', devLevelField: 'iron_level', label: 'יציקת ברזל', resourceType: 'iron', icon: '🔩' },
-  { key: 'wood', armyField: 'slaves_wood', devLevelField: 'wood_level', label: 'מחנה עצים',  resourceType: 'wood', icon: '🪵' },
-  { key: 'food', armyField: 'slaves_food', devLevelField: 'food_level', label: 'שדות חקלאים',    resourceType: 'food', icon: '🌾' },
+  { key: 'gold', armyField: 'slaves_gold', devLevelField: 'gold_level', label: 'מכרה זהב',    resourceType: 'gold', iconSrc: '/icons/gold.png' },
+  { key: 'iron', armyField: 'slaves_iron', devLevelField: 'iron_level', label: 'יציקת ברזל', resourceType: 'iron', iconSrc: '/icons/iron.png' },
+  { key: 'wood', armyField: 'slaves_wood', devLevelField: 'wood_level', label: 'מחנה עצים',  resourceType: 'wood', iconSrc: '/icons/wood.png' },
+  { key: 'food', armyField: 'slaves_food', devLevelField: 'food_level', label: 'שדות חקלאים',    resourceType: 'food', iconSrc: '/icons/food.png' },
 ]
 
 const MAX_DEV_LEVEL = 10
@@ -278,7 +278,7 @@ export function MineClient() {
                   {/* Job name + dev level + rate */}
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-base leading-none">{job.icon}</span>
+                      <img src={job.iconSrc} alt={job.label} style={{ width: 42, height: 42, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />
                       <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
                         {job.label}
                       </span>
@@ -340,7 +340,7 @@ export function MineClient() {
                   {/* Line 1: job name + dev level (left) | assigned count (right) */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-base leading-none flex-shrink-0">{job.icon}</span>
+                      <img src={job.iconSrc} alt={job.label} style={{ width: 36, height: 36, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />
                       <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white truncate">
                         {job.label}
                       </span>
@@ -441,7 +441,7 @@ export function MineClient() {
                 className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-sm leading-none flex-shrink-0">{job.icon}</span>
+                  <img src={job.iconSrc} alt={job.label} style={{ width: 32, height: 32, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />
                   <span className="font-body text-game-xs text-game-text-secondary truncate">{job.label}</span>
                   <span className="text-game-xs text-game-text-muted font-body flex-shrink-0">Lv {devLevel}</span>
                 </div>

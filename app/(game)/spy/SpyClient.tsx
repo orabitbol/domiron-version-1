@@ -105,8 +105,11 @@ export function SpyClient({ targets }: Props) {
             </p>
           </div>
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">
-            <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">מרגלים</p>
-            <p className="text-game-base text-game-gold font-semibold">{formatNumber(mySpies)}</p>
+            <div className="flex items-center justify-center gap-1.5 mb-1">
+              <img src="/icons/spy-power.png" alt="" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
+              <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">מרגלים</p>
+            </div>
+            <p className="text-game-lg text-game-gold font-bold tabular-nums">{formatNumber(mySpies)}</p>
           </div>
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg px-3 py-2 text-center">
             <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">רמת ריגול</p>
@@ -478,7 +481,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
           <div className="space-y-2 text-game-xs font-body">
             {hasAtkWeapons && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-game-text-muted shrink-0 w-16">⚔️ תקיפה:</span>
+                <span className="text-game-text-muted shrink-0 w-16 inline-flex items-center gap-1"><img src="/icons/attack-power.png" style={{width:34,height:34,objectFit:'contain',verticalAlign:'middle',flexShrink:0}} alt="" /> תקיפה:</span>
                 {Object.entries(atkWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                   <span key={key} className="bg-game-red/10 border border-game-red/30 rounded px-1.5 py-0.5 text-game-red-bright">
                     {ATK_WEAPON_LABELS[key] ?? key} ×{qty}
@@ -488,7 +491,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
             )}
             {hasDefWeapons && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-game-text-muted shrink-0 w-16">🛡️ הגנה:</span>
+                <span className="text-game-text-muted shrink-0 w-16 inline-flex items-center gap-1"><img src="/icons/defense-power.png" style={{width:34,height:34,objectFit:'contain',verticalAlign:'middle',flexShrink:0}} alt="" /> הגנה:</span>
                 {Object.entries(defWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                   <span key={key} className="bg-game-gold/10 border border-game-gold/30 rounded px-1.5 py-0.5 text-game-gold">
                     {DEF_WEAPON_LABELS[key] ?? key} ×{qty}
@@ -498,7 +501,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
             )}
             {hasSpyWeapons && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-game-text-muted shrink-0 w-16">🌑 ריגול:</span>
+                <span className="text-game-text-muted shrink-0 w-16 inline-flex items-center gap-1"><img src="/icons/spy-power.png" style={{width:34,height:34,objectFit:'contain',verticalAlign:'middle',flexShrink:0}} alt="" /> ריגול:</span>
                 {Object.entries(spyWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                   <span key={key} className="bg-game-purple/10 border border-game-purple/30 rounded px-1.5 py-0.5 text-game-purple-bright">
                     {SPY_WEAPON_LABELS[key] ?? key} ×{qty}
@@ -508,7 +511,7 @@ function RevealedIntel({ data }: { data: SpyRevealedData }) {
             )}
             {hasScoutWeapons && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-game-text-muted shrink-0 w-16">👁️ סיור:</span>
+                <span className="text-game-text-muted shrink-0 w-16 inline-flex items-center gap-1"><img src="/icons/renger-power.png" style={{width:34,height:34,objectFit:'contain',verticalAlign:'middle',flexShrink:0}} alt="" /> סיור:</span>
                 {Object.entries(scoutWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                   <span key={key} className="bg-game-orange/10 border border-game-orange/30 rounded px-1.5 py-0.5 text-game-orange-bright">
                     {SCOUT_WEAPON_LABELS[key] ?? key} ×{qty}

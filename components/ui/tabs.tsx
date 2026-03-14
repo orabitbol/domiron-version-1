@@ -50,7 +50,7 @@ export function Tabs({ tabs, activeTab, onChange, className }: TabsProps) {
                   ]
             )}
           >
-            {tab.icon && <span className="size-4">{tab.icon}</span>}
+            {tab.icon && <span className="shrink-0 flex items-center justify-center">{tab.icon}</span>}
             {tab.label}
           </button>
         )

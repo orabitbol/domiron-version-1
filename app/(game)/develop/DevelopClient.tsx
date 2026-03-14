@@ -23,7 +23,8 @@ type DevField =
 interface DevConfig {
   field: DevField;
   title: string;
-  icon: string;
+  iconSrc: string;
+  iconEmoji?: string;
   maxLevel: number;
   resourceType: "gold" | "iron" | "wood" | "food";
   effectLabel: string;
@@ -33,7 +34,7 @@ const DEV_ROWS: DevConfig[] = [
   {
     field: "gold_level",
     title: "מכרה זהב",
-    icon: "🪙",
+    iconSrc: "/icons/gold.png",
     maxLevel: 10,
     resourceType: "gold",
     effectLabel: "זהב/טיק לעבד",
@@ -41,7 +42,7 @@ const DEV_ROWS: DevConfig[] = [
   {
     field: "food_level",
     title: "שדות חקלאים",
-    icon: "🌾",
+    iconSrc: "/icons/food.png",
     maxLevel: 10,
     resourceType: "food",
     effectLabel: "מזון/טיק לעבד",
@@ -49,7 +50,7 @@ const DEV_ROWS: DevConfig[] = [
   {
     field: "wood_level",
     title: "טחנת עץ",
-    icon: "🪵",
+    iconSrc: "/icons/wood.png",
     maxLevel: 10,
     resourceType: "wood",
     effectLabel: "עץ/טיק לעבד",
@@ -57,7 +58,7 @@ const DEV_ROWS: DevConfig[] = [
   {
     field: "iron_level",
     title: "יציקת ברזל",
-    icon: "⚙️",
+    iconSrc: "/icons/iron.png",
     maxLevel: 10,
     resourceType: "iron",
     effectLabel: "ברזל/טיק לעבד",
@@ -65,7 +66,8 @@ const DEV_ROWS: DevConfig[] = [
   {
     field: "fortification_level",
     title: "ביצורים",
-    icon: "🏰",
+    iconSrc: "",
+    iconEmoji: "🏰",
     maxLevel: 5,
     resourceType: "gold",
     effectLabel: "הגנה וקיבולת",
@@ -453,7 +455,7 @@ function ReqRow({
   meets,
   last,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   have: number;
   need: number;
@@ -479,6 +481,9 @@ function ReqRow({
           color: "rgba(170,130,80,0.9)",
           fontFamily: "Source Sans 3, sans-serif",
           fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
         }}
       >
         {icon} {label}
@@ -684,30 +689,30 @@ export function DevelopClient() {
         <div className="flex">
           {[
             {
-              icon: "🪙",
+              iconSrc: "/icons/gold.png",
               label: "זהב",
               value: resources?.gold ?? 0,
               color: "text-res-gold",
             },
             {
-              icon: "⚙️",
+              iconSrc: "/icons/iron.png",
               label: "ברזל",
               value: resources?.iron ?? 0,
               color: "text-res-iron",
             },
             {
-              icon: "🪵",
+              iconSrc: "/icons/wood.png",
               label: "עץ",
               value: resources?.wood ?? 0,
               color: "text-res-wood",
             },
             {
-              icon: "🌾",
+              iconSrc: "/icons/food.png",
               label: "מזון",
               value: resources?.food ?? 0,
               color: "text-res-food",
             },
-          ].map(({ icon, label, value, color }, idx) => (
+          ].map(({ iconSrc, label, value, color }, idx) => (
             <div
               key={label}
               className="flex-1 flex flex-col items-center py-3 px-2 gap-1 min-w-0"
@@ -717,7 +722,7 @@ export function DevelopClient() {
                   : undefined
               }
             >
-              <span className="text-base leading-none">{icon}</span>
+              <img src={iconSrc} alt={label} style={{ width: 34, height: 34, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />
               <span
                 className={`font-heading text-game-sm font-bold tabular-nums leading-none ${color}`}
               >
@@ -919,7 +924,7 @@ export function DevelopClient() {
               >
                 <ReqTableHeader />
                 <ReqRow
-                  icon="⚔️"
+                  icon={<img src="/icons/solders.png" style={{width:34,height:34,objectFit:'contain',verticalAlign:'middle'}} alt="" />}
                   label="חיילים"
                   have={army?.soldiers ?? 0}
                   need={nextReq}
@@ -944,14 +949,14 @@ export function DevelopClient() {
               >
                 <ReqTableHeader />
                 {[
-                  { label: "זהב", icon: "🪙", have: resources?.gold ?? 0, need: nextCost.gold, meets: meetsGold },
-                  { label: "ברזל", icon: "⚙️", have: resources?.iron ?? 0, need: nextCost.iron, meets: meetsIron },
-                  { label: "עץ", icon: "🪵", have: resources?.wood ?? 0, need: nextCost.wood, meets: meetsWood },
-                  { label: "מזון", icon: "🌾", have: resources?.food ?? 0, need: nextCost.food, meets: meetsFood },
-                ].map(({ label, icon, have, need, meets }, idx) => (
+                  { label: "זהב",  iconSrc: "/icons/gold.png", have: resources?.gold ?? 0, need: nextCost.gold, meets: meetsGold },
+                  { label: "ברזל", iconSrc: "/icons/iron.png", have: resources?.iron ?? 0, need: nextCost.iron, meets: meetsIron },
+                  { label: "עץ",   iconSrc: "/icons/wood.png", have: resources?.wood ?? 0, need: nextCost.wood, meets: meetsWood },
+                  { label: "מזון", iconSrc: "/icons/food.png", have: resources?.food ?? 0, need: nextCost.food, meets: meetsFood },
+                ].map(({ label, iconSrc, have, need, meets }, idx) => (
                   <ReqRow
                     key={label}
-                    icon={icon}
+                    icon={<img src={iconSrc} alt={label} style={{ width: 34, height: 34, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />}
                     label={label}
                     have={have}
                     need={need}
@@ -1190,7 +1195,11 @@ export function DevelopClient() {
                 className="grid grid-cols-1 sm:grid-cols-[1fr_120px_1fr_auto] gap-2 sm:gap-3 items-center px-4 py-3 hover:bg-game-elevated/30 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-base leading-none">{row.icon}</span>
+                  {row.iconSrc ? (
+                    <img src={row.iconSrc} alt={row.title} style={{ width: 26, height: 26, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />
+                  ) : (
+                    <span className="text-base leading-none">{row.iconEmoji}</span>
+                  )}
                   <div>
                     <span className="font-heading text-game-sm uppercase tracking-wide text-game-text-white">
                       {row.title}

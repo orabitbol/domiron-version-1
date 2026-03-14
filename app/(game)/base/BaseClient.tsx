@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import {
-  Sword, Shield, Eye, Compass, Zap, Crown, Star, TrendingUp, Users, ArrowRight,
+  Zap, Crown, TrendingUp, Users, ArrowRight,
 } from 'lucide-react'
 import { cn, formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
@@ -23,11 +23,11 @@ const CITY_NAMES: Record<number, string> = {
 }
 
 function StatPanel({
-  title, titleHe, icon: Icon, color, colorClass, bgClass, borderClass,
+  title, titleHe, iconSrc, color, colorClass, bgClass, borderClass,
   power, units, unitLabel, level, link, linkLabel,
 }: {
   title: string; titleHe: string
-  icon: React.ComponentType<{ className?: string }>
+  iconSrc: string
   color: string; colorClass: string; bgClass: string; borderClass: string
   power: number; units: number; unitLabel: string; level: number
   link: string; linkLabel: string
@@ -35,14 +35,12 @@ function StatPanel({
   return (
     <div className={cn('panel-ornate rounded-game-lg p-4 relative overflow-hidden shadow-emboss', bgClass, borderClass)}>
       <div className={cn('absolute top-0 start-0 w-16 h-16 opacity-10 rounded-full blur-2xl', color)} />
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className={cn('p-1 rounded-game-lg', bgClass)}>
-            <Icon className={cn('size-4', colorClass)} />
-          </div>
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-4">
+          <img src={iconSrc} alt={title} style={{ width: 96, height: 96, objectFit: 'contain', display: 'block', flexShrink: 0, filter: 'drop-shadow(0 0 16px rgba(255,255,255,0.25)) drop-shadow(0 4px 12px rgba(0,0,0,0.55))' }} />
           <div>
             <p className="font-heading text-game-2xs uppercase tracking-widest text-game-text-secondary">{title}</p>
-            <p className="font-heading text-game-xs font-bold text-game-text-white">{titleHe}</p>
+            <p className="font-heading text-game-sm font-bold text-game-text-white">{titleHe}</p>
           </div>
         </div>
         <Link href={link} className={cn('text-game-xs font-body flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity', colorClass)}>
@@ -167,19 +165,17 @@ export function BaseClient() {
       <div className="flex justify-center">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-xl w-full">
           {[
-            { label: 'זהב',  value: resources?.gold ?? 0, emoji: '🪙', color: 'text-res-gold',  bg: 'border-res-gold/20'  },
-            { label: 'ברזל', value: resources?.iron ?? 0, emoji: '⚙️', color: 'text-res-iron',  bg: 'border-res-iron/20'  },
-            { label: 'עץ',   value: resources?.wood ?? 0, emoji: '🪵', color: 'text-res-wood',  bg: 'border-res-wood/20'  },
-            { label: 'מזון', value: resources?.food ?? 0, emoji: '🌾', color: 'text-res-food',  bg: 'border-res-food/20'  },
-          ].map(({ label, value, emoji, color, bg }) => (
-            <div key={label} className={cn('card-game px-2 py-1.5 border shadow-emboss hover:brightness-110 transition-all text-center', bg)}>
-              <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                <span className="text-base">{emoji}</span>
-                <p className="text-game-2xs text-game-text-muted font-heading uppercase tracking-wide">{label}</p>
-              </div>
-              <p className={cn('text-game-base font-heading font-bold tabular-nums', color)}>
+            { label: 'זהב',  value: resources?.gold ?? 0, iconSrc: '/icons/gold.png', color: 'text-res-gold', colorRgb: '240,192,48',  bg: 'border-res-gold/20',  iconSize: 72 },
+            { label: 'ברזל', value: resources?.iron ?? 0, iconSrc: '/icons/iron.png', color: 'text-res-iron', colorRgb: '152,152,192', bg: 'border-res-iron/20',  iconSize: 83 },
+            { label: 'עץ',   value: resources?.wood ?? 0, iconSrc: '/icons/wood.png', color: 'text-res-wood', colorRgb: '100,180,80',  bg: 'border-res-wood/20',  iconSize: 83 },
+            { label: 'מזון', value: resources?.food ?? 0, iconSrc: '/icons/food.png', color: 'text-res-food', colorRgb: '240,140,60',  bg: 'border-res-food/20',  iconSize: 72 },
+          ].map(({ label, value, iconSrc, color, colorRgb, bg, iconSize }) => (
+            <div key={label} className={cn('card-game px-2 py-4 border shadow-emboss hover:brightness-110 transition-all flex flex-col items-center gap-2', bg)}>
+              <img src={iconSrc} alt={label} style={{ width: iconSize, height: iconSize, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 14px rgba(${colorRgb},0.70)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))` }} />
+              <p className={cn('text-game-xl font-heading font-bold tabular-nums leading-none', color)}>
                 {formatNumber(value, true)}
               </p>
+              <p className="text-game-2xs text-game-text-muted font-heading uppercase tracking-wide leading-none">{label}</p>
             </div>
           ))}
         </div>
@@ -188,7 +184,7 @@ export function BaseClient() {
       {/* ── Military 2×2 grid ───────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatPanel
-          title="תקיפה" titleHe="תקיפה" icon={Sword}
+          title="תקיפה" titleHe="תקיפה" iconSrc="/icons/attack-power.png"
           color="bg-game-red" colorClass="text-game-red-bright"
           bgClass="bg-game-red/5" borderClass="border-game-red/30"
           power={player.power_attack} units={(army?.soldiers ?? 0) + (army?.cavalry ?? 0)}
@@ -196,7 +192,7 @@ export function BaseClient() {
           link="/attack" linkLabel="לתקיפה"
         />
         <StatPanel
-          title="הגנה" titleHe="הגנה" icon={Shield}
+          title="הגנה" titleHe="הגנה" iconSrc="/icons/defense-power.png"
           color="bg-game-blue-bright" colorClass="text-game-blue-bright"
           bgClass="bg-game-blue/5" borderClass="border-game-blue/30"
           power={player.power_defense} units={army?.soldiers ?? 0}
@@ -204,7 +200,7 @@ export function BaseClient() {
           link="/training" linkLabel="לאימון"
         />
         <StatPanel
-          title="ריגול" titleHe="ריגול" icon={Eye}
+          title="ריגול" titleHe="ריגול" iconSrc="/icons/spy-power.png"
           color="bg-game-purple" colorClass="text-game-purple-bright"
           bgClass="bg-game-purple/5" borderClass="border-game-purple/30"
           power={player.power_spy} units={army?.spies ?? 0}
@@ -212,7 +208,7 @@ export function BaseClient() {
           link="/training" linkLabel="לאימון"
         />
         <StatPanel
-          title="סיור" titleHe="סיור" icon={Compass}
+          title="סיור" titleHe="סיור" iconSrc="/icons/renger-power.png"
           color="bg-game-orange" colorClass="text-game-orange-bright"
           bgClass="bg-game-orange/5" borderClass="border-game-orange/30"
           power={player.power_scout} units={army?.scouts ?? 0}
@@ -228,18 +224,23 @@ export function BaseClient() {
           <h2 className="font-heading text-game-xs uppercase tracking-wider text-game-gold">סיכום צבאי</h2>
         </div>
         <div className="divider-gold mb-3" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
           {[
-            { label: 'חיילים', value: army?.soldiers       ?? 0 },
-            { label: 'פרשים',  value: army?.cavalry        ?? 0 },
-            { label: 'מרגלים', value: army?.spies          ?? 0 },
-            { label: 'סיירים', value: army?.scouts         ?? 0 },
-            { label: 'עבדים',  value: army?.slaves         ?? 0 },
-            { label: 'פנויים', value: army?.free_population ?? 0 },
-          ].map(({ label, value }) => (
-            <div key={label} className="flex flex-col">
-              <span className="text-game-2xs text-game-text-muted font-heading">{label}</span>
-              <span className="text-game-sm text-game-text-white font-semibold tabular-nums">{formatNumber(value)}</span>
+            { label: 'חיילים', value: army?.soldiers        ?? 0, iconSrc: '/icons/solders.png', colorRgb: '220,60,60',   iconSize: 80 },
+            { label: 'פרשים',  value: army?.cavalry         ?? 0, iconSrc: '/icons/cavalry.png', colorRgb: '200,150,30',  iconSize: 80 },
+            { label: 'מרגלים', value: army?.spies           ?? 0, iconSrc: '/icons/spy.png',     colorRgb: '160,80,220',  iconSize: 77 },
+            { label: 'סיירים', value: army?.scouts          ?? 0, iconSrc: '/icons/renger.png',  colorRgb: '220,130,30',  iconSize: 64 },
+            { label: 'עבדים',  value: army?.slaves          ?? 0, iconSrc: '/icons/slave.png',   colorRgb: '130,130,110', iconSize: 64 },
+            { label: 'פנויים', value: army?.free_population ?? 0, iconSrc: '',                   colorRgb: '60,180,80',   iconSize: 64 },
+          ].map(({ label, value, iconSrc, colorRgb, iconSize }) => (
+            <div key={label} className="flex flex-col items-center gap-1.5 py-2">
+              {iconSrc ? (
+                <img src={iconSrc} alt={label} style={{ width: iconSize, height: iconSize, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 12px rgba(${colorRgb},0.65)) drop-shadow(0 2px 6px rgba(0,0,0,0.45))` }} />
+              ) : (
+                <span style={{ fontSize: 52, opacity: 0.5 }}>👥</span>
+              )}
+              <span className="font-heading text-game-base text-game-text-white font-bold tabular-nums leading-none">{formatNumber(value)}</span>
+              <span className="text-game-2xs text-game-text-muted font-heading leading-none">{label}</span>
             </div>
           ))}
         </div>

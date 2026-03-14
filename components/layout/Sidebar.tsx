@@ -114,19 +114,30 @@ function SectionLabel({ label }: { label: string }) {
 
 /** Icon + number only, no label — minimal space */
 function ResourceChip({
+  imgSrc,
   emoji,
   value,
   valueClass,
 }: {
-  emoji: string;
+  imgSrc?: string;
+  emoji?: string;
   value: React.ReactNode;
   valueClass?: string;
 }) {
   return (
     <div className="flex items-center gap-0.5 shrink-0">
-      <span className="text-[10px] leading-none" aria-hidden>
-        {emoji}
-      </span>
+      {imgSrc ? (
+        <img
+          src={imgSrc}
+          alt=""
+          aria-hidden
+          style={{ width: 38, height: 38, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }}
+        />
+      ) : (
+        <span className="text-[13px] leading-none" aria-hidden>
+          {emoji}
+        </span>
+      )}
       <span
         className={cn("text-[10px] font-semibold tabular-nums", valueClass)}
       >
@@ -205,22 +216,22 @@ export function Sidebar() {
         <SectionLabel label={t('sidebar.resources')} />
         <div className="px-3 pb-2 pt-0.5 flex flex-wrap gap-x-3 gap-y-1.5">
           <ResourceChip
-            emoji="🪙"
+            imgSrc="/icons/gold.png"
             value={<AnimatedNumber value={resources?.gold ?? 0} />}
             valueClass="text-res-gold"
           />
           <ResourceChip
-            emoji="⚙️"
+            imgSrc="/icons/iron.png"
             value={<AnimatedNumber value={resources?.iron ?? 0} />}
             valueClass="text-res-iron"
           />
           <ResourceChip
-            emoji="🪵"
+            imgSrc="/icons/wood.png"
             value={<AnimatedNumber value={resources?.wood ?? 0} />}
             valueClass="text-res-wood"
           />
           <ResourceChip
-            emoji="🌾"
+            imgSrc="/icons/food.png"
             value={<AnimatedNumber value={resources?.food ?? 0} />}
             valueClass="text-res-food"
           />

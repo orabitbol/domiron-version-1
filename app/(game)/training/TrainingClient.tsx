@@ -157,14 +157,14 @@ export function TrainingClient() {
       <div className="rounded-game-lg border border-game-gold/30 bg-gradient-to-r from-game-gold/8 via-game-surface/80 to-game-surface/80 shadow-emboss overflow-hidden">
         <div className="flex divide-x divide-game-gold/15">
           {[
-            { icon: '🪙', label: 'זהב',  value: resources?.gold ?? 0, color: 'text-res-gold' },
-            { icon: '⚙️', label: 'ברזל', value: resources?.iron ?? 0, color: 'text-res-iron' },
-            { icon: '🪵', label: 'עץ',   value: resources?.wood ?? 0, color: 'text-res-wood' },
-            { icon: '🌾', label: 'מזון', value: resources?.food ?? 0, color: 'text-res-food' },
-          ].map(({ icon, label, value, color }) => (
-            <div key={label} className="flex-1 flex flex-col items-center py-3 px-2 gap-1 min-w-0">
-              <span className="text-base leading-none">{icon}</span>
-              <span className={`font-heading text-game-sm font-bold tabular-nums leading-none ${color}`}>
+            { iconSrc: '/icons/gold.png', label: 'זהב',  value: resources?.gold ?? 0, color: 'text-res-gold', iconSize: 64 },
+            { iconSrc: '/icons/iron.png', label: 'ברזל', value: resources?.iron ?? 0, color: 'text-res-iron', iconSize: 74 },
+            { iconSrc: '/icons/wood.png', label: 'עץ',   value: resources?.wood ?? 0, color: 'text-res-wood', iconSize: 74 },
+            { iconSrc: '/icons/food.png', label: 'מזון', value: resources?.food ?? 0, color: 'text-res-food', iconSize: 64 },
+          ].map(({ iconSrc, label, value, color, iconSize }) => (
+            <div key={label} className="flex-1 flex flex-col items-center py-3 px-2 gap-1.5 min-w-0">
+              <img src={iconSrc} alt={label} style={{ width: iconSize, height: iconSize, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 10px rgba(255,255,255,0.70)) drop-shadow(0 2px 6px rgba(0,0,0,0.45))` }} />
+              <span className={`font-heading text-game-lg font-bold tabular-nums leading-none ${color}`}>
                 {formatNumber(value)}
               </span>
               <span className="text-game-xs text-game-text-muted font-body uppercase tracking-wider leading-none">
@@ -178,27 +178,32 @@ export function TrainingClient() {
       {/* ── Current Army ────────────────────────────────────────────────── */}
       <div className="rounded-game-lg border border-game-border bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave overflow-hidden">
         <div className="px-4 py-2 bg-game-bg/50 border-b border-game-border/60 flex items-center gap-2">
-          <span className="text-sm leading-none">⚔️</span>
+          <img src="/icons/attack-power.png" alt="" style={{ width: 20, height: 20, objectFit: 'contain', verticalAlign: 'middle' }} />
           <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-secondary">צבא נוכחי</span>
         </div>
-        <div className="flex flex-wrap gap-2 p-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 p-3">
           {[
-            { icon: '🗡️', label: 'חיילים', value: army?.soldiers        ?? 0 },
+            { iconSrc: '/icons/solders.png', label: 'חיילים',     value: army?.soldiers        ?? 0, colorRgb: '220,60,60',   iconSize: 100 },
             ...(BALANCE.training.enableCavalry
-              ? [{ icon: '🐴', label: 'פרשים', value: army?.cavalry ?? 0 }]
+              ? [{ iconSrc: '/icons/cavalry.png', label: 'פרשים', value: army?.cavalry ?? 0,         colorRgb: '200,150,30',  iconSize: 100 }]
               : []),
-            { icon: '👁️', label: 'מרגלים', value: army?.spies           ?? 0 },
-            { icon: '🧭', label: 'סיירים', value: army?.scouts          ?? 0 },
-            { icon: '⛏️', label: 'עבדים',  value: army?.slaves          ?? 0 },
-            { icon: '👥', label: 'אוכ׳ חופשית', value: army?.free_population ?? 0 },
-          ].map(({ icon, label, value }) => (
-            <div
-              key={label}
-              className="flex items-center gap-1.5 bg-game-bg/40 border border-game-border/60 rounded-game px-3 py-1.5"
-            >
-              <span className="text-sm leading-none">{icon}</span>
-              <span className="text-game-xs text-game-text-muted font-body">{label}</span>
-              <span className="font-heading text-game-sm text-game-text-white font-semibold tabular-nums">{formatNumber(value)}</span>
+            { iconSrc: '/icons/spy.png',     label: 'מרגלים',     value: army?.spies           ?? 0, colorRgb: '160,80,220',  iconSize: 96  },
+            { iconSrc: '/icons/renger.png',  label: 'סיירים',     value: army?.scouts          ?? 0, colorRgb: '220,130,30',  iconSize: 80  },
+            { iconSrc: '/icons/slave.png',   label: 'עבדים',      value: army?.slaves          ?? 0, colorRgb: '130,130,110', iconSize: 80  },
+            { iconSrc: '' as string,         label: 'אוכ׳ חופשית', value: army?.free_population ?? 0, colorRgb: '60,180,80',  iconSize: 80  },
+          ].map(({ iconSrc, label, value, colorRgb, iconSize }) => (
+            <div key={label} className="flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-game bg-game-bg/30 border border-game-border/40">
+              {iconSrc ? (
+                <img src={iconSrc} alt={label} style={{ width: iconSize, height: iconSize, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 14px rgba(${colorRgb},0.70)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))` }} />
+              ) : (
+                <span style={{ fontSize: 60, opacity: 0.5 }}>👥</span>
+              )}
+              <span className="font-heading text-game-xl text-game-text-white font-bold tabular-nums leading-none">
+                {formatNumber(value)}
+              </span>
+              <span className="text-game-2xs text-game-text-muted font-body uppercase tracking-wide leading-none text-center">
+                {label}
+              </span>
             </div>
           ))}
         </div>

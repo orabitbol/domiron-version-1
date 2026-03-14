@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { Sword, Eye, Shield, CheckCircle, AlertCircle, Skull } from 'lucide-react'
+import { CheckCircle, AlertCircle, Skull } from 'lucide-react'
 import { BALANCE } from '@/lib/game/balance'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -129,7 +129,7 @@ export function AttackDialog({
               </div>
               <div className="text-right shrink-0">
                 <div className="flex items-center gap-1.5 justify-end">
-                  <Shield className="size-3 text-game-text-muted opacity-60" />
+                  <img src="/icons/solders.png" style={{width:28,height:28,objectFit:'contain',opacity:0.6,flexShrink:0,display:'inline-block'}} alt="" />
                   <span className="font-body text-game-xs text-game-text-muted">{t('dialog.soldiers_label')}</span>
                   <span className="font-heading text-game-sm text-game-text-white tabular-nums">{formatNumber(target.soldiers)}</span>
                 </div>
@@ -172,7 +172,7 @@ export function AttackDialog({
                   : 'bg-game-surface text-game-text-muted hover:text-game-text-secondary'
               }`}
             >
-              <Sword className="size-4" />
+              <img src="/icons/attack-power.png" style={{width:48,height:48,objectFit:'contain',flexShrink:0}} alt="" />
               {t('dialog.tab_attack')}
             </button>
             <button
@@ -184,7 +184,7 @@ export function AttackDialog({
                   : 'bg-game-surface text-game-text-muted hover:text-game-text-secondary'
               }`}
             >
-              <Eye className="size-4" />
+              <img src="/icons/spy-power.png" style={{width:48,height:48,objectFit:'contain',flexShrink:0}} alt="" />
               {t('dialog.tab_spy')}
             </button>
           </div>
@@ -322,7 +322,7 @@ export function AttackDialog({
 
               <div className="flex gap-3 pt-1">
                 <Button variant="danger" loading={loading} disabled={attackDisabled} onClick={() => onAttack(turns)} className="flex-1">
-                  <Sword className="size-4" />
+                  <img src="/icons/attack-power.png" style={{width:44,height:44,objectFit:'contain',flexShrink:0}} alt="" />
                   {t('dialog.attack_btn')}
                 </Button>
                 <Button variant="ghost" disabled={loading} onClick={onClose}>{t('dialog.cancel_btn')}</Button>
@@ -420,7 +420,7 @@ export function AttackDialog({
 
               <div className="flex gap-3 pt-1">
                 <Button variant="magic" loading={loading} disabled={spyDisabled} onClick={() => onSpy(spiesSent)} className="flex-1">
-                  <Eye className="size-4" />
+                  <img src="/icons/spy-power.png" style={{width:44,height:44,objectFit:'contain',flexShrink:0}} alt="" />
                   {t('dialog.send_spies')}
                 </Button>
                 <Button variant="ghost" disabled={loading} onClick={onClose}>{t('dialog.cancel_btn')}</Button>

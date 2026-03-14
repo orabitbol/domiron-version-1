@@ -76,10 +76,10 @@ function safeRecord(data: Record<string, unknown>, key: string): Record<string, 
 }
 
 const RESOURCE_META = {
-  gold: { color: '#F0C030', icon: '\uD83D\uDCB0' },
-  iron: { color: '#9898C0', icon: '\u2694\uFE0F' },
-  wood: { color: '#64B450', icon: '\uD83C\uDF32' },
-  food: { color: '#F08C3C', icon: '\uD83C\uDF3E' },
+  gold: { color: '#F0C030', iconSrc: '/icons/gold.png' },
+  iron: { color: '#9898C0', iconSrc: '/icons/iron.png' },
+  wood: { color: '#64B450', iconSrc: '/icons/wood.png' },
+  food: { color: '#F08C3C', iconSrc: '/icons/food.png' },
 } as const
 
 const ATK_WEAPON_LABELS: Record<string, string> = {
@@ -121,14 +121,16 @@ function PlunderChip({ type, amount }: { type: keyof typeof RESOURCE_META; amoun
   const m = RESOURCE_META[type]
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 3,
+      display: 'inline-flex', alignItems: 'center', gap: 6,
       background: `${m.color}18`, border: `1px solid ${m.color}40`,
-      borderRadius: 4, padding: '2px 6px',
-      fontSize: 10, color: m.color,
+      borderRadius: 6, padding: '5px 10px',
+      fontSize: 12, color: m.color,
       fontFamily: 'var(--font-body, sans-serif)',
+      fontWeight: 700,
       whiteSpace: 'nowrap',
     }}>
-      {m.icon} {formatNumber(amount)}
+      <img src={m.iconSrc} alt={type} style={{ width: 36, height: 36, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />
+      {formatNumber(amount)}
     </span>
   )
 }
@@ -488,7 +490,7 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             <div style={{ fontSize: 9, fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,192,48,0.7)', marginBottom: 8 }}>ציוד</div>
             {hasAtkWeapons && (
               <div style={{ marginBottom: 6 }}>
-                <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>⚔️ תקיפה</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,85,85,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4, display:'flex', alignItems:'center', gap:3 }}><img src="/icons/attack-power.png" style={{width:10,height:10,objectFit:'contain',flexShrink:0}} alt="" /> תקיפה</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(atkWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#FF8080', background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
@@ -500,7 +502,7 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             )}
             {hasDefWeapons && (
               <div style={{ marginBottom: hasSpyWeapons || hasScoutWeapons ? 6 : 0 }}>
-                <div style={{ fontSize: 9, color: 'rgba(240,192,48,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>🛡️ הגנה</div>
+                <div style={{ fontSize: 9, color: 'rgba(240,192,48,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4, display:'flex', alignItems:'center', gap:3 }}><img src="/icons/defense-power.png" style={{width:10,height:10,objectFit:'contain',flexShrink:0}} alt="" /> הגנה</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(defWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#F0C030', background: 'rgba(240,192,48,0.08)', border: '1px solid rgba(240,192,48,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
@@ -512,7 +514,7 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             )}
             {hasSpyWeapons && (
               <div style={{ marginBottom: hasScoutWeapons ? 6 : 0 }}>
-                <div style={{ fontSize: 9, color: 'rgba(192,112,255,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>🌑 ריגול</div>
+                <div style={{ fontSize: 9, color: 'rgba(192,112,255,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4, display:'flex', alignItems:'center', gap:3 }}><img src="/icons/spy-power.png" style={{width:10,height:10,objectFit:'contain',flexShrink:0}} alt="" /> ריגול</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(spyWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#C070FF', background: 'rgba(192,112,255,0.08)', border: '1px solid rgba(192,112,255,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>
@@ -524,7 +526,7 @@ function SpyIntelPanel({ data, isLast }: { data: Record<string, unknown>; isLast
             )}
             {hasScoutWeapons && (
               <div>
-                <div style={{ fontSize: 9, color: 'rgba(255,165,80,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>👁️ סיור</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,165,80,0.6)', fontFamily: 'var(--font-heading, sans-serif)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4, display:'flex', alignItems:'center', gap:3 }}><img src="/icons/renger-power.png" style={{width:10,height:10,objectFit:'contain',flexShrink:0}} alt="" /> סיור</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {Object.entries(scoutWeapons).filter(([, q]) => q > 0).map(([key, qty]) => (
                     <span key={key} style={{ fontSize: 10, color: '#FFA550', background: 'rgba(255,165,80,0.08)', border: '1px solid rgba(255,165,80,0.25)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-body, sans-serif)' }}>

@@ -2,8 +2,8 @@
  * ResourceQuad — compact display of a 4-resource cost (gold + iron + wood + food).
  *
  * When all 4 values are equal (the standard Domiron shop model), renders a
- * compact "🪙⚙️🪵🌾 N ea." pill to avoid repeating the same number four times.
- * When values differ, renders four separate colored badges.
+ * compact pill with all 4 resource icons and "N ea." to avoid repeating the
+ * same number four times. When values differ, renders four separate colored badges.
  *
  * Config: all costs live in BALANCE.weapons[category][weapon].cost — this
  * component is purely a display primitive and carries no game logic.
@@ -28,11 +28,20 @@ interface ResourceQuadProps {
 }
 
 const RES = [
-  { key: 'gold', icon: '🪙', color: 'rgba(240,200,52,0.92)'  },
-  { key: 'iron', icon: '⚙️', color: 'rgba(140,190,255,0.92)' },
-  { key: 'wood', icon: '🪵', color: 'rgba(155,210,110,0.92)' },
-  { key: 'food', icon: '🌾', color: 'rgba(240,185,80,0.88)'  },
+  { key: 'gold', src: '/icons/gold.png', color: 'rgba(240,200,52,0.92)'  },
+  { key: 'iron', src: '/icons/iron.png', color: 'rgba(140,190,255,0.92)' },
+  { key: 'wood', src: '/icons/wood.png', color: 'rgba(155,210,110,0.92)' },
+  { key: 'food', src: '/icons/food.png', color: 'rgba(240,185,80,0.88)'  },
 ] as const
+
+const iconStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  objectFit: 'contain',
+  verticalAlign: 'middle',
+  flexShrink: 0,
+  display: 'inline-block',
+}
 
 export function ResourceQuad({ cost, amount = 1, className }: ResourceQuadProps) {
   const allEqual =
@@ -43,12 +52,12 @@ export function ResourceQuad({ cost, amount = 1, className }: ResourceQuadProps)
   const baseStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '5px',
-    padding: '2px 8px',
+    gap: '6px',
+    padding: '5px 12px',
     borderRadius: '999px',
     background: 'rgba(20,14,6,0.72)',
     border: '1px solid rgba(120,90,40,0.38)',
-    fontSize: '0.67rem',
+    fontSize: '0.72rem',
     fontFamily: 'Source Sans 3, sans-serif',
     fontWeight: 700,
     letterSpacing: '0.01em',
@@ -59,8 +68,10 @@ export function ResourceQuad({ cost, amount = 1, className }: ResourceQuadProps)
     return (
       <span style={baseStyle} className={className}>
         {/* All 4 icons grouped, then value × "ea." */}
-        <span style={{ lineHeight: 1, letterSpacing: '-0.04em', fontSize: '0.62rem' }}>
-          🪙⚙️🪵🌾
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+          {RES.map(({ key, src }) => (
+            <img key={key} src={src} alt={key} style={iconStyle} />
+          ))}
         </span>
         <span className="tabular-nums" style={{ color: 'rgba(220,188,112,0.95)' }}>
           {formatNumber(cost.gold * amount)}
@@ -83,7 +94,7 @@ export function ResourceQuad({ cost, amount = 1, className }: ResourceQuadProps)
       }}
       className={className}
     >
-      {RES.map(({ key, icon, color }) => {
+      {RES.map(({ key, src, color }) => {
         const value = cost[key as keyof ResourceCost] * amount
         return (
           <span
@@ -91,11 +102,11 @@ export function ResourceQuad({ cost, amount = 1, className }: ResourceQuadProps)
             style={{
               ...baseStyle,
               gap: '3px',
-              padding: '2px 6px',
+              padding: '4px 8px',
               color,
             }}
           >
-            <span style={{ fontSize: '0.58rem', lineHeight: 1 }}>{icon}</span>
+            <img src={src} alt={key} style={iconStyle} />
             <span className="tabular-nums">{formatNumber(value)}</span>
           </span>
         )

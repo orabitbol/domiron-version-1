@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Zap, Shield, Sword, Eye, Radar, X, Loader2 } from 'lucide-react'
+import { Zap, X, Loader2 } from 'lucide-react'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { formatNumber } from '@/lib/utils'
@@ -35,13 +35,16 @@ const MANA_PACKAGES = [
   },
 ] as const
 
-const BOOST_ACTIONS = [
-  { key: 'production', label: 'ייצור',  Icon: Zap,    color: '#FACC15', colorRgb: '250,204,21',  tiers: ['+10%', '+20%', '+30%'] },
-  { key: 'defense',    label: 'הגנה',   Icon: Shield, color: '#38BDF8', colorRgb: '56,189,248',  tiers: ['+10%', '+20%', '+30%'] },
-  { key: 'attack',     label: 'התקפה',  Icon: Sword,  color: '#F87171', colorRgb: '248,113,113', tiers: ['+5%',  '+10%', '+15%'] },
-  { key: 'spy',        label: 'ריגול',  Icon: Eye,    color: '#C084FC', colorRgb: '192,132,252', tiers: ['+15%', '+25%', '+35%'] },
-  { key: 'scout',      label: 'סיור',   Icon: Radar,  color: '#2DD4BF', colorRgb: '45,212,191',  tiers: ['+10%', '+20%', '+30%'] },
-] as const
+const BOOST_ACTIONS: ReadonlyArray<{
+  key: string; label: string; icon: React.ReactNode
+  color: string; colorRgb: string; tiers: readonly [string, string, string]
+}> = [
+  { key: 'production', label: 'ייצור',  icon: <Zap style={{width:14,height:14,color:'#FACC15'}} />,                                                                                              color: '#FACC15', colorRgb: '250,204,21',  tiers: ['+10%', '+20%', '+30%'] },
+  { key: 'defense',    label: 'הגנה',   icon: <img src="/icons/defense-power.png"  style={{width:30,height:30,objectFit:'contain',flexShrink:0}} alt="" />, color: '#38BDF8', colorRgb: '56,189,248',  tiers: ['+10%', '+20%', '+30%'] },
+  { key: 'attack',     label: 'התקפה',  icon: <img src="/icons/attack-power.png"   style={{width:30,height:30,objectFit:'contain',flexShrink:0}} alt="" />, color: '#F87171', colorRgb: '248,113,113', tiers: ['+5%',  '+10%', '+15%'] },
+  { key: 'spy',        label: 'ריגול',  icon: <img src="/icons/spy-power.png"      style={{width:30,height:30,objectFit:'contain',flexShrink:0}} alt="" />, color: '#C084FC', colorRgb: '192,132,252', tiers: ['+15%', '+25%', '+35%'] },
+  { key: 'scout',      label: 'סיור',   icon: <img src="/icons/renger-power.png"   style={{width:30,height:30,objectFit:'contain',flexShrink:0}} alt="" />, color: '#2DD4BF', colorRgb: '45,212,191',  tiers: ['+10%', '+20%', '+30%'] },
+]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,7 +65,7 @@ interface ConfirmPayload {
   kind: 'shield' | 'boost'
   shieldKey?: ShieldKey
   hours?: number
-  icon: string
+  icon: React.ReactNode
   label: string
   detail: string
   manaCost: number
@@ -217,7 +220,7 @@ function ConfirmModal({ payload, loading, onConfirm, onCancel }: {
 // ── ShieldRow ─────────────────────────────────────────────────────────────────
 
 function ShieldRow({ icon, label, effect, shieldKey, status, currentMana, selectedHours, onSelectHours, onActivate }: {
-  icon: string; label: string; effect: string
+  icon: React.ReactNode; label: string; effect: string
   shieldKey: ShieldKey; status: ShieldStatus; currentMana: number
   selectedHours: number; onSelectHours: (h: number) => void
   onActivate: (payload: ConfirmPayload) => void
@@ -323,7 +326,6 @@ function BoostRow({ cat, tierIdx, onSelectTier }: {
 }) {
   const tierLabels = ['קטן', 'בינוני', 'גדול'] as const
   const tierMana   = [BOOST_MANA.SMALL, BOOST_MANA.MEDIUM, BOOST_MANA.LARGE]
-  const { Icon }   = cat
 
   return (
     <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -332,7 +334,7 @@ function BoostRow({ cat, tierIdx, onSelectTier }: {
         background: `rgba(${cat.colorRgb},0.1)`, border: `1px solid rgba(${cat.colorRgb},0.2)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Icon style={{ width: 14, height: 14, color: cat.color }} />
+        {cat.icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ fontFamily: 'var(--font-heading, sans-serif)', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
@@ -620,13 +622,13 @@ export function HeroClient({ activeEffects, paymentStatus }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
-                width: 60, height: 60, borderRadius: '50%',
+                width: 72, height: 72, borderRadius: '50%',
                 background: 'radial-gradient(circle at 38% 32%, rgba(192,112,255,0.28), rgba(8,3,20,1))',
                 border: '2px solid rgba(192,112,255,0.45)',
                 boxShadow: '0 0 20px rgba(192,112,255,0.22)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                ⚔️
+                <img src="/icons/attack-power.png" style={{width:68,height:68,objectFit:'contain'}} alt="" />
               </div>
               <div style={{
                 position: 'absolute', bottom: -3, right: -6,
@@ -735,7 +737,7 @@ export function HeroClient({ activeEffects, paymentStatus }: Props) {
               <SectionLabel label="מגנים" />
 
               <ShieldRow
-                icon="🗡️" label="מגן חיילים" effect="חוסם נפילות חיילים בהגנה"
+                icon={<img src="/icons/solders.png" style={{width:18,height:18,objectFit:'contain'}} alt="" />} label="מגן חיילים" effect="חוסם נפילות חיילים בהגנה"
                 shieldKey="soldier_shield" status={soldierStatus} currentMana={hero.mana}
                 selectedHours={soldierHours} onSelectHours={setSoldierHours}
                 onActivate={setConfirmPayload}
@@ -744,7 +746,7 @@ export function HeroClient({ activeEffects, paymentStatus }: Props) {
               <div style={rowDivider} />
 
               <ShieldRow
-                icon="💰" label="מגן משאבים" effect="חוסם ביזת משאבים בתקיפה"
+                icon={<img src="/icons/gold.png" style={{width:18,height:18,objectFit:'contain'}} alt="" />} label="מגן משאבים" effect="חוסם ביזת משאבים בתקיפה"
                 shieldKey="resource_shield" status={resourceStatus} currentMana={hero.mana}
                 selectedHours={resourceHours} onSelectHours={setResourceHours}
                 onActivate={setConfirmPayload}

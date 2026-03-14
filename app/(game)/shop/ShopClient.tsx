@@ -19,7 +19,7 @@
  * Defense / Spy / Scout: one per player.
  */
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { BALANCE } from "@/lib/game/balance";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,28 @@ import type { Weapons, Resources } from "@/types/game";
 
 type TabKey = "attack" | "defense" | "spy" | "scout";
 
+const TAB_ICONS: Record<string, string> = {
+  attack:  '/icons/attack-power.png',
+  defense: '/icons/defense-power.png',
+  spy:     '/icons/spy-power.png',
+  scout:   '/icons/renger-power.png',
+}
+
 const TABS = [
-  { key: "attack",  label: "תקיפה",  icon: "⚔️" },
-  { key: "defense", label: "הגנה",   icon: "🛡️" },
-  { key: "spy",     label: "ריגול",  icon: "🌑" },
-  { key: "scout",   label: "סיור",   icon: "👁️" },
-];
+  { key: "attack",  label: "תקיפה"  },
+  { key: "defense", label: "הגנה"   },
+  { key: "spy",     label: "ריגול"  },
+  { key: "scout",   label: "סיור"   },
+].map((t) => ({
+  ...t,
+  icon: (
+    <img
+      src={TAB_ICONS[t.key]}
+      alt={t.label}
+      style={{ width: 44, height: 44, objectFit: 'contain' as const, verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }}
+    />
+  ),
+}));
 
 const ATTACK_WEAPONS = [
   { key: "crude_club",   label: "אלה גסה"        },
@@ -210,6 +226,16 @@ const WEAPON_META: Record<string, { icon: string; tier: TierKey }> = {
   arcane_lens:    { icon: "🔭", tier: "divine" },
 };
 
+// All-4-resources badge used in every ArmoryPanel header
+const ALL_RESOURCES_BADGE = (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+    {(['gold','iron','wood','food'] as const).map((r) => (
+      <img key={r} src={`/icons/${r}.png`} style={{width:28,height:28,objectFit:'contain',flexShrink:0}} alt={r} />
+    ))}
+    <span style={{ marginInlineStart: 2 }}>כל המשאבים</span>
+  </span>
+)
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUB-COMPONENTS — defined OUTSIDE ShopClient so their type references are
 // stable across re-renders. Defining them inside the component function causes
@@ -335,10 +361,10 @@ function ArmoryPanel({
   resource,
   children,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   subtitle: string;
-  resource: string;
+  resource: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -403,7 +429,7 @@ function ArmoryPanel({
       >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "3px" }}>
-            <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: "2.1rem", lineHeight: 1, display: 'flex', alignItems: 'center' }}>{icon}</span>
             <h2 className="font-display text-game-base gold-gradient-text-static text-title-glow uppercase tracking-widest">
               {title}
             </h2>
@@ -567,16 +593,16 @@ export function ShopClient() {
       <div className="rounded-game-lg border border-game-border overflow-hidden bg-gradient-to-b from-game-elevated to-game-surface">
         <div className="flex divide-x divide-game-border/50">
           {[
-            { icon: "🪙", label: "זהב",  value: resourceState.gold,  color: "text-res-gold"  },
-            { icon: "⚙️", label: "ברזל", value: resourceState.iron,  color: "text-res-iron"  },
-            { icon: "🪵", label: "עץ",   value: resourceState.wood,  color: "text-res-wood"  },
-            { icon: "🌾", label: "מזון", value: resourceState.food,  color: "text-res-food"  },
-          ].map(({ icon, label, value, color }) => (
+            { iconSrc: "/icons/gold.png", label: "זהב",  value: resourceState.gold,  color: "text-res-gold"  },
+            { iconSrc: "/icons/iron.png", label: "ברזל", value: resourceState.iron,  color: "text-res-iron"  },
+            { iconSrc: "/icons/wood.png", label: "עץ",   value: resourceState.wood,  color: "text-res-wood"  },
+            { iconSrc: "/icons/food.png", label: "מזון", value: resourceState.food,  color: "text-res-food"  },
+          ].map(({ iconSrc, label, value, color }) => (
             <div
               key={label}
               className="flex-1 flex flex-col items-center py-3 px-2 gap-0.5 min-w-0"
             >
-              <span className="text-base leading-none">{icon}</span>
+              <img src={iconSrc} alt={label} style={{width:20,height:20,objectFit:'contain'}} />
               <span className={`font-heading text-game-base font-bold tabular-nums leading-none ${color}`}>
                 {formatNumber(value)}
               </span>
@@ -621,10 +647,10 @@ export function ShopClient() {
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "attack" && (
         <ArmoryPanel
-          icon="⚔️"
+          icon={<img src="/icons/attack-power.png" alt="attack" style={{ width: 52, height: 52, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />}
           title="ארסנל הברזל"
           subtitle="נשק מזויין שמעצים כוח התקפה גולמי. ניתן לערום — ללא הגבלה."
-          resource="🪙⚙️🪵🌾 כל המשאבים"
+          resource={ALL_RESOURCES_BADGE}
         >
           {ATTACK_WEAPONS.map(({ key, label }) => {
             const cfg     = BALANCE.weapons.attack[key];
@@ -786,10 +812,10 @@ export function ShopClient() {
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "defense" && (
         <ArmoryPanel
-          icon="🛡️"
+          icon={<img src="/icons/defense-power.png" alt="defense" style={{ width: 52, height: 52, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />}
           title="כספת הנשק"
           subtitle="שריון שמכפיל את עמידותך ההגנתית. פריט אחד לכל לוחם — בחר בחוכמה."
-          resource="🪙⚙️🪵🌾 כל המשאבים"
+          resource={ALL_RESOURCES_BADGE}
         >
           {DEFENSE_WEAPONS.map(({ key, label }) => {
             const cfg      = BALANCE.weapons.defense[key];
@@ -958,10 +984,10 @@ export function ShopClient() {
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "spy" && (
         <ArmoryPanel
-          icon="🌑"
+          icon={<img src="/icons/spy-power.png" alt="spy" style={{ width: 52, height: 52, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />}
           title="שוק הצל"
           subtitle="ציוד סמוי שמשפר את סוכניך. פריט אחד לכל מבצע."
-          resource="🪙⚙️🪵🌾 כל המשאבים"
+          resource={ALL_RESOURCES_BADGE}
         >
           {SPY_WEAPONS.map(({ key, label }) => {
             const cfg    = BALANCE.weapons.spy[key];
@@ -1131,10 +1157,10 @@ export function ShopClient() {
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === "scout" && (
         <ArmoryPanel
-          icon="👁️"
+          icon={<img src="/icons/renger-power.png" alt="scout" style={{ width: 52, height: 52, objectFit: 'contain', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block' }} />}
           title="מטמון הסייר"
           subtitle="ציוד שמחדד את ראיית סיירייך והישגם. פריט אחד לכל סייר."
-          resource="🪙⚙️🪵🌾 כל המשאבים"
+          resource={ALL_RESOURCES_BADGE}
         >
           {SCOUT_WEAPONS.map(({ key, label }) => {
             const cfg    = BALANCE.weapons.scout[key];
