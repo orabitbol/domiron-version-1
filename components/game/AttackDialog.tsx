@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { CheckCircle, AlertCircle, Skull } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { BALANCE } from '@/lib/game/balance'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ interface AttackDialogProps {
   target: DialogTarget | null
   onClose: () => void
   armySoldiers: number
+  armyCavalry?: number
   armySpies: number
   playerFood: number
   playerTurns: number
@@ -50,13 +52,14 @@ function StepBtn({ onClick, disabled, label, variant = 'gold' }: StepBtnProps) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`w-10 h-10 flex items-center justify-center rounded-game border border-game-border bg-game-elevated
-        text-game-text-muted disabled:opacity-20 disabled:cursor-not-allowed
-        transition-colors font-heading text-game-lg select-none
-        ${variant === 'gold'
+      className={cn(
+        'w-10 h-10 flex items-center justify-center rounded-game border border-game-border bg-game-elevated',
+        'text-game-text-muted disabled:opacity-20 disabled:cursor-not-allowed',
+        'transition-colors font-heading text-game-lg select-none',
+        variant === 'gold'
           ? 'hover:text-game-gold hover:border-amber-700/50 hover:bg-amber-950/20'
           : 'hover:text-game-purple-bright hover:border-purple-700 hover:bg-purple-950/20'
-        }`}
+      )}
     >
       {label}
     </button>
@@ -67,6 +70,7 @@ export function AttackDialog({
   target,
   onClose,
   armySoldiers,
+  armyCavalry = 0,
   armySpies,
   playerFood,
   playerTurns,
@@ -101,91 +105,89 @@ export function AttackDialog({
   function clampTurns(v: number) { setTurns(Math.max(1, Math.min(MAX_TURNS, v))) }
   function clampSpies(v: number) { setSpiesSent(Math.max(1, Math.min(Math.max(1, armySpies), v))) }
 
-  // Modal title reflects the active action
   const modalTitle = tab === 'attack' ? t('attack.title') : t('dialog.tab_spy')
 
   return (
     <Modal isOpen={!!target} onClose={onClose} title={modalTitle} size="md">
       {target && (
-        <div className="space-y-3">
+        <div className="space-y-4">
 
-          {/* ── Target identity ───────────────────────────────────── */}
-          <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3.5 shadow-engrave">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="font-display text-game-xl uppercase tracking-wide text-game-text-white leading-tight truncate">
-                  {target.army_name}
-                </p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {target.rank_city != null && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-amber-700/40 bg-amber-950/30 font-heading text-game-xs text-game-gold">
-                      #{target.rank_city}
-                    </span>
-                  )}
-                  {target.tribe_name && (
-                    <span className="font-body text-game-xs text-game-text-muted">{target.tribe_name}</span>
-                  )}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className="flex items-center gap-1.5 justify-end">
-                  <img src="/icons/solders.png" style={{width:28,height:28,objectFit:'contain',opacity:0.6,flexShrink:0,display:'inline-block'}} alt="" />
-                  <span className="font-body text-game-xs text-game-text-muted">{t('dialog.soldiers_label')}</span>
-                  <span className="font-heading text-game-sm text-game-text-white tabular-nums">{formatNumber(target.soldiers)}</span>
-                </div>
-                {(target.resource_shield_active || target.soldier_shield_active || target.is_protected || target.kill_cooldown_active) && (
-                  <div className="flex gap-1 justify-end flex-wrap mt-1">
-                    {target.resource_shield_active && (
-                      <span className="px-1.5 py-0.5 rounded border border-amber-700/40 bg-amber-950/30 font-body text-game-xs text-game-gold whitespace-nowrap">
-                        {t('attack.resource_shield_active')}
-                      </span>
-                    )}
-                    {target.soldier_shield_active && (
-                      <span className="px-1.5 py-0.5 rounded border border-blue-700/40 bg-blue-950/30 font-body text-game-xs text-blue-300 whitespace-nowrap">
-                        {t('attack.soldier_shield_active')}
-                      </span>
-                    )}
-                    {target.is_protected && (
-                      <span className="px-1.5 py-0.5 rounded border border-green-700/40 bg-green-950/30 font-body text-game-xs text-green-300 whitespace-nowrap">
-                        {t('attack.status_protected').split(' — ')[0]}
-                      </span>
-                    )}
-                    {target.kill_cooldown_active && (
-                      <span className="px-1.5 py-0.5 rounded border border-orange-700/40 bg-orange-950/30 font-body text-game-xs text-orange-300 whitespace-nowrap">
-                        {t('attack.status_cooldown').split(' — ')[0]}
-                      </span>
-                    )}
-                  </div>
+          {/* ── Target identity panel ─────────────────────────── */}
+          <div className="flex items-center gap-3 p-3 rounded-game-lg bg-game-elevated border border-game-border">
+            <div className="flex-1 min-w-0">
+              <p className="font-display text-game-lg text-game-gold-bright font-bold truncate leading-tight">{target.army_name}</p>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                {target.rank_city != null && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-amber-700/40 bg-amber-950/30 font-heading text-game-xs text-game-gold">
+                    #{target.rank_city}
+                  </span>
+                )}
+                {target.tribe_name && (
+                  <span className="font-body text-game-xs text-game-text-muted">{target.tribe_name}</span>
                 )}
               </div>
             </div>
+
+            {/* Status shields as compact chips */}
+            <div className="flex gap-1 flex-wrap justify-end shrink-0">
+              {target.resource_shield_active && (
+                <span className="px-1.5 py-0.5 rounded border border-amber-700/40 bg-amber-950/30 font-body text-game-xs text-game-gold whitespace-nowrap">
+                  {t('attack.resource_shield_active')}
+                </span>
+              )}
+              {target.soldier_shield_active && (
+                <span className="px-1.5 py-0.5 rounded border border-blue-700/40 bg-blue-950/30 font-body text-game-xs text-blue-300 whitespace-nowrap">
+                  {t('attack.soldier_shield_active')}
+                </span>
+              )}
+              {target.is_protected && (
+                <span className="px-1.5 py-0.5 rounded border border-green-700/40 bg-green-950/30 font-body text-game-xs text-green-300 whitespace-nowrap">
+                  {t('attack.status_protected').split(' — ')[0]}
+                </span>
+              )}
+              {target.kill_cooldown_active && (
+                <span className="px-1.5 py-0.5 rounded border border-orange-700/40 bg-orange-950/30 font-body text-game-xs text-orange-300 whitespace-nowrap">
+                  {t('attack.status_cooldown').split(' — ')[0]}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* ── Tabs ──────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 rounded-game overflow-hidden border border-game-border">
+          {/* ── Tab buttons (Attack / Spy) ─────────────────────── */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setTab('attack')}
-              className={`flex items-center justify-center gap-2 py-2.5 font-heading text-game-sm uppercase tracking-wide transition-colors border-e border-game-border ${
+              className={cn(
+                'flex flex-col items-center gap-2 py-3 px-4 rounded-game-lg border-2 transition-all',
                 tab === 'attack'
-                  ? 'bg-gradient-to-b from-red-950/60 to-red-950/20 text-game-red-bright'
-                  : 'bg-game-surface text-game-text-muted hover:text-game-text-secondary'
-              }`}
+                  ? 'border-game-red/60 bg-game-red/10 shadow-[0_0_16px_rgba(220,60,60,0.25)]'
+                  : 'border-game-border bg-game-elevated opacity-60 hover:opacity-80'
+              )}
             >
-              <img src="/icons/attack-power.png" style={{width:48,height:48,objectFit:'contain',flexShrink:0}} alt="" />
-              {t('dialog.tab_attack')}
+              <img
+                src="/icons/attack-power.png"
+                style={{ width: 48, height: 48, objectFit: 'contain', filter: tab === 'attack' ? 'drop-shadow(0 0 12px rgba(220,60,60,0.7))' : 'none' }}
+                alt=""
+              />
+              <span className="font-heading text-game-xs font-bold text-game-text-white">{t('dialog.tab_attack')}</span>
             </button>
             <button
               type="button"
               onClick={() => setTab('spy')}
-              className={`flex items-center justify-center gap-2 py-2.5 font-heading text-game-sm uppercase tracking-wide transition-colors ${
+              className={cn(
+                'flex flex-col items-center gap-2 py-3 px-4 rounded-game-lg border-2 transition-all',
                 tab === 'spy'
-                  ? 'bg-gradient-to-b from-purple-950/60 to-purple-950/20 text-game-purple-bright'
-                  : 'bg-game-surface text-game-text-muted hover:text-game-text-secondary'
-              }`}
+                  ? 'border-game-purple/60 bg-game-purple/10 shadow-[0_0_16px_rgba(160,80,220,0.25)]'
+                  : 'border-game-border bg-game-elevated opacity-60 hover:opacity-80'
+              )}
             >
-              <img src="/icons/spy-power.png" style={{width:48,height:48,objectFit:'contain',flexShrink:0}} alt="" />
-              {t('dialog.tab_spy')}
+              <img
+                src="/icons/spy-power.png"
+                style={{ width: 48, height: 48, objectFit: 'contain', filter: tab === 'spy' ? 'drop-shadow(0 0 12px rgba(160,80,220,0.7))' : 'none' }}
+                alt=""
+              />
+              <span className="font-heading text-game-xs font-bold text-game-text-white">{t('dialog.tab_spy')}</span>
             </button>
           </div>
 
@@ -193,8 +195,50 @@ export function AttackDialog({
           {tab === 'attack' && (
             <div className="space-y-3">
 
-              {/* Compact turn stepper + cost — single card */}
-              <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
+              {/* Force overview stat row */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center p-2 rounded-game bg-game-elevated border border-game-border">
+                  <img
+                    src="/icons/solders.png"
+                    style={{ width: 34, height: 34, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(220,60,60,0.6))' }}
+                    alt=""
+                  />
+                  <span className={cn('font-heading text-game-sm font-bold tabular-nums mt-1', noSoldiers ? 'text-game-red-bright' : 'text-game-text-white')}>
+                    {formatNumber(armySoldiers)}
+                  </span>
+                  <span className="text-game-2xs text-game-text-muted font-body">חיילים</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-game bg-game-elevated border border-game-border">
+                  <img
+                    src="/icons/cavalry.png"
+                    style={{ width: 34, height: 34, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(200,150,30,0.6))' }}
+                    alt=""
+                  />
+                  <span className="font-heading text-game-sm font-bold text-game-text-white tabular-nums mt-1">
+                    {formatNumber(armyCavalry)}
+                  </span>
+                  <span className="text-game-2xs text-game-text-muted font-body">פרשים</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-game bg-game-elevated border border-game-border">
+                  <img
+                    src="/icons/food.png"
+                    style={{ width: 34, height: 34, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(240,140,60,0.6))' }}
+                    alt=""
+                  />
+                  <span className={cn('font-heading text-game-sm font-bold tabular-nums mt-1', notEnoughFood ? 'text-game-red-bright' : 'text-game-text-white')}>
+                    {formatNumber(playerFood)}
+                  </span>
+                  <span className="text-game-2xs text-game-text-muted font-body">מזון</span>
+                </div>
+              </div>
+
+              {/* Turn selector — premium styled block */}
+              <div className="p-3 rounded-game-lg bg-game-elevated border border-game-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-heading text-game-xs text-game-text-secondary uppercase tracking-wide">{t('dialog.turns_row')}</span>
+                  <span className="font-heading text-game-lg font-bold text-game-gold-bright">{turns}</span>
+                </div>
+
                 {/* Stepper row */}
                 <div className="flex items-center gap-3">
                   <StepBtn onClick={() => clampTurns(turns - 1)} disabled={turns <= 1} label="−" />
@@ -253,27 +297,17 @@ export function AttackDialog({
                   </div>
                 </div>
 
-                {/* Inline cost */}
-                <div className="mt-2.5 pt-2 border-t border-game-border/40 space-y-1.5 font-body">
-                  <div className="flex justify-between text-game-sm">
-                    <span className="text-game-text-secondary">{t('dialog.food_cost')}</span>
-                    <span className={notEnoughFood ? 'text-game-red-bright font-semibold tabular-nums' : 'text-res-food font-semibold tabular-nums'}>
-                      {formatNumber(foodCost)}
-                      {armySoldiers > 0 && (
-                        <span className="text-game-xs text-game-text-muted font-normal ms-1.5">
-                          ({formatNumber(foodPerTurn)}{t('dialog.food_per_turn') !== 'per turn' ? '/' : '/'}{t('dialog.food_per_turn')})
-                        </span>
-                      )}
+                {/* Food cost inline */}
+                <div className="flex items-center gap-1 mt-2 text-game-2xs text-game-text-muted font-body">
+                  <img src="/icons/food.png" style={{ width: 16, height: 16, objectFit: 'contain' }} alt="" />
+                  <span className={notEnoughFood ? 'text-game-red-bright' : 'text-res-food'}>
+                    {t('dialog.food_cost')}: <strong className="tabular-nums">{formatNumber(foodCost)}</strong>
+                  </span>
+                  {armySoldiers > 0 && (
+                    <span className="opacity-60 ms-1">
+                      ({formatNumber(foodPerTurn)}/{t('dialog.food_per_turn')})
                     </span>
-                  </div>
-                  <div className="flex justify-between text-game-xs text-game-text-muted">
-                    <span className={noSoldiers ? 'text-game-red-bright' : ''}>
-                      {formatNumber(armySoldiers)} {t('dialog.soldiers_row').toLowerCase()}
-                    </span>
-                    <span className={notEnoughTurns ? 'text-game-red-bright' : ''}>
-                      {t('dialog.food_available')}: <span className={notEnoughFood ? 'text-game-red-bright' : 'text-res-food'}>{formatNumber(playerFood)}</span>
-                    </span>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -303,9 +337,9 @@ export function AttackDialog({
                 </div>
               </div>
 
-              {/* Validation */}
+              {/* Validation warnings */}
               {(noSoldiers || notEnoughFood || notEnoughTurns) && (
-                <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright flex items-start gap-2">
+                <div className="flex items-start gap-2 p-2.5 rounded-game bg-game-red/10 border border-game-red/30 text-game-xs text-game-red-bright font-body">
                   <AlertCircle className="size-4 shrink-0 mt-0.5" />
                   <div>
                     {noSoldiers && <p>{t('dialog.no_soldiers')}</p>}
@@ -315,16 +349,35 @@ export function AttackDialog({
                 </div>
               )}
               {target.is_vacation && (
-                <div className="rounded-game-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 font-body text-game-sm text-amber-400">
-                  {t('dialog.vacation_attack')}
+                <div className="flex items-start gap-2 p-2.5 rounded-game bg-amber-950/20 border border-amber-900/40 text-game-xs text-amber-400 font-body">
+                  <span className="shrink-0 mt-0.5">⚠️</span>
+                  <span>{t('dialog.vacation_attack')}</span>
                 </div>
               )}
 
+              {/* Attack action button */}
               <div className="flex gap-3 pt-1">
-                <Button variant="danger" loading={loading} disabled={attackDisabled} onClick={() => onAttack(turns)} className="flex-1">
-                  <img src="/icons/attack-power.png" style={{width:44,height:44,objectFit:'contain',flexShrink:0}} alt="" />
-                  {t('dialog.attack_btn')}
-                </Button>
+                <button
+                  type="button"
+                  disabled={attackDisabled || loading}
+                  onClick={() => onAttack(turns)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-3 py-3 px-6 rounded-game-lg border-2 transition-all font-heading text-game-base font-bold',
+                    'bg-game-red/20 border-game-red/50 text-game-red-bright',
+                    'hover:bg-game-red/30 hover:border-game-red/70',
+                    'shadow-[0_0_20px_rgba(220,60,60,0.2)] hover:shadow-[0_0_28px_rgba(220,60,60,0.35)]',
+                    'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none'
+                  )}
+                >
+                  {loading ? (
+                    <span className="opacity-60">{t('common.loading') ?? '...'}</span>
+                  ) : (
+                    <>
+                      <img src="/icons/attack-power.png" style={{ width: 44, height: 44, objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(220,60,60,0.7))' }} alt="" />
+                      {t('dialog.attack_btn')}
+                    </>
+                  )}
+                </button>
                 <Button variant="ghost" disabled={loading} onClick={onClose}>{t('dialog.cancel_btn')}</Button>
               </div>
             </div>
@@ -334,8 +387,23 @@ export function AttackDialog({
           {tab === 'spy' && (
             <div className="space-y-3">
 
+              {/* Spy overview stat */}
+              <div className="flex items-center gap-3 p-3 rounded-game-lg bg-game-elevated border border-game-border">
+                <img
+                  src="/icons/spy.png"
+                  style={{ width: 44, height: 44, objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(160,80,220,0.65))' }}
+                  alt=""
+                />
+                <div>
+                  <p className="text-game-2xs text-game-text-muted font-heading uppercase tracking-wide">{t('dialog.spies_available')}</p>
+                  <p className={cn('font-heading text-game-xl font-bold tabular-nums', notEnoughSpies ? 'text-game-red-bright' : 'text-game-purple-bright')}>
+                    {formatNumber(armySpies)}
+                  </p>
+                </div>
+              </div>
+
               {/* Spy stepper */}
-              <div className="bg-gradient-to-b from-purple-950/20 to-game-surface border border-purple-900/40 rounded-game-lg p-3 shadow-engrave">
+              <div className="p-3 rounded-game-lg bg-purple-950/20 border border-purple-900/40">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2.5">{t('dialog.spies_to_send')}</p>
                 <div className="flex items-center gap-3">
                   <StepBtn onClick={() => clampSpies(spiesSent - 1)} disabled={spiesSent <= 1} label="−" variant="purple" />
@@ -344,24 +412,13 @@ export function AttackDialog({
                   </span>
                   <StepBtn onClick={() => clampSpies(spiesSent + 1)} disabled={spiesSent >= Math.max(1, armySpies)} label="+" variant="purple" />
                 </div>
-              </div>
 
-              {/* Requirements */}
-              <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.requirements')}</p>
-                <div className="space-y-1.5 font-body text-game-sm">
-                  <div className="flex justify-between">
-                    <span className="text-game-text-secondary">{t('dialog.turn_cost')}</span>
-                    <span className={notEnoughSpyTurns ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
-                      {spyTurnCost} {t('dialog.turn_singular')} ({playerTurns} {t('dialog.available')})
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-game-text-secondary">{t('dialog.spies_available')}</span>
-                    <span className={notEnoughSpies ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
-                      {formatNumber(armySpies)}
-                    </span>
-                  </div>
+                {/* Turn cost row */}
+                <div className="mt-3 pt-2.5 border-t border-game-border/40 flex justify-between font-body text-game-xs">
+                  <span className="text-game-text-secondary">{t('dialog.turn_cost')}</span>
+                  <span className={notEnoughSpyTurns ? 'text-game-red-bright font-semibold' : 'text-game-text-white'}>
+                    {spyTurnCost} {t('dialog.turn_singular')} ({playerTurns} {t('dialog.available')})
+                  </span>
                 </div>
               </div>
 
@@ -396,9 +453,9 @@ export function AttackDialog({
                 </div>
               </div>
 
-              {/* Validation */}
+              {/* Validation warnings */}
               {(notEnoughSpyTurns || notEnoughSpies) && (
-                <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright flex items-start gap-2">
+                <div className="flex items-start gap-2 p-2.5 rounded-game bg-game-red/10 border border-game-red/30 text-game-xs text-game-red-bright font-body">
                   <AlertCircle className="size-4 shrink-0 mt-0.5" />
                   <div>
                     {notEnoughSpyTurns && <p>{t('dialog.no_spy_turns').replace('{need}', String(spyTurnCost))}</p>}
@@ -413,16 +470,35 @@ export function AttackDialog({
                 </div>
               )}
               {target.is_vacation && (
-                <div className="rounded-game-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 font-body text-game-sm text-amber-400">
-                  {t('dialog.vacation_spy')}
+                <div className="flex items-start gap-2 p-2.5 rounded-game bg-amber-950/20 border border-amber-900/40 text-game-xs text-amber-400 font-body">
+                  <span className="shrink-0 mt-0.5">⚠️</span>
+                  <span>{t('dialog.vacation_spy')}</span>
                 </div>
               )}
 
+              {/* Send Spies action button */}
               <div className="flex gap-3 pt-1">
-                <Button variant="magic" loading={loading} disabled={spyDisabled} onClick={() => onSpy(spiesSent)} className="flex-1">
-                  <img src="/icons/spy-power.png" style={{width:44,height:44,objectFit:'contain',flexShrink:0}} alt="" />
-                  {t('dialog.send_spies')}
-                </Button>
+                <button
+                  type="button"
+                  disabled={spyDisabled || loading}
+                  onClick={() => onSpy(spiesSent)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-3 py-3 px-6 rounded-game-lg border-2 transition-all font-heading text-game-base font-bold',
+                    'bg-game-purple/20 border-game-purple/50 text-game-purple-bright',
+                    'hover:bg-game-purple/30 hover:border-game-purple/70',
+                    'shadow-[0_0_20px_rgba(160,80,220,0.2)] hover:shadow-[0_0_28px_rgba(160,80,220,0.35)]',
+                    'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none'
+                  )}
+                >
+                  {loading ? (
+                    <span className="opacity-60">{t('common.loading') ?? '...'}</span>
+                  ) : (
+                    <>
+                      <img src="/icons/spy-power.png" style={{ width: 44, height: 44, objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(160,80,220,0.7))' }} alt="" />
+                      {t('dialog.send_spies')}
+                    </>
+                  )}
+                </button>
                 <Button variant="ghost" disabled={loading} onClick={onClose}>{t('dialog.cancel_btn')}</Button>
               </div>
             </div>

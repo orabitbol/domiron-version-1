@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
+import { cn } from '@/lib/utils'
 import { BALANCE } from '@/lib/game/balance'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +16,7 @@ import { formatNumber } from '@/lib/utils'
 import { usePlayer } from '@/lib/context/PlayerContext'
 import { useFreeze } from '@/lib/hooks/useFreeze'
 import type { BattleReport, BattleReportReason, SpyResult } from '@/types/game'
-import { Trophy, Skull, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 interface Target {
   id: string
@@ -192,37 +193,48 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
   const defLosses    = report.defender.losses.soldiers
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
 
-      {/* ── 1. OUTCOME HERO — no ratio badge ───────────── */}
-      <div className={`rounded-game-lg border relative overflow-hidden py-3.5 px-4 text-center ${
+      {/* ── 1. VICTORY / DEFEAT BANNER ────────────────────── */}
+      <div className={cn(
+        'relative flex flex-col items-center justify-center py-5 px-4 rounded-game-lg overflow-hidden',
         isWin
-          ? 'bg-gradient-to-b from-amber-950/70 via-amber-950/20 to-transparent border-amber-700/50'
-          : 'bg-gradient-to-b from-red-950/70 via-red-950/20 to-transparent border-red-900/50'
-      }`}>
-        <div className={`absolute inset-x-0 top-0 h-0.5 ${
-          isWin ? 'bg-gradient-to-r from-transparent via-amber-400/80 to-transparent'
-                : 'bg-gradient-to-r from-transparent via-red-500/80 to-transparent'
-        }`} />
-        <div className="flex items-center justify-center gap-2.5 mb-0.5">
-          {isWin ? <Trophy className="size-5 text-game-gold-bright" /> : <Skull className="size-5 text-game-red-bright" />}
-          <p className={`font-display text-game-4xl uppercase tracking-widest text-title-glow ${
-            isWin ? 'text-game-gold-bright' : 'text-game-red-bright'
-          }`}>
-            {isWin ? t('attack.victory') : t('attack.defeat')}
-          </p>
-          {isWin ? <Trophy className="size-5 text-game-gold-bright" /> : <Skull className="size-5 text-game-red-bright" />}
-        </div>
-        <p className="font-body text-game-xs text-game-text-muted/70">
+          ? 'bg-gradient-to-b from-game-gold/25 to-transparent border border-game-gold/30'
+          : 'bg-gradient-to-b from-game-red/25 to-transparent border border-game-red/30'
+      )}>
+        {/* Top shimmer line */}
+        <div className={cn(
+          'absolute inset-x-0 top-0 h-0.5',
+          isWin
+            ? 'bg-gradient-to-r from-transparent via-amber-400/80 to-transparent'
+            : 'bg-gradient-to-r from-transparent via-red-500/80 to-transparent'
+        )} />
+        <img
+          src={isWin ? '/icons/attack-power.png' : '/icons/defense-power.png'}
+          style={{
+            width: 72, height: 72, objectFit: 'contain',
+            filter: isWin
+              ? 'drop-shadow(0 0 24px rgba(240,192,48,0.8))'
+              : 'drop-shadow(0 0 24px rgba(220,60,60,0.7))',
+          }}
+          alt=""
+        />
+        <p className={cn(
+          'font-display text-game-2xl font-bold mt-2 uppercase tracking-wide',
+          isWin ? 'gold-gradient-text-static' : 'text-game-red-bright'
+        )}>
+          {isWin ? t('attack.victory') : t('attack.defeat')}
+        </p>
+        <p className="font-body text-game-xs text-game-text-muted/70 mt-0.5">
           {report.attacker.name}
           <span className="mx-2 opacity-40">⚔</span>
           {report.defender.name}
         </p>
       </div>
 
-      {/* ── 2. POWER — compact, calmer ─────────────────── */}
+      {/* ── 2. POWER COMPARISON — two side-by-side stat blocks ── */}
       <div>
-        <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted px-0.5 mb-1 flex items-center gap-1.5">
+        <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted px-0.5 mb-1.5 flex items-center gap-1.5">
           <img src="/icons/attack-power.png" style={{ width: 13, height: 13, objectFit: 'contain', opacity: 0.65, flexShrink: 0 }} alt="" />
           {t('attack.power_breakdown')}
         </p>
@@ -256,25 +268,37 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         </div>
       </div>
 
-      {/* ── 3. SPOILS OF WAR — all 4 resources always shown ─── */}
-      <div className={`rounded-game-lg border shadow-engrave relative overflow-hidden ${
+      {/* ── 3. LOOT — 4 resource tiles (always shown, dimmed at 0) ─── */}
+      <div className={cn(
+        'rounded-game-lg border shadow-engrave relative overflow-hidden',
         isWin ? 'border-amber-700/40 bg-gradient-to-b from-amber-950/30 to-amber-950/5' : 'border-game-border/50 bg-gradient-to-b from-game-elevated/30 to-game-surface/10'
-      }`}>
-        <div className={`absolute inset-x-0 top-0 h-px ${isWin ? 'bg-gradient-to-r from-transparent via-amber-500/60 to-transparent' : 'bg-gradient-to-r from-transparent via-game-border/40 to-transparent'}`} />
+      )}>
+        <div className={cn('absolute inset-x-0 top-0 h-px', isWin ? 'bg-gradient-to-r from-transparent via-amber-500/60 to-transparent' : 'bg-gradient-to-r from-transparent via-game-border/40 to-transparent')} />
+        {/* Section header */}
         <div className="px-3 pt-2.5 pb-2 flex items-center gap-2 border-b border-game-border/30">
-          <Trophy className={`size-3.5 shrink-0 ${isWin ? 'text-game-gold-primary' : 'text-game-text-muted opacity-40'}`} />
-          <span className={`font-heading text-game-xs uppercase tracking-widest ${isWin ? 'text-game-gold-primary' : 'text-game-text-muted'}`}>{t('attack.spoils_of_war')}</span>
+          <img src="/icons/gold.png" style={{ width: 28, height: 28, objectFit: 'contain', opacity: isWin ? 1 : 0.4, flexShrink: 0 }} alt="" />
+          <span className={cn('font-heading text-game-xs uppercase tracking-widest', isWin ? 'text-game-gold-primary' : 'text-game-text-muted')}>
+            {t('attack.spoils_of_war')}
+          </span>
           {decayActive && (
             <span className="ms-auto font-body text-game-xs text-amber-700 flex items-center gap-1 shrink-0">
               <Info className="size-2.5" />×{report.flags.anti_farm_decay_mult.toFixed(2)}
             </span>
           )}
         </div>
-        <div className="grid grid-cols-4 gap-1 px-2 py-3">
+        {/* 4-column resource tiles — 2×2 on very small screens */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 px-2 py-3">
           {lootItems.map(({ key, label, amount, cls, colorRgb, iconSrc, iconSize }) => (
-            <div key={key} className={`flex flex-col items-center gap-1.5 py-2 px-1 rounded-game ${amount === 0 ? 'opacity-40' : ''}`}>
-              <img src={iconSrc} style={{ width: iconSize, height: iconSize, objectFit: 'contain', flexShrink: 0, filter: amount > 0 ? `drop-shadow(0 0 14px rgba(${colorRgb},0.70)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))` : 'none' }} alt={label} />
-              <p className={`font-display text-game-xl font-bold tabular-nums leading-none ${amount > 0 ? cls : 'text-game-text-muted'}`}>
+            <div key={key} className={cn('flex flex-col items-center gap-1.5 py-2 px-1 rounded-game', amount === 0 ? 'opacity-40' : '')}>
+              <img
+                src={iconSrc}
+                style={{
+                  width: iconSize, height: iconSize, objectFit: 'contain', flexShrink: 0,
+                  filter: amount > 0 ? `drop-shadow(0 0 14px rgba(${colorRgb},0.70)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))` : 'none',
+                }}
+                alt={label}
+              />
+              <p className={cn('font-display text-game-xl font-bold tabular-nums leading-none', amount > 0 ? cls : 'text-game-text-muted')}>
                 {amount > 0 ? `+${formatNumber(amount)}` : '0'}
               </p>
               <p className="font-body text-game-2xs text-game-text-muted leading-none text-center">{label}</p>
@@ -283,49 +307,73 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         </div>
       </div>
 
-      {/* ── 4. CAPTIVES — always shown ─────────────────── */}
-      <div className={`flex items-center gap-3 rounded-game-lg border px-3 py-2.5 shadow-engrave relative overflow-hidden ${
+      {/* ── 4. CAPTIVES — always shown ─────────────────────────── */}
+      <div className={cn(
+        'flex items-center gap-3 rounded-game-lg border px-3 py-2.5 shadow-engrave relative overflow-hidden',
         captives > 0
           ? 'border-amber-700/50 bg-gradient-to-r from-amber-950/30 to-amber-950/5'
           : 'border-game-border/40 bg-game-elevated/20 opacity-50'
-      }`}>
+      )}>
         {captives > 0 && <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />}
-        <img src="/icons/slave.png" style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, filter: captives > 0 ? 'drop-shadow(0 0 14px rgba(251,191,36,0.70)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))' : 'none' }} alt="" />
+        {/* Section header inline */}
+        <img
+          src="/icons/slave.png"
+          style={{
+            width: 64, height: 64, objectFit: 'contain', flexShrink: 0,
+            filter: captives > 0 ? 'drop-shadow(0 0 14px rgba(251,191,36,0.70)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))' : 'none',
+          }}
+          alt=""
+        />
         <div className="flex-1 min-w-0">
-          <p className={`font-heading text-game-xs uppercase tracking-wide ${captives > 0 ? 'text-amber-400' : 'text-game-text-muted'}`}>{t('attack.captives_enslaved')}</p>
+          <p className={cn('font-heading text-game-xs uppercase tracking-wide', captives > 0 ? 'text-amber-400' : 'text-game-text-muted')}>
+            {t('attack.captives_enslaved')}
+          </p>
           <p className="font-body text-game-xs text-amber-700/60">{t('army.slaves')}</p>
         </div>
-        <p className={`font-display text-game-2xl font-bold tabular-nums leading-none shrink-0 ${captives > 0 ? 'text-amber-300' : 'text-game-text-muted'}`}>
+        <p className={cn('font-display text-game-2xl font-bold tabular-nums leading-none shrink-0', captives > 0 ? 'text-amber-300' : 'text-game-text-muted')}>
           {captives > 0 ? `+${formatNumber(captives)}` : '0'}
         </p>
       </div>
 
-      {/* ── 5. CASUALTIES — unified split card ── */}
-      <div className="rounded-game-lg border border-game-border/70 overflow-hidden shadow-engrave grid grid-cols-2">
-        {/* Your losses */}
-        <div className={`px-3 py-2.5 text-center border-e border-game-border/40 ${attLosses > 0 ? 'bg-red-950/20' : 'bg-game-elevated/20'}`}>
-          <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-2 flex items-center justify-center gap-1.5">
-            <img src="/icons/solders.png" style={{ width: 34, height: 34, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
-            {t('attack.your_losses')}
-          </p>
-          <p className={`font-display text-game-2xl font-bold tabular-nums leading-none ${attLosses > 0 ? 'text-game-red-bright' : 'text-game-text-muted'}`}>
-            {attLosses > 0 ? `−${formatNumber(attLosses)}` : '0'}
-          </p>
-          <p className="font-body text-game-xs text-game-text-muted mt-0.5">{t('army.soldiers')}</p>
+      {/* ── 5. CASUALTIES — always shown, 2-column ─────────────── */}
+      <div className="rounded-game-lg border border-game-border/70 overflow-hidden shadow-engrave">
+        {/* Section header */}
+        <div className="px-3 py-2 border-b border-game-border/40 flex items-center gap-2">
+          <img src="/icons/solders.png" style={{ width: 28, height: 28, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
+          <span className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted">{t('attack.cost_paid')}</span>
         </div>
-        {/* Enemy losses */}
-        <div className={`px-3 py-2.5 text-center ${defLosses > 0 ? 'bg-green-950/20' : 'bg-game-elevated/20'}`}>
-          <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-2 flex items-center justify-center gap-1.5">
-            <Skull className="size-2.5 opacity-60" />{t('attack.enemy_losses')}
-          </p>
-          <p className={`font-display text-game-2xl font-bold tabular-nums leading-none ${defLosses > 0 ? 'text-game-green-bright' : 'text-game-text-muted'}`}>
-            {defLosses > 0 ? `−${formatNumber(defLosses)}` : '0'}
-          </p>
-          <p className="font-body text-game-xs text-game-text-muted mt-0.5">{t('army.soldiers')}</p>
+        {/* Two columns */}
+        <div className="grid grid-cols-2">
+          {/* Your losses */}
+          <div className={cn('px-3 py-2.5 text-center border-e border-game-border/40', attLosses > 0 ? 'bg-red-950/20' : 'bg-game-elevated/20')}>
+            <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-1.5">
+              {t('attack.your_losses')}
+            </p>
+            <div className="flex items-center justify-center gap-1.5 mb-1">
+              <img src="/icons/solders.png" style={{ width: 22, height: 22, objectFit: 'contain', opacity: 0.6, flexShrink: 0 }} alt="" />
+            </div>
+            <p className={cn('font-display text-game-2xl font-bold tabular-nums leading-none', attLosses > 0 ? 'text-game-red-bright' : 'text-game-text-muted')}>
+              {attLosses > 0 ? `−${formatNumber(attLosses)}` : '0'}
+            </p>
+            <p className="font-body text-game-xs text-game-text-muted mt-0.5">{t('army.soldiers')}</p>
+          </div>
+          {/* Enemy losses */}
+          <div className={cn('px-3 py-2.5 text-center', defLosses > 0 ? 'bg-green-950/20' : 'bg-game-elevated/20')}>
+            <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-1.5">
+              {t('attack.enemy_losses')}
+            </p>
+            <div className="flex items-center justify-center gap-1.5 mb-1">
+              <img src="/icons/defense-power.png" style={{ width: 22, height: 22, objectFit: 'contain', opacity: 0.6, flexShrink: 0 }} alt="" />
+            </div>
+            <p className={cn('font-display text-game-2xl font-bold tabular-nums leading-none', defLosses > 0 ? 'text-game-green-bright' : 'text-game-text-muted')}>
+              {defLosses > 0 ? `−${formatNumber(defLosses)}` : '0'}
+            </p>
+            <p className="font-body text-game-xs text-game-text-muted mt-0.5">{t('army.soldiers')}</p>
+          </div>
         </div>
       </div>
 
-      {/* ── 6. FOOTER: COST + MODIFIERS ────────────────── */}
+      {/* ── 6. FOOTER: TURNS/FOOD COST + MODIFIERS ─────────────── */}
       <div className="rounded-game-lg border border-game-border/60 bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave divide-y divide-game-border/40">
         <div className="flex items-center justify-between px-3 py-2">
           <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">{t('attack.cost_paid')}</span>
@@ -356,80 +404,227 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
         )}
       </div>
 
-      <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className={cn(
+          'w-full flex items-center justify-center gap-2 py-3 px-6 rounded-game-lg border-2 transition-all font-heading text-game-base font-bold',
+          isWin
+            ? 'bg-game-gold/10 border-game-gold/40 text-game-gold-bright hover:bg-game-gold/20 hover:border-game-gold/60'
+            : 'bg-game-elevated border-game-border text-game-text-secondary hover:text-game-text-white hover:border-game-border/80',
+          'shadow-none hover:shadow-[0_0_16px_rgba(240,192,48,0.15)]'
+        )}
+      >
+        {t('common.close')}
+      </button>
     </div>
   )
 }
 
 function SpyResultModal({ result, onClose }: { result: SpyResult; onClose: () => void }) {
   const t = useTranslations()
+  const isSuccess = result.success
+
   return (
-    <div className="space-y-4">
-      <div className="text-center">
-        <p className={`font-display text-game-3xl uppercase tracking-wide text-title-glow ${result.success ? 'text-game-green-bright' : 'text-game-red-bright'}`}>
-          {result.success ? t('dialog.mission_success') : t('dialog.mission_failed')}
+    <div className="space-y-3">
+
+      {/* ── Result banner ──────────────────────────────────── */}
+      <div className={cn(
+        'relative flex flex-col items-center justify-center py-5 px-4 rounded-game-lg overflow-hidden',
+        isSuccess
+          ? 'bg-gradient-to-b from-game-purple/20 to-transparent border border-game-purple/30'
+          : 'bg-gradient-to-b from-game-red/25 to-transparent border border-game-red/30'
+      )}>
+        <div className={cn(
+          'absolute inset-x-0 top-0 h-0.5',
+          isSuccess
+            ? 'bg-gradient-to-r from-transparent via-purple-400/80 to-transparent'
+            : 'bg-gradient-to-r from-transparent via-red-500/80 to-transparent'
+        )} />
+        <img
+          src="/icons/spy-power.png"
+          style={{
+            width: 68, height: 68, objectFit: 'contain',
+            filter: isSuccess
+              ? 'drop-shadow(0 0 22px rgba(160,80,220,0.85))'
+              : 'drop-shadow(0 0 22px rgba(220,60,60,0.7))',
+          }}
+          alt=""
+        />
+        <p className={cn(
+          'font-display text-game-2xl font-bold mt-2 uppercase tracking-wide',
+          isSuccess ? 'text-game-purple-bright' : 'text-game-red-bright'
+        )}>
+          {isSuccess ? t('dialog.mission_success') : t('dialog.mission_failed')}
         </p>
       </div>
 
-      <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
+      {/* ── Mission summary ────────────────────────────────── */}
+      <div className="rounded-game-lg border border-game-border bg-game-elevated p-3 shadow-engrave">
         <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.mission_summary')}</p>
         <div className="space-y-1.5 font-body text-game-sm">
           <div className="flex justify-between">
-            <span className="text-game-text-secondary">{t('dialog.spies_sent')}</span>
-            <span className="text-game-text-white font-semibold">{formatNumber(result.spies_sent)}</span>
+            <span className="text-game-text-secondary flex items-center gap-1.5">
+              <img src="/icons/spy.png" style={{ width: 16, height: 16, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
+              {t('dialog.spies_sent')}
+            </span>
+            <span className="text-game-text-white font-semibold tabular-nums">{formatNumber(result.spies_sent)}</span>
           </div>
           {result.spies_caught > 0 && (
             <div className="flex justify-between">
               <span className="text-game-text-secondary">{t('dialog.spies_caught')}</span>
-              <span className="text-game-red-bright font-semibold">{formatNumber(result.spies_caught)}</span>
+              <span className="text-game-red-bright font-semibold tabular-nums">{formatNumber(result.spies_caught)}</span>
             </div>
           )}
         </div>
       </div>
 
-      {result.success && result.revealed && (
-        <div className="bg-game-green/5 border border-green-900 rounded-game-lg p-3 shadow-engrave">
-          <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.intel_revealed')}</p>
-          <div className="grid grid-cols-1 xs:grid-cols-2 gap-x-6 gap-y-1 font-body text-game-sm">
+      {/* ── Intel revealed (success only) ──────────────────── */}
+      {isSuccess && result.revealed && (
+        <div className="rounded-game-lg border border-purple-900/50 bg-game-purple/5 p-3 shadow-engrave">
+          <p className="text-game-xs font-heading uppercase tracking-wide mb-3 flex items-center gap-2">
+            <img src="/icons/spy-power.png" style={{ width: 18, height: 18, objectFit: 'contain', opacity: 0.8, flexShrink: 0 }} alt="" />
+            <span className="text-game-purple-bright">{t('dialog.intel_revealed')}</span>
+          </p>
+
+          {/* Army units */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 font-body text-game-sm mb-3">
             <div className="flex justify-between">
-              <span className="text-game-text-secondary">{t('army.soldiers')}</span>
-              <span className="text-game-text-white font-semibold">{formatNumber(result.revealed.soldiers)}</span>
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/solders.png" style={{ width: 14, height: 14, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
+                {t('army.soldiers')}
+              </span>
+              <span className="text-game-text-white font-semibold tabular-nums">{formatNumber(result.revealed.soldiers)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-game-text-secondary">{t('army.spies')}</span>
-              <span className="text-game-text-white font-semibold">{formatNumber(result.revealed.spies)}</span>
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/cavalry.png" style={{ width: 14, height: 14, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
+                {t('army.cavalry') ?? 'פרשים'}
+              </span>
+              <span className="text-game-text-white font-semibold tabular-nums">{formatNumber(result.revealed.cavalry)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-game-text-secondary">{t('resources.gold')}</span>
-              <span className="text-res-gold font-semibold">{formatNumber(result.revealed.gold)}</span>
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/spy.png" style={{ width: 14, height: 14, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
+                {t('army.spies')}
+              </span>
+              <span className="text-game-text-white font-semibold tabular-nums">{formatNumber(result.revealed.spies)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-game-text-secondary">{t('resources.iron')}</span>
-              <span className="text-res-iron font-semibold">{formatNumber(result.revealed.iron)}</span>
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/renger.png" style={{ width: 14, height: 14, objectFit: 'contain', opacity: 0.7, flexShrink: 0 }} alt="" />
+                {t('army.scouts') ?? 'סיירים'}
+              </span>
+              <span className="text-game-text-white font-semibold tabular-nums">{formatNumber(result.revealed.scouts)}</span>
+            </div>
+          </div>
+
+          {/* Resources */}
+          <div className="border-t border-game-border/40 pt-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 font-body text-game-sm mb-3">
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/gold.png" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} alt="" />
+                {t('resources.gold')}
+              </span>
+              <span className="text-res-gold font-semibold tabular-nums">{formatNumber(result.revealed.gold)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-game-text-secondary">{t('resources.wood')}</span>
-              <span className="text-res-wood font-semibold">{formatNumber(result.revealed.wood)}</span>
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/iron.png" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} alt="" />
+                {t('resources.iron')}
+              </span>
+              <span className="text-res-iron font-semibold tabular-nums">{formatNumber(result.revealed.iron)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-game-text-secondary">{t('resources.food')}</span>
-              <span className="text-res-food font-semibold">{formatNumber(result.revealed.food)}</span>
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/wood.png" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} alt="" />
+                {t('resources.wood')}
+              </span>
+              <span className="text-res-wood font-semibold tabular-nums">{formatNumber(result.revealed.wood)}</span>
             </div>
-            {(result.revealed.resource_shield || result.revealed.soldier_shield) && (
-              <div className="col-span-2 border-t border-game-border mt-1 pt-1 flex gap-4">
-                {result.revealed.resource_shield && (
-                  <span className="text-game-gold-bright text-game-xs font-heading uppercase">{t('attack.resource_shield_active')}</span>
+            <div className="flex justify-between">
+              <span className="text-game-text-secondary flex items-center gap-1">
+                <img src="/icons/food.png" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} alt="" />
+                {t('resources.food')}
+              </span>
+              <span className="text-res-food font-semibold tabular-nums">{formatNumber(result.revealed.food)}</span>
+            </div>
+          </div>
+
+          {/* Shields + extended intel */}
+          {(result.revealed.resource_shield || result.revealed.soldier_shield) && (
+            <div className="border-t border-game-border/40 pt-2 flex gap-3 flex-wrap">
+              {result.revealed.resource_shield && (
+                <span className="px-2 py-0.5 rounded border border-amber-700/40 bg-amber-950/30 text-game-xs font-heading uppercase text-game-gold-bright">
+                  {t('attack.resource_shield_active')}
+                </span>
+              )}
+              {result.revealed.soldier_shield && (
+                <span className="px-2 py-0.5 rounded border border-blue-700/40 bg-blue-950/30 text-game-xs font-heading uppercase text-blue-400">
+                  {t('attack.soldier_shield_active')}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Extended intel: weapons if present */}
+          {(result.revealed.attack_weapons || result.revealed.defense_weapons) && (
+            <div className="border-t border-game-border/40 pt-2 mt-2">
+              <p className="font-heading text-game-xs uppercase text-game-text-muted mb-1.5">{t('dialog.intel_weapons') ?? 'נשקייה'}</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-xs">
+                {result.revealed.attack_weapons && Object.entries(result.revealed.attack_weapons).map(([slug, qty]) => (
+                  <div key={slug} className="flex justify-between">
+                    <span className="text-game-text-secondary truncate">{slug}</span>
+                    <span className="text-game-text-white tabular-nums shrink-0">×{qty}</span>
+                  </div>
+                ))}
+                {result.revealed.defense_weapons && Object.entries(result.revealed.defense_weapons).map(([slug, qty]) => (
+                  <div key={slug} className="flex justify-between">
+                    <span className="text-game-text-secondary truncate">{slug}</span>
+                    <span className="text-game-text-white tabular-nums shrink-0">×{qty}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Extended intel: training levels if present */}
+          {(result.revealed.spy_level !== undefined || result.revealed.scout_level !== undefined) && (
+            <div className="border-t border-game-border/40 pt-2 mt-2">
+              <p className="font-heading text-game-xs uppercase text-game-text-muted mb-1.5">{t('dialog.intel_training') ?? 'רמות אימון'}</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-body text-game-xs">
+                {result.revealed.spy_level !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-game-text-secondary">{t('army.spies')}</span>
+                    <span className="text-game-purple-bright tabular-nums">Lv {result.revealed.spy_level}</span>
+                  </div>
                 )}
-                {result.revealed.soldier_shield && (
-                  <span className="text-blue-400 text-game-xs font-heading uppercase">{t('attack.soldier_shield_active')}</span>
+                {result.revealed.scout_level !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-game-text-secondary">{t('army.scouts') ?? 'סיירים'}</span>
+                    <span className="text-game-purple-bright tabular-nums">Lv {result.revealed.scout_level}</span>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
-      <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className={cn(
+          'w-full flex items-center justify-center gap-2 py-3 px-6 rounded-game-lg border-2 transition-all font-heading text-game-base font-bold',
+          isSuccess
+            ? 'bg-game-purple/10 border-game-purple/40 text-game-purple-bright hover:bg-game-purple/20 hover:border-game-purple/60'
+            : 'bg-game-elevated border-game-border text-game-text-secondary hover:text-game-text-white',
+        )}
+      >
+        {t('common.close')}
+      </button>
     </div>
   )
 }
@@ -758,6 +953,7 @@ export function AttackClient({ targets }: Props) {
         target={dialogTarget}
         onClose={() => setDialogTarget(null)}
         armySoldiers={army?.soldiers ?? 0}
+        armyCavalry={army?.cavalry ?? 0}
         armySpies={army?.spies ?? 0}
         playerFood={resources?.food ?? 0}
         playerTurns={playerTurns}

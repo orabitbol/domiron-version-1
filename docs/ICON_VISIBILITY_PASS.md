@@ -466,3 +466,51 @@ Per-icon size overrides applied to compensate for different amounts of transpare
 
 - `npx tsc --noEmit` — ✅ 0 errors
 - `npm run build` — ✅ all routes compile clean (90/90 static pages generated)
+
+---
+
+## Attack Modal Redesign (2026-03-14)
+
+Full JSX-only redesign of the attack modal flow. All combat formulas, logic, API calls, and state management left completely unchanged.
+
+### AttackDialog.tsx (pre-attack modal)
+
+- **Tab buttons**: completely redesigned — large 48px PNG icons (`attack-power.png` / `spy-power.png`) stacked above label text; selected tab has colored border-2 + glow shadow; unselected tabs are dimmed with `opacity-60`
+- **Target identity panel**: streamlined flex layout — army name in `text-game-gold-bright`, status chips (resource/soldier/protected/cooldown) arranged inline at the end
+- **Force overview stat row**: new 3-column grid showing Soldiers / Cavalry / Food with per-icon drop-shadow glows (red/gold/orange), values colored red when insufficient
+- **Turn selector**: wrapped in `p-3 rounded-game-lg bg-game-elevated border` block; existing stepper + slider preserved intact; food cost shown inline with food.png icon (16px); label styled `text-res-food` or `text-game-red-bright` based on sufficiency
+- **Risk/reward section**: unchanged content, kept existing green/red card layout
+- **Validation warnings**: restyled as `flex items-start gap-2 p-2.5 rounded-game bg-game-red/10 border border-game-red/30` alert blocks with AlertCircle icon
+- **Attack action button**: full-width native `<button>` with `bg-game-red/20 border-2 border-game-red/50 text-game-red-bright shadow-[0_0_20px_rgba(220,60,60,0.2)]`; 44px attack-power.png icon with drop-shadow
+- **Spy section**: spy overview strip showing available spies count with spy.png icon (44px) + purple glow; stepper preserved; send button purple-themed with spy-power.png 44px icon
+- **New prop**: `armyCavalry?: number` (optional, default 0) added to pass cavalry count from AttackClient
+
+### AttackClient.tsx — BattleReportModal
+
+- **Victory/Defeat banner**: dramatic full-width panel — 72px `attack-power.png` (win) or `defense-power.png` (defeat) with 24px glow; victory text uses `gold-gradient-text-static`, defeat uses `text-game-red-bright`; shimmer top bar; attacker vs defender names below
+- **Power comparison**: unchanged `PowerSide` components, retained compact layout with 2-column grid
+- **Loot section**: section header uses `gold.png` 28px icon + translated label; resource tiles 4-column (`grid-cols-2 sm:grid-cols-4` for mobile 2×2 fallback); all 4 always rendered (zero tiles at `opacity-40`); per-icon sizes: iron/wood=83px, gold/food=72px
+- **Captives section**: slave.png 64px with amber glow; count displayed large
+- **Casualties section**: new section header with `solders.png` 28px; two-column split — attacker losses (red bg when >0) / enemy losses (green bg when >0); both shown even at 0
+- **Footer**: turns/food cost + combat modifier reasons — unchanged content, preserved layout
+- **Close button**: full-width styled button — gold theme on victory, neutral on defeat
+
+### AttackClient.tsx — SpyResultModal
+
+- **Result banner**: 68px `spy-power.png` with purple glow on success, red glow on failure; result text `text-game-purple-bright` (success) or `text-game-red-bright` (failure); top shimmer line
+- **Mission summary**: spies sent + caught with spy.png 16px inline icon
+- **Intel reveal**: extended intel section with icon-labeled rows for soldiers/cavalry/spies/scouts; resources with resource icons; shield chips; weapons dictionary (if present); training levels (if present) — all guarded with `?? undefined` / optional chaining
+- **Close button**: full-width, purple-themed on success, neutral on failure
+
+### Constraints preserved
+
+- All combat formulas, game logic, API calls unchanged
+- Zero-values still rendered: loot tiles dimmed at `opacity-40`, casualties shown even at 0, captives shown at 0
+- Hebrew RTL layout preserved throughout — logical spacing properties used
+- `armyCavalry` prop is optional with default 0 — no breaking change to existing call sites
+- Mobile adapted: 2×2 loot grid on small screens (`grid-cols-2 sm:grid-cols-4`), all sections stack vertically, touch targets ≥ 44px on action buttons
+
+### Verification
+
+- `npx tsc --noEmit` — ✅ 0 errors
+- `npm run build` — ✅ clean build, all routes compiled
