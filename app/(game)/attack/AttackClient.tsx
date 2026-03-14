@@ -1180,48 +1180,48 @@ function StatusIndicators({
 }
 
 // ── Global Top-3 row config ─────────────────────────────────────────────────
-// Each rank has a distinct, premium look so the row feels special at a glance.
+// Bold colors by rank: red = 1st, cyan = 2nd, emerald = 3rd.
 const GLOBAL_RANK_META = {
   1: {
     medal: "👑",
     globalLabel: "#1",
-    nameColor: "text-amber-200",
-    badgeColor: "#FCD34D",
+    nameColor: "text-red-200",
+    badgeColor: "#FCA5A5",
     rowStyle: {
       background:
-        "linear-gradient(105deg, rgba(255,215,0,0.22) 0%, rgba(251,191,36,0.14) 25%, rgba(245,158,11,0.06) 55%, transparent 85%)",
+        "linear-gradient(105deg, rgba(220,38,38,0.28) 0%, rgba(185,28,28,0.16) 30%, rgba(127,29,29,0.06) 60%, transparent 90%)",
       boxShadow:
-        "inset 5px 0 0 rgba(255,215,0,0.95), inset 0 2px 0 rgba(255,236,179,0.25), inset 0 -2px 0 rgba(180,140,20,0.2), 0 0 28px rgba(255,215,0,0.12)",
-      borderTop: "1px solid rgba(255,215,0,0.2)",
-      borderBottom: "1px solid rgba(200,160,30,0.15)",
+        "inset 5px 0 0 rgba(248,113,113,0.95), inset 0 2px 0 rgba(254,202,202,0.35), inset 0 -2px 0 rgba(127,29,29,0.25), 0 0 32px rgba(220,38,38,0.18)",
+      borderTop: "1px solid rgba(248,113,113,0.4)",
+      borderBottom: "1px solid rgba(127,29,29,0.3)",
     },
   },
   2: {
     medal: "🥈",
     globalLabel: "#2",
-    nameColor: "text-slate-100",
-    badgeColor: "#F1F5F9",
+    nameColor: "text-cyan-200",
+    badgeColor: "#67E8F9",
     rowStyle: {
       background:
-        "linear-gradient(105deg, rgba(192,210,230,0.2) 0%, rgba(148,163,184,0.12) 25%, rgba(100,116,139,0.05) 55%, transparent 85%)",
+        "linear-gradient(105deg, rgba(6,182,212,0.26) 0%, rgba(34,211,238,0.14) 30%, rgba(8,145,178,0.05) 60%, transparent 90%)",
       boxShadow:
-        "inset 5px 0 0 rgba(226,232,240,0.9), inset 0 2px 0 rgba(248,250,252,0.3), inset 0 -2px 0 rgba(100,116,139,0.2), 0 0 24px rgba(148,163,184,0.1)",
-      borderTop: "1px solid rgba(203,213,225,0.25)",
-      borderBottom: "1px solid rgba(100,116,139,0.12)",
+        "inset 5px 0 0 rgba(103,232,249,0.9), inset 0 2px 0 rgba(165,243,252,0.3), inset 0 -2px 0 rgba(21,94,117,0.25), 0 0 32px rgba(34,211,238,0.16)",
+      borderTop: "1px solid rgba(103,232,249,0.4)",
+      borderBottom: "1px solid rgba(21,94,117,0.25)",
     },
   },
   3: {
     medal: "🥉",
     globalLabel: "#3",
-    nameColor: "text-orange-200",
-    badgeColor: "#FDBA74",
+    nameColor: "text-emerald-200",
+    badgeColor: "#6EE7B7",
     rowStyle: {
       background:
-        "linear-gradient(105deg, rgba(217,119,6,0.2) 0%, rgba(194,120,60,0.12) 25%, rgba(180,83,9,0.05) 55%, transparent 85%)",
+        "linear-gradient(105deg, rgba(16,185,129,0.24) 0%, rgba(52,211,153,0.14) 30%, rgba(5,150,105,0.05) 60%, transparent 90%)",
       boxShadow:
-        "inset 5px 0 0 rgba(251,146,60,0.9), inset 0 2px 0 rgba(254,215,170,0.22), inset 0 -2px 0 rgba(154,52,18,0.15), 0 0 24px rgba(217,119,6,0.1)",
-      borderTop: "1px solid rgba(251,146,60,0.25)",
-      borderBottom: "1px solid rgba(154,52,18,0.12)",
+        "inset 5px 0 0 rgba(110,231,183,0.9), inset 0 2px 0 rgba(167,243,208,0.3), inset 0 -2px 0 rgba(4,120,87,0.2), 0 0 32px rgba(16,185,129,0.14)",
+      borderTop: "1px solid rgba(110,231,183,0.4)",
+      borderBottom: "1px solid rgba(4,120,87,0.25)",
     },
   },
 } as const;
