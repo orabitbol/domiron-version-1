@@ -86,51 +86,56 @@ interface PowerSideProps {
   tribeMult: number
   finalEcp: number
   highlight: boolean
+  compact?: boolean
 }
 
-function PowerSide({ label, pp, heroBonus, raceBonus, clanBonus, baseEcp, tribeMult, finalEcp, highlight }: PowerSideProps) {
+function PowerSide({ label, pp, heroBonus, raceBonus, clanBonus, baseEcp, tribeMult, finalEcp, highlight, compact = false }: PowerSideProps) {
   const t = useTranslations()
   const hasHero  = heroBonus  > 0.001
   const hasRace  = raceBonus  > 0.001
   const hasClan  = clanBonus  > 0
   const hasTribe = tribeMult  > 1.001
 
+  const row = 'flex justify-between items-baseline gap-1'
+  const lbl = compact ? 'text-game-xs text-game-text-muted truncate' : 'text-game-xs text-game-text-muted'
+  const val = compact ? 'text-game-xs tabular-nums text-game-text-white shrink-0' : 'text-game-sm tabular-nums text-game-text-white shrink-0'
+
   return (
-    <div className={`rounded-game-lg border p-3 shadow-engrave space-y-1.5 ${
+    <div className={`rounded-game border shadow-engrave ${compact ? 'p-2 space-y-0.5' : 'p-3 space-y-1.5'} ${
       highlight ? 'border-amber-700/40 bg-gradient-to-b from-amber-950/20 to-game-surface' : 'border-game-border bg-gradient-to-b from-game-elevated to-game-surface'
     }`}>
-      <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted flex items-center gap-1">
-        <Zap className="size-3 opacity-50" />
-        {label}
+      <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted flex items-center gap-1 truncate">
+        <Zap className="size-2.5 opacity-50 shrink-0" />
+        <span className="truncate">{label}</span>
       </p>
-      <div className="space-y-1 font-body">
-        <div className="flex justify-between items-baseline">
-          <span className="text-game-xs text-game-text-muted">{t('attack.base_pp')}</span>
-          <span className="text-game-sm tabular-nums text-game-text-white">{formatNumber(pp)}</span>
+      <div className={`${compact ? 'space-y-0.5' : 'space-y-1'} font-body`}>
+        <div className={row}>
+          <span className={lbl}>{t('attack.base_pp')}</span>
+          <span className={val}>{formatNumber(pp)}</span>
         </div>
         {hasHero && (
-          <div className="flex justify-between items-baseline">
-            <span className="text-game-xs text-purple-400">{t('attack.hero_bonus_label')} +{Math.round(heroBonus * 100)}%</span>
-            <span className="text-game-xs tabular-nums text-purple-300">×{(1 + heroBonus).toFixed(2)}</span>
+          <div className={row}>
+            <span className="text-game-xs text-purple-400 truncate">{t('attack.hero_bonus_label')} +{Math.round(heroBonus * 100)}%</span>
+            <span className="text-game-xs tabular-nums text-purple-300 shrink-0">×{(1 + heroBonus).toFixed(2)}</span>
           </div>
         )}
         {hasRace && (
-          <div className="flex justify-between items-baseline">
-            <span className="text-game-xs text-cyan-400">{t('attack.race_bonus_label')} +{Math.round(raceBonus * 100)}%</span>
-            <span className="text-game-xs tabular-nums text-cyan-300">×{(1 + raceBonus).toFixed(2)}</span>
+          <div className={row}>
+            <span className="text-game-xs text-cyan-400 truncate">{t('attack.race_bonus_label')} +{Math.round(raceBonus * 100)}%</span>
+            <span className="text-game-xs tabular-nums text-cyan-300 shrink-0">×{(1 + raceBonus).toFixed(2)}</span>
           </div>
         )}
         {hasClan && (
-          <div className="flex justify-between items-baseline">
-            <span className="text-game-xs text-blue-400">{t('attack.clan_bonus')}</span>
-            <span className="text-game-xs tabular-nums text-blue-300">+{formatNumber(clanBonus)}</span>
+          <div className={row}>
+            <span className="text-game-xs text-blue-400 truncate">{t('attack.clan_bonus')}</span>
+            <span className="text-game-xs tabular-nums text-blue-300 shrink-0">+{formatNumber(clanBonus)}</span>
           </div>
         )}
-        <div className="border-t border-game-border/50 pt-1 flex justify-between items-baseline">
-          <span className="text-game-xs text-game-text-secondary">
+        <div className={`border-t border-game-border/50 pt-0.5 ${row}`}>
+          <span className="text-game-xs text-game-text-secondary truncate">
             {hasTribe ? t('attack.base_ecp_label') : t('attack.final_ecp')}
           </span>
-          <span className={`text-game-sm tabular-nums font-semibold ${
+          <span className={`text-game-xs tabular-nums font-semibold shrink-0 ${
             hasTribe ? 'text-game-text-white' : (highlight ? 'text-game-gold-bright' : 'text-game-text-white')
           }`}>
             {formatNumber(hasTribe ? baseEcp : finalEcp)}
@@ -138,13 +143,13 @@ function PowerSide({ label, pp, heroBonus, raceBonus, clanBonus, baseEcp, tribeM
         </div>
         {hasTribe && (
           <>
-            <div className="flex justify-between items-baseline">
-              <span className="text-game-xs text-amber-400">{t('attack.tribe_spell_label')} ×{tribeMult.toFixed(2)}</span>
-              <span className="text-game-xs tabular-nums text-amber-300">×{tribeMult.toFixed(2)}</span>
+            <div className={row}>
+              <span className="text-game-xs text-amber-400 truncate">{t('attack.tribe_spell_label')} ×{tribeMult.toFixed(2)}</span>
+              <span className="text-game-xs tabular-nums text-amber-300 shrink-0">×{tribeMult.toFixed(2)}</span>
             </div>
-            <div className="border-t border-amber-800/30 pt-1 flex justify-between items-baseline">
-              <span className="text-game-xs text-game-text-secondary">{t('attack.final_ecp')}</span>
-              <span className={`text-game-sm tabular-nums font-semibold ${highlight ? 'text-game-gold-bright' : 'text-game-text-white'}`}>
+            <div className={`border-t border-amber-800/30 pt-0.5 ${row}`}>
+              <span className="text-game-xs text-game-text-secondary truncate">{t('attack.final_ecp')}</span>
+              <span className={`text-game-xs tabular-nums font-semibold shrink-0 ${highlight ? 'text-game-gold-bright' : 'text-game-text-white'}`}>
                 {formatNumber(finalEcp)}
               </span>
             </div>
@@ -170,150 +175,58 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
     LOOT_DECAY_REDUCED:           t('attack.reason_loot_decay'),
   }
 
-  const hasLoot     = report.gained.loot.gold > 0 || report.gained.loot.iron > 0 ||
-                      report.gained.loot.wood > 0 || report.gained.loot.food > 0
-  const hasCaptives = report.gained.captives > 0
-  const decayActive = report.flags.anti_farm_decay_mult < 1
+  // ── Loot: all 4 resources, ?? 0 guards against undefined/null ───────────
+  const loot = report.gained.loot
+  const lootItems = [
+    { key: 'gold', label: t('resources.gold'), amount: loot.gold ?? 0, cls: 'text-res-gold'  },
+    { key: 'iron', label: t('resources.iron'), amount: loot.iron ?? 0, cls: 'text-res-iron'  },
+    { key: 'wood', label: t('resources.wood'), amount: loot.wood ?? 0, cls: 'text-res-wood'  },
+    { key: 'food', label: t('resources.food'), amount: loot.food ?? 0, cls: 'text-res-food'  },
+  ].filter(x => x.amount > 0)
+
+  const hasLoot      = lootItems.length > 0
+  const hasCaptives  = (report.gained.captives ?? 0) > 0
+  const decayActive  = report.flags.anti_farm_decay_mult < 1
+  const hasModifiers = report.reasons.length > 0
+  const attLosses    = report.attacker.losses.soldiers
+  const defLosses    = report.defender.losses.soldiers
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
 
-      {/* ── 1. OUTCOME BANNER ──────────────────────────── */}
-      <div className={`rounded-game-lg border text-center py-5 px-4 relative overflow-hidden ${
+      {/* ── 1. OUTCOME HERO — no ratio badge ───────────── */}
+      <div className={`rounded-game-lg border relative overflow-hidden py-3.5 px-4 text-center ${
         isWin
-          ? 'bg-gradient-to-b from-amber-950/60 via-amber-950/20 to-transparent border-amber-700/50'
-          : 'bg-gradient-to-b from-red-950/60 via-red-950/20 to-transparent border-red-900/50'
+          ? 'bg-gradient-to-b from-amber-950/70 via-amber-950/20 to-transparent border-amber-700/50'
+          : 'bg-gradient-to-b from-red-950/70 via-red-950/20 to-transparent border-red-900/50'
       }`}>
-        <div className={`absolute inset-x-0 top-0 h-px ${
-          isWin ? 'bg-gradient-to-r from-transparent via-amber-500/60 to-transparent'
-                : 'bg-gradient-to-r from-transparent via-red-600/60 to-transparent'
+        <div className={`absolute inset-x-0 top-0 h-0.5 ${
+          isWin ? 'bg-gradient-to-r from-transparent via-amber-400/80 to-transparent'
+                : 'bg-gradient-to-r from-transparent via-red-500/80 to-transparent'
         }`} />
-        <div className="flex items-center justify-center gap-3 mb-1">
-          {isWin ? <Trophy className="size-6 text-game-gold-bright" /> : <Skull className="size-6 text-game-red-bright" />}
+        <div className="flex items-center justify-center gap-2.5 mb-0.5">
+          {isWin ? <Trophy className="size-5 text-game-gold-bright" /> : <Skull className="size-5 text-game-red-bright" />}
           <p className={`font-display text-game-4xl uppercase tracking-widest text-title-glow ${
             isWin ? 'text-game-gold-bright' : 'text-game-red-bright'
           }`}>
             {isWin ? t('attack.victory') : t('attack.defeat')}
           </p>
-          {isWin ? <Trophy className="size-6 text-game-gold-bright" /> : <Skull className="size-6 text-game-red-bright" />}
+          {isWin ? <Trophy className="size-5 text-game-gold-bright" /> : <Skull className="size-5 text-game-red-bright" />}
         </div>
-        <p className="font-body text-game-xs text-game-text-muted">
-          {report.attacker.name} <span className="text-game-text-secondary">vs</span> {report.defender.name}
+        <p className="font-body text-game-xs text-game-text-muted/70">
+          {report.attacker.name}
+          <span className="mx-2 opacity-40">⚔</span>
+          {report.defender.name}
         </p>
-        <div className={`inline-flex items-center gap-2 mt-2.5 px-3 py-1 rounded-full border text-game-xs font-body ${
-          isWin ? 'border-amber-600/40 bg-amber-950/40 text-game-gold'
-                : 'border-red-800/40 bg-red-950/40 text-game-red-bright'
-        }`}>
-          <span className="text-game-text-muted">{t('attack.power_ratio')}</span>
-          <span className="font-semibold tabular-nums">×{report.ratio.toFixed(2)}</span>
-        </div>
       </div>
 
-      {/* ── 2. CASUALTIES ──────────────────────────────── */}
+      {/* ── 2. POWER — compact, calmer ─────────────────── */}
       <div>
-        <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted px-0.5 mb-1.5 flex items-center gap-1.5">
-          <Shield className="size-3 opacity-50" />
-          {t('attack.casualties')}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <div className={`rounded-game-lg border p-3 shadow-engrave text-center ${
-            report.attacker.losses.soldiers > 0
-              ? 'border-red-900/60 bg-gradient-to-b from-red-950/30 to-game-surface'
-              : 'border-game-border bg-gradient-to-b from-game-elevated to-game-surface'
-          }`}>
-            <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-2">{t('attack.your_losses')}</p>
-            <p className={`font-display text-game-3xl font-bold tabular-nums leading-none ${
-              report.attacker.losses.soldiers > 0 ? 'text-game-red-bright' : 'text-game-text-muted'
-            }`}>
-              {report.attacker.losses.soldiers > 0 ? '−' : ''}{formatNumber(report.attacker.losses.soldiers)}
-            </p>
-            <p className="font-body text-game-xs text-game-text-muted mt-1">{t('army.soldiers')}</p>
-          </div>
-          <div className={`rounded-game-lg border p-3 shadow-engrave text-center ${
-            report.defender.losses.soldiers > 0
-              ? 'border-green-900/60 bg-gradient-to-b from-green-950/30 to-game-surface'
-              : 'border-game-border bg-gradient-to-b from-game-elevated to-game-surface'
-          }`}>
-            <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-2">{t('attack.enemy_losses')}</p>
-            <p className={`font-display text-game-3xl font-bold tabular-nums leading-none ${
-              report.defender.losses.soldiers > 0 ? 'text-game-green-bright' : 'text-game-text-muted'
-            }`}>
-              {report.defender.losses.soldiers > 0 ? '−' : ''}{formatNumber(report.defender.losses.soldiers)}
-            </p>
-            <p className="font-body text-game-xs text-game-text-muted mt-1">{t('army.soldiers')}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. CAPTIVES ────────────────────────────────── */}
-      {hasCaptives && (
-        <div className="rounded-game-lg border border-amber-800/50 bg-gradient-to-r from-amber-950/30 via-amber-950/10 to-transparent p-3 flex items-center justify-between shadow-engrave">
-          <div className="flex items-center gap-2">
-            <Link2 className="size-4 text-amber-400 shrink-0" />
-            <div>
-              <p className="font-heading text-game-xs uppercase tracking-wide text-amber-400">{t('attack.captives_enslaved')}</p>
-              <p className="font-body text-game-xs text-game-text-muted">{t('army.slaves')}</p>
-            </div>
-          </div>
-          <p className="font-display text-game-2xl font-bold tabular-nums text-amber-300">
-            +{formatNumber(report.gained.captives)}
-          </p>
-        </div>
-      )}
-
-      {/* ── 4. SPOILS OF WAR ───────────────────────────── */}
-      {hasLoot ? (
-        <div className="rounded-game-lg border border-amber-700/40 bg-gradient-to-b from-amber-950/20 to-transparent p-3 shadow-engrave">
-          <p className="font-heading text-game-xs uppercase tracking-widest text-game-gold-primary mb-2.5 flex items-center gap-1.5">
-            <Trophy className="size-3 opacity-80" />
-            {t('attack.spoils_of_war')}
-          </p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-body text-game-sm">
-            {report.gained.loot.gold > 0 && (
-              <div className="flex justify-between">
-                <span className="text-game-text-muted">{t('resources.gold')}</span>
-                <span className="text-res-gold font-semibold tabular-nums">+{formatNumber(report.gained.loot.gold)}</span>
-              </div>
-            )}
-            {report.gained.loot.iron > 0 && (
-              <div className="flex justify-between">
-                <span className="text-game-text-muted">{t('resources.iron')}</span>
-                <span className="text-res-iron font-semibold tabular-nums">+{formatNumber(report.gained.loot.iron)}</span>
-              </div>
-            )}
-            {report.gained.loot.wood > 0 && (
-              <div className="flex justify-between">
-                <span className="text-game-text-muted">{t('resources.wood')}</span>
-                <span className="text-res-wood font-semibold tabular-nums">+{formatNumber(report.gained.loot.wood)}</span>
-              </div>
-            )}
-            {report.gained.loot.food > 0 && (
-              <div className="flex justify-between">
-                <span className="text-game-text-muted">{t('resources.food')}</span>
-                <span className="text-res-food font-semibold tabular-nums">+{formatNumber(report.gained.loot.food)}</span>
-              </div>
-            )}
-          </div>
-          {decayActive && (
-            <p className="font-body text-game-xs text-amber-700/90 mt-2 flex items-center gap-1">
-              <Info className="size-3 shrink-0" />
-              {t('attack.anti_farm')} ×{report.flags.anti_farm_decay_mult.toFixed(2)}
-            </p>
-          )}
-        </div>
-      ) : isWin && (
-        <div className="rounded-game-lg border border-game-border bg-gradient-to-b from-game-elevated to-game-surface p-3 shadow-engrave text-center">
-          <p className="font-body text-game-sm text-game-text-muted">{t('attack.none_gained')}</p>
-        </div>
-      )}
-
-      {/* ── 5. POWER BREAKDOWN ─────────────────────────── */}
-      <div>
-        <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted px-0.5 mb-1.5 flex items-center gap-1.5">
-          <Zap className="size-3 opacity-50" />
+        <p className="font-heading text-game-xs uppercase tracking-widest text-game-text-muted px-0.5 mb-1 flex items-center gap-1">
+          <Zap className="size-2.5 opacity-50" />
           {t('attack.power_breakdown')}
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           <PowerSide
             label={t('attack.your_attack')}
             pp={report.attacker.pp_attack}
@@ -324,6 +237,7 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
             tribeMult={report.attacker.tribe_mult_attack}
             finalEcp={report.attacker.ecp_attack}
             highlight={isWin}
+            compact
           />
           <PowerSide
             label={t('attack.enemy_defense')}
@@ -335,41 +249,112 @@ function BattleReportModal({ report, onClose }: { report: BattleReport; onClose:
             tribeMult={report.defender.tribe_mult_defense}
             finalEcp={report.defender.ecp_defense}
             highlight={false}
+            compact
           />
         </div>
       </div>
 
-      {/* ── 6. COST PAID ───────────────────────────────── */}
-      <div className="flex items-center justify-between rounded-game-lg border border-game-border bg-gradient-to-b from-game-elevated to-game-surface px-3 py-2.5 shadow-engrave">
-        <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">{t('attack.cost_paid')}</span>
-        <div className="flex items-center gap-3 font-body text-game-sm">
-          <span className="text-game-text-secondary">
-            {report.attacker.turns_spent} <span className="text-game-text-muted text-game-xs">{t('attack.turns_spent')}</span>
-          </span>
-          <span className="text-game-text-muted">·</span>
-          <span className="text-res-food">
-            {formatNumber(report.attacker.food_spent)} <span className="text-game-text-muted text-game-xs">{t('resources.food')}</span>
-          </span>
+      {/* ── 3. SPOILS OF WAR — all 4 resources, inline ─── */}
+      {hasLoot ? (
+        <div className="rounded-game-lg border border-amber-700/30 bg-gradient-to-r from-amber-950/25 to-amber-950/5 px-3 py-2.5 shadow-engrave relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent" />
+          <div className="flex items-center gap-2 mb-2">
+            <Trophy className="size-3.5 text-game-gold-primary shrink-0" />
+            <span className="font-heading text-game-xs uppercase tracking-widest text-game-gold-primary">{t('attack.spoils_of_war')}</span>
+            {decayActive && (
+              <span className="ms-auto font-body text-game-xs text-amber-700 flex items-center gap-1 shrink-0">
+                <Info className="size-2.5" />×{report.flags.anti_farm_decay_mult.toFixed(2)}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
+            {lootItems.map(({ key, label, amount, cls }) => (
+              <div key={key} className="flex items-baseline gap-1.5">
+                <span className={`font-display text-game-xl font-bold tabular-nums leading-none ${cls}`}>
+                  +{formatNumber(amount)}
+                </span>
+                <span className="font-body text-game-xs text-game-text-muted">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : isWin && (
+        <div className="rounded-game border border-game-border/50 bg-game-elevated/20 px-3 py-2 text-center">
+          <p className="font-body text-game-sm text-game-text-muted">{t('attack.none_gained')}</p>
+        </div>
+      )}
+
+      {/* ── 4. CAPTIVES — compact amber row ────────────── */}
+      {hasCaptives && (
+        <div className="flex items-center gap-3 rounded-game-lg border border-amber-700/50 bg-gradient-to-r from-amber-950/30 to-amber-950/5 px-3 py-2.5 shadow-engrave relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+          <Link2 className="size-4 text-amber-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-heading text-game-xs uppercase tracking-wide text-amber-400">{t('attack.captives_enslaved')}</p>
+            <p className="font-body text-game-xs text-amber-700/70">{t('army.slaves')}</p>
+          </div>
+          <p className="font-display text-game-2xl font-bold tabular-nums text-amber-300 leading-none shrink-0">
+            +{formatNumber(report.gained.captives)}
+          </p>
+        </div>
+      )}
+
+      {/* ── 5. CASUALTIES — unified split card, compact ── */}
+      <div className={`rounded-game-lg border overflow-hidden shadow-engrave grid grid-cols-2 ${
+        attLosses > 0 || defLosses > 0 ? 'border-game-border/70' : 'border-game-border/40'
+      }`}>
+        {/* Your losses */}
+        <div className={`px-3 py-2.5 text-center border-e border-game-border/40 ${attLosses > 0 ? 'bg-red-950/20' : 'bg-game-elevated/20'}`}>
+          <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-1.5 flex items-center justify-center gap-1">
+            <Shield className="size-2.5 opacity-60" />{t('attack.your_losses')}
+          </p>
+          <p className={`font-display text-game-2xl font-bold tabular-nums leading-none ${attLosses > 0 ? 'text-game-red-bright' : 'text-game-text-muted'}`}>
+            {attLosses > 0 ? `−${formatNumber(attLosses)}` : '0'}
+          </p>
+          <p className="font-body text-game-xs text-game-text-muted mt-0.5">{t('army.soldiers')}</p>
+        </div>
+        {/* Enemy losses */}
+        <div className={`px-3 py-2.5 text-center ${defLosses > 0 ? 'bg-green-950/20' : 'bg-game-elevated/20'}`}>
+          <p className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted mb-1.5 flex items-center justify-center gap-1">
+            <Skull className="size-2.5 opacity-60" />{t('attack.enemy_losses')}
+          </p>
+          <p className={`font-display text-game-2xl font-bold tabular-nums leading-none ${defLosses > 0 ? 'text-game-green-bright' : 'text-game-text-muted'}`}>
+            {defLosses > 0 ? `−${formatNumber(defLosses)}` : '0'}
+          </p>
+          <p className="font-body text-game-xs text-game-text-muted mt-0.5">{t('army.soldiers')}</p>
         </div>
       </div>
 
-      {/* ── 7. MODIFIERS ───────────────────────────────── */}
-      {report.reasons.length > 0 && (
-        <div className="border border-game-border/60 rounded-game-lg p-3 bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave">
-          <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-primary mb-2 flex items-center gap-1.5">
-            <Info className="size-3 opacity-80" />
-            {t('attack.combat_modifiers')}
-          </p>
-          <ul className="space-y-1.5">
-            {report.reasons.map((reason) => (
-              <li key={reason} className="font-body text-game-xs text-game-text-secondary flex items-start gap-2">
-                <span className="shrink-0 text-game-gold-primary mt-0.5">›</span>
-                <span>{REASON_LABELS[reason]}</span>
-              </li>
-            ))}
-          </ul>
+      {/* ── 6. FOOTER: COST + MODIFIERS ────────────────── */}
+      <div className="rounded-game-lg border border-game-border/60 bg-gradient-to-b from-game-elevated to-game-surface shadow-engrave divide-y divide-game-border/40">
+        <div className="flex items-center justify-between px-3 py-2">
+          <span className="font-heading text-game-xs uppercase tracking-wide text-game-text-muted">{t('attack.cost_paid')}</span>
+          <div className="flex items-center gap-2.5 font-body text-game-sm">
+            <span className="text-game-text-secondary tabular-nums">
+              {report.attacker.turns_spent}<span className="text-game-text-muted text-game-xs ms-1">{t('attack.turns_spent')}</span>
+            </span>
+            <span className="text-game-text-muted text-game-xs">·</span>
+            <span className="text-res-food tabular-nums">
+              {formatNumber(report.attacker.food_spent)}<span className="text-game-text-muted text-game-xs ms-1">{t('resources.food')}</span>
+            </span>
+          </div>
         </div>
-      )}
+        {hasModifiers && (
+          <div className="px-3 py-2">
+            <p className="font-heading text-game-xs uppercase tracking-wide text-game-gold-primary mb-1 flex items-center gap-1">
+              <Info className="size-2.5 opacity-80" />{t('attack.combat_modifiers')}
+            </p>
+            <ul className="space-y-0.5">
+              {report.reasons.map((reason) => (
+                <li key={reason} className="font-body text-game-xs text-game-text-secondary flex items-start gap-1.5">
+                  <span className="shrink-0 text-game-gold-primary mt-0.5">›</span>
+                  <span>{REASON_LABELS[reason]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>
     </div>

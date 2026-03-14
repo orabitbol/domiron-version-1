@@ -37,45 +37,26 @@ interface AttackDialogProps {
 
 type ActionTab = 'attack' | 'spy'
 
-// ── TurnChip (defined OUTSIDE parent to prevent remount) ──────────────────────
-interface TurnChipProps {
-  n: number
-  selected: boolean
-  affordable: boolean
-  enoughTurns: boolean
+// ── Shared step button (defined OUTSIDE parent to prevent remount) ─────────────
+interface StepBtnProps {
   onClick: () => void
+  disabled: boolean
+  label: string
+  variant?: 'gold' | 'purple'
 }
-
-function TurnChip({ n, selected, affordable, enoughTurns, onClick }: TurnChipProps) {
-  const isUnavailable = !affordable || !enoughTurns
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`
-        h-9 rounded-game font-heading text-game-sm font-bold transition-all border
-        ${selected
-          ? 'bg-amber-950/70 border-amber-500/70 text-game-gold-bright shadow-emboss'
-          : isUnavailable
-          ? 'bg-transparent border-game-border/25 text-game-text-muted/25 cursor-pointer'
-          : 'bg-game-elevated border-game-border text-game-text-secondary hover:border-amber-700/50 hover:text-game-gold hover:bg-amber-950/20'
-        }
-      `}
-    >
-      {n}
-    </button>
-  )
-}
-
-// ── SpyStepBtn (defined OUTSIDE to prevent remount) ───────────────────────────
-interface SpyStepProps { onClick: () => void; disabled: boolean; label: string }
-function SpyStepBtn({ onClick, disabled, label }: SpyStepProps) {
+function StepBtn({ onClick, disabled, label, variant = 'gold' }: StepBtnProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-10 h-10 flex items-center justify-center rounded-game border border-game-border bg-game-elevated text-game-text-muted hover:text-game-purple-bright hover:border-purple-700 disabled:opacity-20 transition-colors font-heading text-game-base"
+      className={`w-10 h-10 flex items-center justify-center rounded-game border border-game-border bg-game-elevated
+        text-game-text-muted disabled:opacity-20 disabled:cursor-not-allowed
+        transition-colors font-heading text-game-lg select-none
+        ${variant === 'gold'
+          ? 'hover:text-game-gold hover:border-amber-700/50 hover:bg-amber-950/20'
+          : 'hover:text-game-purple-bright hover:border-purple-700 hover:bg-purple-950/20'
+        }`}
     >
       {label}
     </button>
@@ -95,14 +76,15 @@ export function AttackDialog({
   isFrozen,
 }: AttackDialogProps) {
   const t = useTranslations()
-  const [tab, setTab]           = useState<ActionTab>('attack')
-  const [turns, setTurns]       = useState(1)
+  const [tab, setTab]             = useState<ActionTab>('attack')
+  const [turns, setTurns]         = useState(1)
   const [spiesSent, setSpiesSent] = useState(1)
 
   useEffect(() => {
     if (target) { setTab('attack'); setTurns(1); setSpiesSent(1) }
   }, [target?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const MAX_TURNS   = BALANCE.combat.MAX_TURNS_PER_ATTACK
   const foodPerTurn = Math.ceil(armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER)
   const foodCost    = Math.ceil(armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * turns)
 
@@ -116,24 +98,18 @@ export function AttackDialog({
   const notEnoughSpies    = armySpies < BALANCE.spy.minSpies || spiesSent > armySpies
   const spyDisabled       = isFrozen || notEnoughSpyTurns || notEnoughSpies || (target?.is_vacation ?? false)
 
-  function clampSpies(v: number) {
-    setSpiesSent(Math.max(1, Math.min(Math.max(1, armySpies), v)))
-  }
+  function clampTurns(v: number) { setTurns(Math.max(1, Math.min(MAX_TURNS, v))) }
+  function clampSpies(v: number) { setSpiesSent(Math.max(1, Math.min(Math.max(1, armySpies), v))) }
 
-  const MAX_TURNS = BALANCE.combat.MAX_TURNS_PER_ATTACK
-
-  // Determine which chips are "affordable" (food + turns)
-  function chipAffordable(n: number) {
-    const cost = Math.ceil(armySoldiers * BALANCE.combat.FOOD_PER_SOLDIER * n)
-    return playerFood >= cost
-  }
+  // Modal title reflects the active action
+  const modalTitle = tab === 'attack' ? t('attack.title') : t('dialog.tab_spy')
 
   return (
-    <Modal isOpen={!!target} onClose={onClose} title={t('dialog.action_title')} size="md">
+    <Modal isOpen={!!target} onClose={onClose} title={modalTitle} size="md">
       {target && (
         <div className="space-y-3">
 
-          {/* ── Target identity ─────────────────────────────────────── */}
+          {/* ── Target identity ───────────────────────────────────── */}
           <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3.5 shadow-engrave">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -151,15 +127,14 @@ export function AttackDialog({
                   )}
                 </div>
               </div>
-              <div className="text-right shrink-0 space-y-1">
+              <div className="text-right shrink-0">
                 <div className="flex items-center gap-1.5 justify-end">
                   <Shield className="size-3 text-game-text-muted opacity-60" />
                   <span className="font-body text-game-xs text-game-text-muted">{t('dialog.soldiers_label')}</span>
                   <span className="font-heading text-game-sm text-game-text-white tabular-nums">{formatNumber(target.soldiers)}</span>
                 </div>
-                {/* Status indicators */}
                 {(target.resource_shield_active || target.soldier_shield_active || target.is_protected || target.kill_cooldown_active) && (
-                  <div className="flex gap-1 justify-end flex-wrap">
+                  <div className="flex gap-1 justify-end flex-wrap mt-1">
                     {target.resource_shield_active && (
                       <span className="px-1.5 py-0.5 rounded border border-amber-700/40 bg-amber-950/30 font-body text-game-xs text-game-gold whitespace-nowrap">
                         {t('attack.resource_shield_active')}
@@ -172,12 +147,12 @@ export function AttackDialog({
                     )}
                     {target.is_protected && (
                       <span className="px-1.5 py-0.5 rounded border border-green-700/40 bg-green-950/30 font-body text-game-xs text-green-300 whitespace-nowrap">
-                        הגנת שחקן חדש
+                        {t('attack.status_protected').split(' — ')[0]}
                       </span>
                     )}
                     {target.kill_cooldown_active && (
                       <span className="px-1.5 py-0.5 rounded border border-orange-700/40 bg-orange-950/30 font-body text-game-xs text-orange-300 whitespace-nowrap">
-                        קוּלדאון הריגה
+                        {t('attack.status_cooldown').split(' — ')[0]}
                       </span>
                     )}
                   </div>
@@ -186,14 +161,14 @@ export function AttackDialog({
             </div>
           </div>
 
-          {/* ── Tab selector ────────────────────────────────────────── */}
+          {/* ── Tabs ──────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 rounded-game overflow-hidden border border-game-border">
             <button
               type="button"
               onClick={() => setTab('attack')}
               className={`flex items-center justify-center gap-2 py-2.5 font-heading text-game-sm uppercase tracking-wide transition-colors border-e border-game-border ${
                 tab === 'attack'
-                  ? 'bg-gradient-to-b from-red-950/60 to-red-950/20 text-game-red-bright border-e-game-border'
+                  ? 'bg-gradient-to-b from-red-950/60 to-red-950/20 text-game-red-bright'
                   : 'bg-game-surface text-game-text-muted hover:text-game-text-secondary'
               }`}
             >
@@ -214,72 +189,96 @@ export function AttackDialog({
             </button>
           </div>
 
-          {/* ── ATTACK TAB ──────────────────────────────────────────── */}
+          {/* ── ATTACK TAB ────────────────────────────────────────── */}
           {tab === 'attack' && (
             <div className="space-y-3">
 
-              {/* Turn chips */}
+              {/* Compact turn stepper + cost — single card */}
               <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide">{t('dialog.battle_duration')}</p>
-                  <span className="font-heading text-game-base text-game-gold font-bold tabular-nums">
-                    {turns} {turns === 1 ? t('dialog.turn_singular') : t('dialog.turns_header').toLowerCase()}
-                  </span>
+                {/* Stepper row */}
+                <div className="flex items-center gap-3">
+                  <StepBtn onClick={() => clampTurns(turns - 1)} disabled={turns <= 1} label="−" />
+                  <div className="flex-1 text-center">
+                    <span className="font-display text-game-3xl text-game-gold font-bold tabular-nums">{turns}</span>
+                    <span className="font-body text-game-xs text-game-text-muted ms-1.5">
+                      {turns === 1 ? t('dialog.turn_singular') : t('dialog.turns_row').toLowerCase()}
+                    </span>
+                  </div>
+                  <StepBtn onClick={() => clampTurns(turns + 1)} disabled={turns >= MAX_TURNS || playerTurns <= turns} label="+" />
                 </div>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {Array.from({ length: MAX_TURNS }, (_, i) => i + 1).map((n) => (
-                    <TurnChip
-                      key={n}
-                      n={n}
-                      selected={turns === n}
-                      affordable={chipAffordable(n)}
-                      enoughTurns={playerTurns >= n}
-                      onClick={() => setTurns(n)}
-                    />
-                  ))}
-                </div>
-              </div>
 
-              {/* Cost card */}
-              <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
-                <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.cost_preview')}</p>
-                <div className="space-y-1.5 font-body text-game-sm">
-                  <div className="flex justify-between">
-                    <span className="text-game-text-secondary">{t('dialog.turns_row')}</span>
-                    <span className={notEnoughTurns ? 'text-game-red-bright font-semibold tabular-nums' : 'text-game-text-white tabular-nums'}>
-                      {turns} / {playerTurns} {t('dialog.available')}
-                    </span>
+                {/* Glide slider */}
+                <div className="mt-3 px-1">
+                  <input
+                    type="range"
+                    min={1}
+                    max={Math.min(MAX_TURNS, playerTurns)}
+                    value={turns}
+                    onChange={(e) => clampTurns(Number(e.target.value))}
+                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer
+                      bg-game-border
+                      [&::-webkit-slider-thumb]:appearance-none
+                      [&::-webkit-slider-thumb]:w-4
+                      [&::-webkit-slider-thumb]:h-4
+                      [&::-webkit-slider-thumb]:rounded-full
+                      [&::-webkit-slider-thumb]:bg-amber-400
+                      [&::-webkit-slider-thumb]:border-2
+                      [&::-webkit-slider-thumb]:border-amber-600
+                      [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(251,191,36,0.5)]
+                      [&::-webkit-slider-thumb]:transition-shadow
+                      [&::-webkit-slider-thumb]:hover:shadow-[0_0_10px_rgba(251,191,36,0.7)]
+                      [&::-moz-range-thumb]:w-4
+                      [&::-moz-range-thumb]:h-4
+                      [&::-moz-range-thumb]:rounded-full
+                      [&::-moz-range-thumb]:bg-amber-400
+                      [&::-moz-range-thumb]:border-2
+                      [&::-moz-range-thumb]:border-amber-600
+                      [&::-moz-range-thumb]:shadow-[0_0_6px_rgba(251,191,36,0.5)]
+                      [&::-moz-range-thumb]:cursor-pointer
+                      [&::-webkit-slider-runnable-track]:rounded-full
+                      [&::-webkit-slider-runnable-track]:bg-gradient-to-r
+                      [&::-webkit-slider-runnable-track]:from-amber-900/60
+                      [&::-webkit-slider-runnable-track]:to-game-border"
+                    style={(() => {
+                      const maxSlider = Math.min(MAX_TURNS, playerTurns)
+                      const pct = maxSlider <= 1 ? 100 : ((turns - 1) / (maxSlider - 1)) * 100
+                      return {
+                        background: `linear-gradient(to right, rgba(180,83,9,0.6) 0%, rgba(180,83,9,0.6) ${pct}%, rgba(255,255,255,0.08) ${pct}%, rgba(255,255,255,0.08) 100%)`,
+                      }
+                    })()}
+                  />
+                  <div className="flex justify-between mt-1 font-body text-game-xs text-game-text-muted">
+                    <span>1</span>
+                    <span>{Math.min(MAX_TURNS, playerTurns)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-game-text-secondary">{t('dialog.soldiers_row')}</span>
-                    <span className={noSoldiers ? 'text-game-red-bright font-semibold tabular-nums' : 'text-game-text-white tabular-nums'}>
-                      {formatNumber(armySoldiers)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-game-text-secondary">
-                      {t('dialog.food_cost')}
+                </div>
+
+                {/* Inline cost */}
+                <div className="mt-2.5 pt-2 border-t border-game-border/40 space-y-1.5 font-body">
+                  <div className="flex justify-between text-game-sm">
+                    <span className="text-game-text-secondary">{t('dialog.food_cost')}</span>
+                    <span className={notEnoughFood ? 'text-game-red-bright font-semibold tabular-nums' : 'text-res-food font-semibold tabular-nums'}>
+                      {formatNumber(foodCost)}
                       {armySoldiers > 0 && (
-                        <span className="text-game-xs text-game-text-muted ms-1">
-                          ({formatNumber(foodPerTurn)} {t('dialog.food_per_turn')})
+                        <span className="text-game-xs text-game-text-muted font-normal ms-1.5">
+                          ({formatNumber(foodPerTurn)}{t('dialog.food_per_turn') !== 'per turn' ? '/' : '/'}{t('dialog.food_per_turn')})
                         </span>
                       )}
                     </span>
-                    <span className={notEnoughFood ? 'text-game-red-bright font-semibold tabular-nums' : 'text-res-food tabular-nums'}>
-                      {formatNumber(foodCost)}
-                    </span>
                   </div>
-                  <div className="border-t border-game-border/40 pt-1 flex justify-between">
-                    <span className="text-game-text-secondary">{t('dialog.food_available')}</span>
-                    <span className={notEnoughFood ? 'text-game-red-bright tabular-nums' : 'text-res-food tabular-nums'}>
-                      {formatNumber(playerFood)}
+                  <div className="flex justify-between text-game-xs text-game-text-muted">
+                    <span className={noSoldiers ? 'text-game-red-bright' : ''}>
+                      {formatNumber(armySoldiers)} {t('dialog.soldiers_row').toLowerCase()}
+                    </span>
+                    <span className={notEnoughTurns ? 'text-game-red-bright' : ''}>
+                      {t('dialog.food_available')}: <span className={notEnoughFood ? 'text-game-red-bright' : 'text-res-food'}>{formatNumber(playerFood)}</span>
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Risk / Reward */}
-              <div className="grid grid-cols-2 gap-2 text-game-xs font-body">
+              <div className="grid grid-cols-2 gap-2 font-body text-game-xs">
                 <div className="bg-game-green/5 border border-green-900/40 rounded-game-lg p-2.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <CheckCircle className="size-3 text-game-green-bright shrink-0" />
@@ -304,9 +303,9 @@ export function AttackDialog({
                 </div>
               </div>
 
-              {/* Validation errors */}
+              {/* Validation */}
               {(noSoldiers || notEnoughFood || notEnoughTurns) && (
-                <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright space-y-0.5 flex items-start gap-2">
+                <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright flex items-start gap-2">
                   <AlertCircle className="size-4 shrink-0 mt-0.5" />
                   <div>
                     {noSoldiers && <p>{t('dialog.no_soldiers')}</p>}
@@ -322,13 +321,7 @@ export function AttackDialog({
               )}
 
               <div className="flex gap-3 pt-1">
-                <Button
-                  variant="danger"
-                  loading={loading}
-                  disabled={attackDisabled}
-                  onClick={() => onAttack(turns)}
-                  className="flex-1"
-                >
+                <Button variant="danger" loading={loading} disabled={attackDisabled} onClick={() => onAttack(turns)} className="flex-1">
                   <Sword className="size-4" />
                   {t('dialog.attack_btn')}
                 </Button>
@@ -337,20 +330,23 @@ export function AttackDialog({
             </div>
           )}
 
-          {/* ── SPY TAB ─────────────────────────────────────────────── */}
+          {/* ── SPY TAB ───────────────────────────────────────────── */}
           {tab === 'spy' && (
             <div className="space-y-3">
+
+              {/* Spy stepper */}
               <div className="bg-gradient-to-b from-purple-950/20 to-game-surface border border-purple-900/40 rounded-game-lg p-3 shadow-engrave">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2.5">{t('dialog.spies_to_send')}</p>
                 <div className="flex items-center gap-3">
-                  <SpyStepBtn onClick={() => clampSpies(spiesSent - 1)} disabled={spiesSent <= 1} label="−" />
+                  <StepBtn onClick={() => clampSpies(spiesSent - 1)} disabled={spiesSent <= 1} label="−" variant="purple" />
                   <span className="flex-1 text-center font-display text-game-2xl text-game-purple-bright font-bold tabular-nums">
                     {spiesSent}
                   </span>
-                  <SpyStepBtn onClick={() => clampSpies(spiesSent + 1)} disabled={spiesSent >= Math.max(1, armySpies)} label="+" />
+                  <StepBtn onClick={() => clampSpies(spiesSent + 1)} disabled={spiesSent >= Math.max(1, armySpies)} label="+" variant="purple" />
                 </div>
               </div>
 
+              {/* Requirements */}
               <div className="bg-gradient-to-b from-game-elevated to-game-surface border border-game-border rounded-game-lg p-3 shadow-engrave">
                 <p className="text-game-xs text-game-text-muted font-heading uppercase tracking-wide mb-2">{t('dialog.requirements')}</p>
                 <div className="space-y-1.5 font-body text-game-sm">
@@ -369,7 +365,8 @@ export function AttackDialog({
                 </div>
               </div>
 
-              <div className="space-y-2 text-game-xs font-body">
+              {/* Outcome descriptions */}
+              <div className="space-y-2 font-body text-game-xs">
                 <div className="bg-game-green/5 border border-green-900/40 rounded-game-lg p-2.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <CheckCircle className="size-3 text-game-green-bright" />
@@ -399,6 +396,7 @@ export function AttackDialog({
                 </div>
               </div>
 
+              {/* Validation */}
               {(notEnoughSpyTurns || notEnoughSpies) && (
                 <div className="rounded-game-lg border border-red-900/60 bg-red-950/20 px-3 py-2 font-body text-game-sm text-game-red-bright flex items-start gap-2">
                   <AlertCircle className="size-4 shrink-0 mt-0.5" />

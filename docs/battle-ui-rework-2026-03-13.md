@@ -146,12 +146,11 @@ No approximations or reconstructions — both values come straight from the comb
 - Spy tab: purple gradient background when active + `Eye` icon
 - More visual contrast between active and inactive tabs
 
-**Turn selector** — replaced
-- Old: arrow buttons + range slider (hard to use on mobile, no quick jump)
-- New: 5×2 grid of `TurnChip` buttons (1–10)
-- Active chip: amber glow border, gold text
-- Chips the player can't afford (food or turns): dimmed
-- No slider needed — click directly on desired turn count
+**Turn selector** — replaced (Phase 3 revision)
+- Phase 2 had a 5×2 `TurnChip` grid (1–10) — reverted because it was visually heavy and worse on mobile
+- Phase 3 final: single `[−] N turns [+]` stepper inline with cost below, all in one card
+- Compact `StepBtn` component (gold variant for attack, purple for spy) — 40×40 touch target
+- Inline cost shows food per turn: `Food Cost (500 per turn)`
 
 **Cost card**
 - Now shows "food per turn" in parentheses next to the total cost
@@ -226,13 +225,170 @@ The engine files touched:
 
 ---
 
+## Phase 3 — Battle Report Hierarchy & Visual Redesign
+
+### Section order changed (Phase 3)
+
+The section order was restructured so the player understands **why** the outcome happened before seeing **what** it was:
+
+1. **Power Breakdown** ← first: explains the fight before the verdict
+2. **Outcome Banner** ← second: victory/defeat with full context
+3. **Spoils of War** ← resource gains as flex-wrap chips
+4. **Captives** ← dramatic full-width amber panel
+5. **Casualties** ← unified split-panel card
+6. **Cost + Modifiers** ← compact merged footer
+
+### Aggressive visual redesign
+
+**Spoils of War — resource chips**
+- Each non-zero resource gets its own `flex-1 min-w-[68px]` chip with colored border + bg
+- Large `text-game-xl` `+N` number centered in each chip with resource-specific color
+- Resource label below in `text-game-xs text-game-text-muted`
+- Feels like a reward screen, not a data table
+
+**Captives — dramatic amber panel**
+- `border-2 border-amber-700/50` with `bg-gradient-to-br from-amber-950/50`
+- Top glow line: `h-0.5 bg-gradient-to-r via-amber-500/70`
+- Centered layout: `Link2` icon flanking the label, large `text-game-4xl` number below
+- Only rendered when `captives > 0`
+
+**Casualties — unified split card**
+- Single `rounded-game-lg border` card, `grid grid-cols-2`
+- `border-e border-game-border/50` Tailwind logical divider (RTL-safe)
+- Left half: `bg-red-950/20` when losses > 0 (your soldiers)
+- Right half: `bg-green-950/20` when losses > 0 (enemy soldiers)
+- `font-display text-game-3xl` numbers — clear zero display instead of `−0`
+
+**Cost + Modifiers — merged footer**
+- Single card with `divide-y` between cost row and modifiers list
+- Reduces visual clutter at bottom of report
+
+### Pre-attack dialog — turn selector revision
+
+- Phase 2 `TurnChip` 5×2 grid reverted (too heavy, worse on mobile)
+- New: single `StepBtn` component with `[−] N turns [+]` inline stepper + glide slider (see Phase 4)
+- All cost info in one card below the stepper
+- Modal title: `t('attack.title')` for attack tab, `t('dialog.tab_spy')` for spy tab (no longer says "פעולה")
+
+---
+
+## Phase 4 — Food Loot Fix + Glide Slider (2026-03-14)
+
+### Fix 1 — Food loot always shown
+
+**Root cause**: The `lootChips` array used `t(\`resources.${key}\`)` — a dynamic template literal key.
+In next-intl's strict TypeScript mode the dynamic key resolves correctly at runtime, but to eliminate
+any runtime ambiguity and ensure type safety, the labels are now pre-computed in a static map:
+
+```typescript
+const lootLabels = {
+  gold: t('resources.gold'),
+  iron: t('resources.iron'),
+  wood: t('resources.wood'),
+  food: t('resources.food'),   // ← explicit — no dynamic key
+}
+```
+
+Each chip renders `lootLabels[key]` — fully typed, no template literal inference.
+`food` was already present in `lootChips` and `hasLoot`; the map ensures it renders correctly
+whenever `report.gained.loot.food > 0`.
+
+### Fix 2 — Glide slider for turn selection
+
+Added a native `<input type="range">` between the stepper row and the cost section:
+
+- **min**: 1 — **max**: `min(MAX_TURNS, playerTurns)` — value bound to `turns` state
+- `onChange` calls `clampTurns()` — same path as the `+`/`−` buttons, no new state
+- Styled with Tailwind arbitrary variants (`[&::-webkit-slider-thumb]`, `[&::-moz-range-thumb]`)
+  - Thumb: 16×16 amber circle with `box-shadow: 0 0 6px rgba(251,191,36,0.5)` glow
+  - Track fill: inline `style` background gradient (amber-900/60 → transparent) — updates live
+  - Min/max labels: tiny muted numbers below the slider
+- Zero-division guard: `pct = maxSlider <= 1 ? 100 : ((turns - 1) / (maxSlider - 1)) * 100`
+- Buttons remain primary UX; slider is a secondary drag enhancement — feels premium, not noisy
+- Fully mobile-friendly (native touch drag on iOS/Android)
+
+---
+
+## Phase 5 — Correction Pass: Compact Modal + Food Fix + No Ratio Badge (2026-03-14)
+
+This pass corrected specific issues from prior redesign attempts.
+
+### What was wrong
+
+- Modal too tall — required scrolling on most screens
+- Ratio badge (`יחס כוח ×15.03`) was still in the hero/outcome banner — not wanted there
+- Section order was still wrong (Power before Outcome)
+- Loot/captives/casualties still felt too "stat-card" / report-like
+- Food loot still not rendering (root cause traced and fixed definitively)
+- Captives section too tall (full-width dramatic panel adding unnecessary height)
+
+### Food loot — definitive fix
+
+Previous approach used a label map which was correct, but the issue persisted because:
+- `loot.food` access is now guarded with `?? 0` — protects against `undefined`/`null`
+- Filter: `lootItems.filter(x => x.amount > 0)` — food appears whenever `loot.food > 0`
+- `hasLoot` replaced by `lootItems.length > 0` — derived from the same filtered array, single source of truth
+- All 4 resources use static `t('resources.gold')` etc. calls — no dynamic keys
+
+```typescript
+const lootItems = [
+  { key: 'gold', label: t('resources.gold'), amount: loot.gold ?? 0, cls: 'text-res-gold' },
+  { key: 'iron', label: t('resources.iron'), amount: loot.iron ?? 0, cls: 'text-res-iron' },
+  { key: 'wood', label: t('resources.wood'), amount: loot.wood ?? 0, cls: 'text-res-wood' },
+  { key: 'food', label: t('resources.food'), amount: loot.food ?? 0, cls: 'text-res-food' },
+].filter(x => x.amount > 0)
+```
+
+### Section order (corrected)
+
+1. **Outcome hero** — VICTORY/DEFEAT banner, army names, NO ratio badge
+2. **Power breakdown** — compact 2-col grid, calmer visual weight
+3. **Spoils of War** — all 4 resources inline, rewarding feel
+4. **Captives** — compact horizontal row (not tall centered panel)
+5. **Casualties** — unified split card, tighter padding
+6. **Footer** — cost + modifiers merged
+
+### Ratio badge removed
+
+Removed from the hero outcome section entirely. The `יחס כוח ×N.NN` badge was deleted.
+Power ratio context belongs in the power breakdown section, not the emotional victory/defeat banner.
+
+### Modal compaction
+
+| Element | Before | After |
+|---|---|---|
+| Outer spacing | `space-y-3` | `space-y-2` |
+| Hero padding | `py-5` | `py-3.5` |
+| Casualties padding | `py-4` | `py-2.5` |
+| Captives | Full-width centered tall panel | Compact horizontal `flex items-center` row |
+| PowerSide | `p-3 space-y-1.5` | `p-2 space-y-0.5` (compact mode) |
+| Footer rows | `py-2.5` | `py-2` |
+
+### Redesign details
+
+**Spoils of War**: Inline horizontal items — `+N Label` pairs with resource colors. Compact amber strip with top glow line. All 4 resources explicit.
+
+**Captives**: Single-row `flex items-center` with `Link2` icon + label on left, large `text-game-2xl` number on right. Top accent line. Compact but visually distinct.
+
+**Casualties**: Same 2-col split card but `py-2.5` instead of `py-4`. Numbers at `text-game-2xl` (was `text-game-3xl`). Section label icons: `Shield` for your losses, `Skull` for enemy losses.
+
+**Power**: Added `compact` prop to `PowerSide`. All rows use `text-game-xs` for both label and value (was `text-game-xs`/`text-game-sm`). Padding `p-2`, gap `space-y-0.5`. Still shows full breakdown: PP → hero → race → clan → Base ECP → tribe → Final ECP. Formulas unchanged.
+
+### No combat logic changed
+
+- Zero formula changes
+- Zero combat constant changes
+- Zero backend changes
+
+---
+
 ## Part 7 — Verification
 
 | Check | Result |
 |---|---|
 | TypeScript (`npx tsc --noEmit`) | ✅ Clean — 0 errors |
 | Tests (`npx vitest run`) | ✅ 170/170 passed (combat.test + attack-integrity.test + mutation-patterns.test) |
-| Build (`npx next build`) | ✅ Compiled successfully, 90/90 pages generated |
+| Build (`npx next build`) | ✅ Compiled successfully |
 
 ---
 
@@ -242,8 +398,8 @@ The engine files touched:
 |---|---|
 | `types/game.ts` | +6 fields on `BattleReport.attacker` and `BattleReport.defender` |
 | `app/api/attack/route.ts` | Populate 6 new BattleReport fields |
-| `app/(game)/attack/AttackClient.tsx` | New lucide imports + `PowerSide` sub-component + full `BattleReportModal` rewrite |
-| `components/game/AttackDialog.tsx` | Full redesign — extended `DialogTarget`, new `TurnChip` + `SpyStepBtn` sub-components, new layout |
+| `app/(game)/attack/AttackClient.tsx` | New lucide imports + `PowerSide` sub-component + `BattleReportModal` full rewrite (Phase 2 + 3) |
+| `components/game/AttackDialog.tsx` | Full redesign — compact turn stepper, correct modal title, `StepBtn` component |
 | `messages/en.json` | +15 new i18n keys |
 | `messages/he.json` | +15 new i18n keys (Hebrew) |
 | `lib/game/mutation-patterns.test.ts` | Updated `BattleReport` fixture to include new fields (zero values) |
