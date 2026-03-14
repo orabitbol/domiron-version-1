@@ -55,10 +55,6 @@ function formatDate(iso: string) {
   }
 }
 
-function totalStolen(row: AttackRow) {
-  return row.gold_stolen + row.iron_stolen + row.wood_stolen + row.food_stolen
-}
-
 // Safe JSONB accessors — guards against old/missing spy history fields
 function safeNum(data: Record<string, unknown>, key: string): number {
   const v = data[key]
@@ -150,7 +146,6 @@ function AttackRow({ row, perspective, isLast }: AttackRowProps) {
   const targetName  = isOutgoing ? (row.defender?.army_name ?? 'Unknown') : (row.attacker?.army_name ?? 'Unknown')
   const myLosses    = isOutgoing ? row.attacker_losses : row.defender_losses
   const theirLosses = isOutgoing ? row.defender_losses : row.attacker_losses
-  const stolen      = totalStolen(row)
   const { date, time } = formatDate(row.created_at)
 
   return (
@@ -215,16 +210,12 @@ function AttackRow({ row, perspective, isLast }: AttackRowProps) {
 
         {/* Plunder */}
         <div style={{ flexShrink: 0 }}>
-          {stolen > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 3, justifyContent: 'flex-end' }}>
-              {row.gold_stolen > 0 && <PlunderChip type="gold" amount={row.gold_stolen} />}
-              {row.iron_stolen > 0 && <PlunderChip type="iron" amount={row.iron_stolen} />}
-              {row.wood_stolen > 0 && <PlunderChip type="wood" amount={row.wood_stolen} />}
-              {row.food_stolen > 0 && <PlunderChip type="food" amount={row.food_stolen} />}
-            </div>
-          ) : (
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.18)', fontFamily: 'var(--font-body, sans-serif)' }}>—</span>
-          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 3, justifyContent: 'flex-end' }}>
+            <PlunderChip type="gold" amount={row.gold_stolen} />
+            <PlunderChip type="iron" amount={row.iron_stolen} />
+            <PlunderChip type="wood" amount={row.wood_stolen} />
+            <PlunderChip type="food" amount={row.food_stolen} />
+          </div>
         </div>
 
       </div>
