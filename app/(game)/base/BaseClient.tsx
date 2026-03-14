@@ -34,8 +34,25 @@ function StatPanel({
 }) {
   return (
     <div className={cn('panel-ornate rounded-game-lg p-4 relative overflow-hidden shadow-emboss', bgClass, borderClass)}>
-      <div className={cn('absolute top-0 start-0 w-16 h-16 opacity-10 rounded-full blur-2xl', color)} />
-      <div className="flex items-start justify-between mb-3">
+      {/* רקע אייקון קטגוריה — פרוס על כל הפאנל, שקוף כדי שהכתב יישאר קריא */}
+      <div
+        className="absolute inset-0 z-0 bg-center bg-cover bg-no-repeat pointer-events-none"
+        style={{
+          backgroundImage: `url(${iconSrc})`,
+          opacity: 0.22,
+        }}
+        aria-hidden
+      />
+      {/* שכבת מיזוג כהה קלה כדי שהטקסט יבלוט */}
+      <div
+        className="absolute inset-0 z-0 pointer-events-none"
+        style={{
+          background: 'linear-gradient(180deg, rgba(32,26,16,0.72) 0%, rgba(22,17,10,0.88) 100%)',
+        }}
+        aria-hidden
+      />
+      <div className={cn('absolute top-0 start-0 w-16 h-16 opacity-10 rounded-full blur-2xl z-0', color)} />
+      <div className="relative z-10 flex items-start justify-between mb-3">
         <div className="flex items-center gap-4">
           <img src={iconSrc} alt={title} style={{ width: 96, height: 96, objectFit: 'contain', display: 'block', flexShrink: 0, filter: 'drop-shadow(0 0 16px rgba(255,255,255,0.25)) drop-shadow(0 4px 12px rgba(0,0,0,0.55))' }} />
           <div>
@@ -47,12 +64,12 @@ function StatPanel({
           {linkLabel} <ArrowRight className="size-3 rtl-flip" />
         </Link>
       </div>
-      <div className="mb-2">
+      <div className="relative z-10 mb-2">
         <p className="text-game-2xs text-game-text-muted font-heading mb-0.5">כוח</p>
         <p className={cn('text-game-2xl font-display font-bold', colorClass)}>{formatNumber(power, true)}</p>
       </div>
-      <div className="divider-ornate" />
-      <div className="grid grid-cols-2 gap-1.5 pt-2">
+      <div className="relative z-10 divider-ornate" />
+      <div className="relative z-10 grid grid-cols-2 gap-1.5 pt-2">
         <div>
           <p className="text-game-2xs text-game-text-muted font-heading">{unitLabel}</p>
           <p className="text-game-sm text-game-text-white font-semibold tabular-nums">{formatNumber(units)}</p>
